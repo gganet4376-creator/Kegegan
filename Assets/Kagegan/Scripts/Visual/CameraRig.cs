@@ -1,0 +1,140 @@
+using UnityEngine;
+
+namespace Kagegan
+{
+    /// <summary>
+    /// Fighting-game camera: views the duel from the side (perpendicular to the player-target axis),
+    /// zooms with distance, never flips sides abruptly, adds trauma-based shake and cinematic close-ups.
+    /// </summary>
+    public class CameraRig : MonoBehaviour
+    {
+        public static CameraRig Inst;
+        public Camera Cam;
+        public Transform Player, Target;
+        Vector3 side = Vector3.back;
+        Vector3 pos, look;
+        float trauma;
+        float cineUntil, cineDist, cineHeight;
+        Vector3 cineFocus, cineDir;
+        bool orbit;
+        float orbitAngle;
+        public bool MenuMode;
+        public Vector3 MenuFocus;
+        public float MenuDistance = 4.2f;
+
+        public static CameraRig Create()
+        {
+            var go = new GameObject("MainCamera");
+            go.tag = "MainCamera";
+            var cam = go.AddComponent<Camera>();
+            cam.fieldOfView = 50f;
+            cam.nearClipPlane = 0.2f;
+            cam.farClipPlane = 160f;
+            cam.clearFlags = CameraClearFlags.SolidColor;
+            cam.backgroundColor = new Color(0.75f, 0.85f, 0.95f);
+            cam.allowHDR = false;
+            cam.allowMSAA = true;
+            go.AddComponent<AudioListener>();
+            var rig = go.AddComponent<CameraRig>();
+            rig.Cam = cam;
+            Inst = rig;
+            return rig;
+        }
+
+        public static void Shake(float amount) { if (Inst != null) Inst.trauma = Mathf.Min(1f, Inst.trauma + amount); }
+
+        public static void Cinematic(Vector3 focus, Vector3 viewDir, float distance, float height, float seconds)
+        {
+            if (Inst == null) return;
+            Inst.cineFocus = focus; Inst.cineDir = viewDir.sqrMagnitude > 0.01f ? viewDir.normalized : Vector3.back;
+            Inst.cineDist = distance; Inst.cineHeight = height;
+            Inst.cineUntil = Time.unscaledTime + seconds;
+            Inst.orbit = false;
+        }
+
+        public static void Orbit(Vector3 focus, float distance, float height, float seconds)
+        {
+            Cinematic(focus, Vector3.back, distance, height, seconds);
+            if (Inst != null) { Inst.orbit = true; Inst.orbitAngle = 0f; }
+        }
+
+        public static void EndCinematic() { if (Inst != null) Inst.cineUntil = 0f; }
+
+        public void Snap()
+        {
+            ComputeTarget(out pos, out look);
+            transform.position = pos;
+            transform.LookAt(look);
+        }
+
+        void ComputeTarget(out Vector3 p, out Vector3 l)
+        {
+            if (MenuMode)
+            {
+                l = MenuFocus + Vector3.up * 1.05f;
+                p = MenuFocus + new Vector3(0.9f, 1.5f, MenuDistance);
+                return;
+            }
+            if (Time.unscaledTime < cineUntil)
+            {
+                if (orbit)
+                {
+                    orbitAngle += Time.unscaledDeltaTime * 18f;
+                    cineDir = Quaternion.Euler(0, orbitAngle, 0) * Vector3.back;
+                }
+                l = cineFocus;
+                p = cineFocus + cineDir * cineDist + Vector3.up * cineHeight;
+                return;
+            }
+            if (Player == null) { p = transform.position; l = transform.position + transform.forward; return; }
+
+            Vector3 a = Player.position;
+            Vector3 b = Target != null ? Target.position : a + KMath.Flat(Player.forward) * 3f;
+            Vector3 axis = KMath.Flat(b - a);
+            float dist = axis.magnitude;
+            if (dist > 0.3f && Target != null)
+            {
+                Vector3 perp = Vector3.Cross(Vector3.up, axis / dist);
+                if (Vector3.Dot(perp, side) < 0f) perp = -perp;
+                side = Vector3.Slerp(side, perp, 1f - Mathf.Exp(-2.2f * Time.deltaTime)).normalized;
+            }
+            Vector3 mid = Target != null ? Vector3.Lerp(a, b, 0.42f) : a;
+            float d = Target != null ? Mathf.Clamp(5.2f + dist * 0.55f, 6f, 13f) : 7f;
+            float yLift = Mathf.Max(0f, Mathf.Max(a.y, Target != null ? b.y : 0f) * 0.5f);
+            l = mid + Vector3.up * (1.15f + yLift);
+            p = mid + side * d + Vector3.up * (2.0f + d * 0.13f + yLift);
+            // keep camera inside the arena walls
+            Vector3 flat = KMath.Flat(p);
+            if (flat.magnitude > 26f) { flat = flat.normalized * 26f; p = new Vector3(flat.x, p.y, flat.z); }
+        }
+
+        void LateUpdate()
+        {
+            ComputeTarget(out Vector3 tp, out Vector3 tl);
+            float dt = Time.unscaledDeltaTime;
+            float rate = Time.unscaledTime < cineUntil ? 6f : 5f;
+            pos = KMath.Damp(pos, tp, rate, dt);
+            look = KMath.Damp(look, tl, rate * 1.6f, dt);
+            transform.position = pos;
+            transform.rotation = Quaternion.LookRotation(look - pos);
+
+            if (trauma > 0f)
+            {
+                float s = trauma * trauma;
+                float t = Time.unscaledTime * 32f;
+                transform.position += transform.right * (Mathf.PerlinNoise(t, 0.1f) - 0.5f) * 0.6f * s
+                                    + transform.up * (Mathf.PerlinNoise(0.3f, t) - 0.5f) * 0.6f * s;
+                transform.rotation *= Quaternion.Euler(0, 0, (Mathf.PerlinNoise(t, t) - 0.5f) * 6f * s);
+                trauma = Mathf.Max(0f, trauma - dt * 1.6f);
+            }
+        }
+
+        /// <summary>Camera-relative movement on the ground plane.</summary>
+        public Vector3 ToWorld(Vector2 stick)
+        {
+            Vector3 f = KMath.Flat(transform.forward).normalized;
+            Vector3 r = KMath.Flat(transform.right).normalized;
+            return r * stick.x + f * stick.y;
+        }
+    }
+}

@@ -1,0 +1,47 @@
+# Builds the Android APK with GameCI.
+# Required repository secrets (Settings → Secrets and variables → Actions):
+#   UNITY_LICENSE  – contents of your Unity .ulf license file (Personal works), or use UNITY_SERIAL for Pro
+#   UNITY_EMAIL    – Unity account e-mail
+#   UNITY_PASSWORD – Unity account password
+name: Android APK
+
+# Run manually from the Actions tab once the secrets are set.
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost "$AGENT_TOOLSDIRECTORY" || true
+          df -h
+
+      - uses: actions/cache@v4
+        with:
+          path: Library
+          key: Library-Android-${{ hashFiles('Packages/manifest.json', 'ProjectSettings/ProjectVersion.txt') }}
+          restore-keys: Library-Android-
+
+      - name: Build APK
+        uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          targetPlatform: Android
+          buildMethod: Kagegan.EditorTools.KageganBuild.BuildAndroidCI
+          androidExportType: androidPackage
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Kagegan-apk
+          path: Builds/Android/*.apk
+          if-no-files-found: error

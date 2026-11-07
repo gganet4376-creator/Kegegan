@@ -1,0 +1,6 @@
+<linker>
+  <!-- render scale is changed at runtime through reflection (dynamic resolution) -->
+  <assembly fullname="Unity.RenderPipelines.Universal.Runtime">
+    <type fullname="UnityEngine.Rendering.Universal.UniversalRenderPipelineAsset" preserve="all" />
+  </assembly>
+</linker>
