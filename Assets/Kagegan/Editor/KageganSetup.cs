@@ -46,6 +46,16 @@ namespace Kagegan.EditorTools
             Debug.Log("Kagegan: project setup complete. Press Play in Main.unity, or use Kagegan > Build Android APK.");
         }
 
+        /// <summary>Pre-export hook for Unity Build Automation (cloud build):
+        /// set "Pre-Export Method Name" to Kagegan.EditorTools.KageganSetup.PreExport</summary>
+        public static void PreExport()
+        {
+            EnsureScene();
+            TrySetupURP();
+            ConfigurePlayer();
+            AssetDatabase.SaveAssets();
+        }
+
         public static void EnsureScene()
         {
             Directory.CreateDirectory(Path.GetDirectoryName(ScenePath));
