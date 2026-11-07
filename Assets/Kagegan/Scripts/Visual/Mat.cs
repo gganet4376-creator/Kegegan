@@ -19,6 +19,7 @@ namespace Kagegan
             Shader outline = Load("KageOutline", "Unlit/Color");
             Shader fx = Load("KageFx", "Sprites/Default");
             fxShader = fx;
+            surfaceShader = Resources.Load<Shader>("Kagegan/Shaders/KageSurface");
 
             SoftDot = MakeRadial(64, (r) => Mathf.Pow(Mathf.Clamp01(1f - r), 2f));
             Ring = MakeRadial(128, (r) => Mathf.Clamp01(1f - Mathf.Abs(r - 0.82f) * 7f) * Mathf.Clamp01(r * 1.3f));
@@ -67,6 +68,32 @@ namespace Kagegan
         }
 
         static Shader fxShader;
+        static Shader surfaceShader;
+
+        /// <summary>High and Ultra swap the vertex-coloured ground, temple tiles and some props for photo textures.</summary>
+        public static bool PhotoSurfaces => GraphicsQuality.Current >= GraphicsPreset.High && surfaceShader != null && surfaceShader.isSupported;
+
+        /// <summary>Photo-textured material (Kagegan/Surface): albedo + normal map. tile &gt; 0 projects the texture in
+        /// object space with that tile size in metres (meshes without UVs); 0 uses the mesh UVs. Null if unavailable.</summary>
+        public static Material Surface(string name, Texture2D albedo, Texture2D normal, Color tint, float tile, float antiTile = 0f, float wet = 0f)
+        {
+            if (!PhotoSurfaces || albedo == null) return null;
+            var m = new Material(surfaceShader) { name = name, enableInstancing = true };
+            m.SetTexture("_MainTex", albedo);
+            if (normal != null) m.SetTexture("_BumpMap", normal);
+            m.SetColor("_Color", tint);
+            m.SetFloat("_ObjUV", tile);
+            m.SetFloat("_AntiTile", antiTile);
+            m.SetFloat("_Wet", wet);
+            return m;
+        }
+
+        /// <summary>Tint that pulls a photo texture's average colour towards the arena palette (amount 0..1).</summary>
+        public static Color TintTowards(Color palette, Color textureMean, float amount)
+        {
+            Color r = new Color(palette.r / Mathf.Max(0.05f, textureMean.r), palette.g / Mathf.Max(0.05f, textureMean.g), palette.b / Mathf.Max(0.05f, textureMean.b), 1f);
+            return Color.Lerp(Color.white, r, amount);
+        }
 
         /// <summary>Effect material for an imported VFX texture (flipbooks, puffs). Null-safe: returns the soft-dot material if the texture is missing.</summary>
         public static Material FxTex(Texture tex, bool additive, string name)

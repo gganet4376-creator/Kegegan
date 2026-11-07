@@ -10,7 +10,7 @@ namespace Kagegan
     /// </summary>
     public static class ModelKit
     {
-        static readonly string[] Roots = { "Kagegan/Nature/", "Kagegan/Props/", "Kagegan/City/" };
+        static readonly string[] Roots = { "Kagegan/Nature/", "Kagegan/Props/", "Kagegan/City/", "Kagegan/Photo/" };
         static readonly Dictionary<string, GameObject> prefabs = new Dictionary<string, GameObject>();
         static readonly Dictionary<string, Material> mats = new Dictionary<string, Material>();
         static readonly Dictionary<string, float> heights = new Dictionary<string, float>();
@@ -117,6 +117,23 @@ namespace Kagegan
             return m;
         }
 
+        /// <summary>Photoscanned Poly Haven models (Resources/Kagegan/Photo, CC0) use the Surface shader with their
+        /// own albedo + normal maps; null when the preset is below High or the textures are missing.</summary>
+        static Material PhotoMat(string model)
+        {
+            string key = "photo:" + model;
+            if (mats.TryGetValue(key, out var m)) return m;
+            m = null;
+            var diff = Resources.Load<Texture2D>("Kagegan/Photo/Textures/" + model + "_diff");
+            if (diff != null)
+                m = Mat.Surface("KagePhoto_" + model, diff, Resources.Load<Texture2D>("Kagegan/Photo/Textures/" + model + "_nor"), Color.white, 0f);
+            mats[key] = m;
+            return m;
+        }
+
+        /// <summary>Photoscanned rocks, stumps and the fire pit: only on Ultra (each is 4k-40k triangles with 1K maps).</summary>
+        public static bool PhotoProps => GraphicsQuality.Current == GraphicsPreset.Ultra && Mat.PhotoSurfaces;
+
         /// <summary>Instantiates a model scaled to the given height (metres). Returns null when the kit is missing.</summary>
         public static GameObject Spawn(string model, Transform parent, Vector3 pos, float height, float yaw)
         {
@@ -127,10 +144,11 @@ namespace Kagegan
             go.transform.position = pos;
             go.transform.rotation = Quaternion.Euler(0f, yaw, 0f) * go.transform.rotation;
             var rs = go.GetComponentsInChildren<Renderer>();
+            var photo = PhotoMat(model);
             foreach (var r in rs)
             {
                 var sm = r.sharedMaterials;
-                for (int i = 0; i < sm.Length; i++) sm[i] = ToonFor(sm[i], model);
+                for (int i = 0; i < sm.Length; i++) sm[i] = photo != null ? photo : ToonFor(sm[i], model);
                 r.sharedMaterials = sm;
                 r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                 r.receiveShadows = false;
@@ -167,6 +185,9 @@ namespace Kagegan
         public static readonly string[] Buildings = { "Building_Large_2", "Building_Medium_2_001", "Building_Small_1" };
 
         public static readonly string[] Skyscrapers = { "KC_building-skyscraper-a", "KC_building-skyscraper-b", "KC_building-skyscraper-c", "KC_building-skyscraper-d", "KC_building-skyscraper-e", "KC_building-a", "KC_building-c", "KC_building-f", "KC_building-h" };
+
+        public static readonly string[] PhotoRocks = { "rock_07", "rock_09" };
+        public static readonly string[] PhotoMoonRocks = { "moon_rock_01", "moon_rock_03", "moon_rock_05" };
 
         public static string Pick(string[] set, System.Random rnd) => set[rnd.Next(set.Length)];
     }

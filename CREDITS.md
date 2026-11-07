@@ -51,6 +51,11 @@
 ## Небо (CC0, Poly Haven)
 - kloofendal_48d_partly_cloudy_puresky, industrial_sunset_puresky, qwantani_dusk_2_puresky, qwantani_moonrise_puresky — https://polyhaven.com/hdris
 
+## Небо 4K, текстуры земли и фотосканы (CC0, Poly Haven, для High/Ultra)
+- Небо 4K: те же панорамы в разрешении 4K — https://polyhaven.com/hdris
+- Земля: sandy_gravel_02 (додзё), forrest_ground_01 (лес), asphalt_02 (город), monastery_stone_floor (лунный храм) — https://polyhaven.com/textures
+- Модели: rock_07, rock_09, tree_stump_01, stone_fire_pit, moon_rock_01, moon_rock_03, moon_rock_05 — https://polyhaven.com/models
+
 ## Шрифт (SIL Open Font License 1.1)
 - Russo One — Jovanny Lemonad — https://fonts.google.com/specimen/Russo+One (лицензия: Resources/Kagegan/Fonts/OFL.txt)
 

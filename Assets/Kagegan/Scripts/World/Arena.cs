@@ -203,6 +203,63 @@ namespace Kagegan
             }
         }
 
+        /// <summary>Ultra only: photoscanned Poly Haven models (CC0) just behind the lane, where the camera sees them
+        /// up close — mossy rocks and stumps in the forest, a stone fire pit at the dojo, moon rocks at the temple.
+        /// Kept off the lane and the camera side, so they never block the fight.</summary>
+        void PhotoScans()
+        {
+            var root = new GameObject("PhotoScans").transform;
+            root.SetParent(transform, false);
+            var rnd = new System.Random(91 + (int)Id);
+            float near = LaneDepth + 3.2f;
+            switch (Id)
+            {
+                case ArenaId.Forest:
+                    for (int i = 0; i < 7; i++)
+                    {
+                        float x = -24f + i * 8f + ((float)rnd.NextDouble() - 0.5f) * 4f;
+                        float z = near + (float)rnd.NextDouble() * 4f;
+                        if (i % 3 == 1) ModelKit.Spawn("tree_stump_01", root, new Vector3(x, 0, z), 0.8f + (float)rnd.NextDouble() * 0.3f, (float)rnd.NextDouble() * 360f);
+                        else ModelKit.Spawn(ModelKit.Pick(ModelKit.PhotoRocks, rnd), root, new Vector3(x, 0, z), 0.6f + (float)rnd.NextDouble() * 0.9f, (float)rnd.NextDouble() * 360f);
+                    }
+                    break;
+                case ArenaId.Dojo:
+                {
+                    Vector3 pit = new Vector3(-3f, 0, near + 1.5f);
+                    if (ModelKit.Spawn("stone_fire_pit", root, pit, 0.45f, 20f) != null)
+                        root.gameObject.AddComponent<Campfire>().At = pit + Vector3.up * 0.3f;
+                    for (int i = 0; i < 4; i++)
+                    {
+                        float x = (i < 2 ? -20f : 12f) + (float)rnd.NextDouble() * 8f;
+                        ModelKit.Spawn(ModelKit.Pick(ModelKit.PhotoRocks, rnd), root, new Vector3(x, 0, near + (float)rnd.NextDouble() * 3f), 0.5f + (float)rnd.NextDouble() * 0.7f, (float)rnd.NextDouble() * 360f);
+                    }
+                    break;
+                }
+                case ArenaId.MoonTemple:
+                    // inside the ring that survives the collapse (r < 15.5), outside the rising platforms (r < 10)
+                    for (int i = 0; i < 6; i++)
+                    {
+                        float x = -9f + i * 3.6f + ((float)rnd.NextDouble() - 0.5f) * 1.5f;
+                        float z = Mathf.Min(11f + (float)rnd.NextDouble() * 2.5f, Mathf.Sqrt(Mathf.Max(0f, 15f * 15f - x * x)));
+                        ModelKit.Spawn(ModelKit.Pick(ModelKit.PhotoMoonRocks, rnd), root, new Vector3(x, 0, z), 0.5f + (float)rnd.NextDouble() * 1f, (float)rnd.NextDouble() * 360f);
+                    }
+                    break;
+            }
+        }
+
+        /// <summary>Small fire in the dojo's stone pit (particles only, no light slot).</summary>
+        class Campfire : MonoBehaviour
+        {
+            public Vector3 At;
+            float next;
+            void Update()
+            {
+                if (Time.time < next) return;
+                next = Time.time + 0.14f;
+                Fx.Fire(At, 0.28f, 3);
+            }
+        }
+
         /// <summary>Mid-ground band behind the lane so the side view has depth (static, merged).</summary>
         static void BackdropBand(MeshBuilder mb, MeshBuilder trees, ArenaId id)
         {
@@ -255,7 +312,9 @@ namespace Kagegan
             }
             BackdropBand(stat, a.treeMb, id);
             if (id == ArenaId.Forest && ModelKit.Available) a.NatureBackdrop();
+            if (ModelKit.PhotoProps) a.PhotoScans();
             a.AddStaticMesh(stat, "Static");
+            if (a.groundMb != null) a.AddStaticMesh(a.groundMb, "GroundPhoto", a.groundMat);
             if (a.grassMb != null) a.AddStaticMesh(a.grassMb, "Grass", Mat.ToonWind);
             a.AddStaticMesh(a.treeMb, "Trees", Mat.ToonTree);
             switch (id)
@@ -343,8 +402,17 @@ namespace Kagegan
         void Sky(Color top, Color horizon, Color bottom, string texName = null, Color? tint = null)
         {
             skyTop = top; skyHorizon = horizon;
-            Texture2D skyTex = string.IsNullOrEmpty(texName) ? null : Resources.Load<Texture2D>("Kagegan/Sky/" + texName);
+            Texture2D skyTex = null;
+            if (!string.IsNullOrEmpty(texName))
+            {
+                // strong phones get the 4K panorama (4096 px around), the rest the 2K one
+                if (GraphicsQuality.Current >= GraphicsPreset.High) skyTex = Resources.Load<Texture2D>("Kagegan/Sky/" + texName + "_4k");
+                if (skyTex == null) skyTex = Resources.Load<Texture2D>("Kagegan/Sky/" + texName);
+            }
             Color tintC = tint ?? Color.white;
+            // wet streets and puddles mirror this sky (Kagegan/Surface)
+            Shader.SetGlobalTexture("_KageSkyTex", skyTex != null ? (Texture)skyTex : Texture2D.grayTexture);
+            Shader.SetGlobalColor("_KageSkyTint", skyTex != null ? Color.Lerp(Color.white, horizon, 0.18f) * tintC : horizon);
             var mb = new MeshBuilder();
             int lat = skyTex != null ? 18 : 10, lon = skyTex != null ? 32 : 16;
             int start = 0;
@@ -552,10 +620,29 @@ namespace Kagegan
         }
 
         // ---- ground ----
+        // High/Ultra: photo-textured ground (Poly Haven, CC0) in its own mesh with the Surface shader
+        MeshBuilder groundMb;
+        Material groundMat;
+
+        /// <summary>Photo ground for High/Ultra. photo = texture set in Resources/Kagegan/Ground (ground_&lt;photo&gt;_diff/_nor),
+        /// mean = that photo's average colour (so it can be tinted towards the arena palette).</summary>
+        void PhotoGround(string photo, Color palette, Color mean, float tile, float wet = 0f, float tintAmount = 0.7f)
+        {
+            if (!Mat.PhotoSurfaces) return;
+            var diff = Resources.Load<Texture2D>("Kagegan/Ground/ground_" + photo + "_diff");
+            var nor = Resources.Load<Texture2D>("Kagegan/Ground/ground_" + photo + "_nor");
+            groundMat = Mat.Surface("Ground_" + photo, diff, nor, Mat.TintTowards(palette, mean, tintAmount), tile, 1f, wet);
+            if (groundMat != null) groundMb = new MeshBuilder();
+        }
+
         void Ground(MeshBuilder mb, float r, Color a, Color b, Color edge, int seed, float yOffset = 0f)
         {
             var rnd = new System.Random(seed);
             int rings = 14, seg = 40;
+            // photo ground: the vertex colour keeps the patchy colour variation and darker rim, around a neutral 0.5
+            bool photo = groundMb != null && yOffset == 0f;
+            if (photo) mb = groundMb;
+            Color mid = (a + b) * 0.5f;
             int s = mb.V.Count;
             for (int i = 0; i <= rings; i++)
             {
@@ -568,6 +655,7 @@ namespace Kagegan
                     Color c = Color.Lerp(a, b, n);
                     if (rr > Radius + 2f) { c = Color.Lerp(c, edge, Mathf.Clamp01((rr - Radius - 2f) / 10f)); p.y = Mathf.Max(0, (rr - Radius - 6f) * 0.25f) * (0.6f + n); }
                     p.y += yOffset;
+                    if (photo) c = new Color(0.5f * c.r / Mathf.Max(0.05f, mid.r), 0.5f * c.g / Mathf.Max(0.05f, mid.g), 0.5f * c.b / Mathf.Max(0.05f, mid.b));
                     mb.V.Add(p); mb.N.Add(Vector3.up); mb.C.Add(Mat.C(c)); mb.UV.Add(Vector2.zero); mb.Bone.Add(0);
                 }
             }
@@ -712,6 +800,7 @@ namespace Kagegan
         {
             Lighting(new Vector3(-0.4f, 0.8f, -0.5f), new Color(1f, 0.96f, 0.86f), new Color(0.32f, 0.3f, 0.3f), new Color(0.93f, 0.9f, 0.82f), 25f, 110f, 0.55f);
             Sky(new Color(0.55f, 0.75f, 0.95f), new Color(0.97f, 0.92f, 0.8f), new Color(0.9f, 0.85f, 0.7f), "sky_dojo");
+            PhotoGround("dojo", new Color(0.895f, 0.75f, 0.5f), new Color(0.603f, 0.451f, 0.321f), 3.2f);
             Ground(mb, 70f, new Color(0.93f, 0.8f, 0.55f), new Color(0.86f, 0.7f, 0.45f), new Color(0.55f, 0.65f, 0.35f), 11);
             grassMb = new MeshBuilder();
             GrassTufts(grassMb, 260, 6f, 26f, new Color(0.45f, 0.62f, 0.25f), 3);
@@ -783,6 +872,7 @@ namespace Kagegan
         {
             Lighting(new Vector3(0.5f, 0.6f, -0.4f), new Color(1f, 0.88f, 0.7f), new Color(0.25f, 0.32f, 0.28f), new Color(0.55f, 0.68f, 0.55f), 14f, 70f, 0.75f);
             Sky(new Color(0.45f, 0.62f, 0.75f), new Color(0.85f, 0.83f, 0.68f), new Color(0.4f, 0.5f, 0.35f), "sky_forest");
+            PhotoGround("forest", new Color(0.43f, 0.485f, 0.27f), new Color(0.568f, 0.529f, 0.366f), 3.6f, 0f, 0.6f);
             Ground(mb, 70f, new Color(0.38f, 0.55f, 0.27f), new Color(0.48f, 0.42f, 0.27f), new Color(0.2f, 0.32f, 0.18f), 21);
             grassMb = new MeshBuilder();
             GrassTufts(grassMb, 360, 2f, 30f, new Color(0.35f, 0.58f, 0.22f), 7);
@@ -829,6 +919,7 @@ namespace Kagegan
         {
             Lighting(new Vector3(-0.7f, 0.35f, 0.4f), new Color(1f, 0.7f, 0.5f), new Color(0.3f, 0.26f, 0.36f), new Color(0.55f, 0.45f, 0.5f), 12f, 65f, 0.75f);
             Sky(new Color(0.3f, 0.28f, 0.5f), new Color(0.95f, 0.6f, 0.42f), new Color(0.35f, 0.3f, 0.35f), "sky_city");
+            PhotoGround("city", new Color(0.46f, 0.44f, 0.435f), new Color(0.355f, 0.351f, 0.332f), 4f, 1f, 0.6f); // rain-soaked asphalt
             Ground(mb, 70f, new Color(0.5f, 0.48f, 0.47f), new Color(0.42f, 0.4f, 0.4f), new Color(0.3f, 0.28f, 0.3f), 31);
             // road markings
             mb.SetColor(Mat.C(0.85f, 0.8f, 0.55f));
@@ -1003,8 +1094,13 @@ namespace Kagegan
         readonly List<Group> sectors = new List<Group>();
         readonly List<Group> risers = new List<Group>();
 
+        Material tileMat; // photo stone (High/Ultra) or null for the toon tiles
+
         public void Build()
         {
+            if (Mat.PhotoSurfaces)
+                tileMat = Mat.Surface("MoonTiles", Resources.Load<Texture2D>("Kagegan/Ground/ground_moon_diff"), Resources.Load<Texture2D>("Kagegan/Ground/ground_moon_nor"),
+                    Mat.TintTowards(new Color(0.82f, 0.82f, 0.905f), new Color(0.399f, 0.335f, 0.28f), 0.6f), 3.2f, 0.6f);
             var inner = new MeshBuilder();
             var sectorMb = new MeshBuilder[8];
             for (int i = 0; i < 8; i++) sectorMb[i] = new MeshBuilder();
@@ -1040,9 +1136,10 @@ namespace Kagegan
             }
         }
 
-        static void Tile(MeshBuilder mb, Vector3 p, bool even)
+        void Tile(MeshBuilder mb, Vector3 p, bool even)
         {
-            mb.SetColor(even ? Mat.C(0.86f, 0.86f, 0.93f) : Mat.C(0.78f, 0.78f, 0.88f));
+            if (tileMat != null) mb.SetColor(even ? Mat.C(0.52f, 0.52f, 0.52f) : Mat.C(0.46f, 0.46f, 0.48f));
+            else mb.SetColor(even ? Mat.C(0.86f, 0.86f, 0.93f) : Mat.C(0.78f, 0.78f, 0.88f));
             mb.Box(p + new Vector3(0, -0.25f, 0), new Vector3(3.1f, 0.5f, 3.1f));
             if (even)
             {
@@ -1060,7 +1157,7 @@ namespace Kagegan
             {
                 go.AddComponent<MeshFilter>().sharedMesh = mb.ToMesh(name);
                 var mr = go.AddComponent<MeshRenderer>();
-                mr.sharedMaterial = Mat.Toon;
+                mr.sharedMaterial = tileMat != null ? tileMat : Mat.Toon;
                 mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                 mr.receiveShadows = false;
             }

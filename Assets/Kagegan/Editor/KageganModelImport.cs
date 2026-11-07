@@ -6,8 +6,8 @@ namespace Kagegan.EditorTools
     /// Materials keep their names (the game swaps them for its toon shader at runtime); no animation, cameras or lights.</summary>
     public class KageganModelImport : AssetPostprocessor
     {
-        static readonly string[] Folders = { "/Kagegan/Resources/Kagegan/Nature/", "/Kagegan/Resources/Kagegan/City/", "/Kagegan/Resources/Kagegan/Props/" };
-        public override uint GetVersion() => 3;
+        static readonly string[] Folders = { "/Kagegan/Resources/Kagegan/Nature/", "/Kagegan/Resources/Kagegan/City/", "/Kagegan/Resources/Kagegan/Props/", "/Kagegan/Resources/Kagegan/Photo/" };
+        public override uint GetVersion() => 4;
 
         static bool InKit(string path)
         {
@@ -29,6 +29,8 @@ namespace Kagegan.EditorTools
             mi.meshCompression = ModelImporterMeshCompression.Medium;
             // the game maps materials by their FBX names (MI_Trim_Metal, Leaves_Pine...), not by texture file names
             mi.materialName = ModelImporterMaterialName.BasedOnMaterialName;
+            // the Poly Haven scans are normal-mapped: they need tangents
+            mi.importTangents = ModelImporterTangents.CalculateMikk;
         }
     }
 }
