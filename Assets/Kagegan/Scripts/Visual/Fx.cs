@@ -13,6 +13,7 @@ namespace Kagegan
         static Fx inst;
         ParticleSystem sparks, smoke, fire, debris, glow, leaves;
         // flipbook / textured systems built from imported CC0 VFX textures (null when a texture is missing)
+        ParticleSystem slashFlip, hitStar, hitBurst;
         ParticleSystem ringGold, ringEnergy, ringVoid, ringLightning, ringFire, fireBurst, explosionFlip, groundRing, puffWhite, puffBlack, puffFire, flashPs;
         readonly List<Anim> anims = new List<Anim>(64);
         Pool<MeshRenderer> ringPool, slashPool, crackPool, spherePool;
@@ -84,6 +85,10 @@ namespace Kagegan
             puffBlack = MakeFlip("PuffBlack", "puff_black", 2, 2, 0, false, 120, false);
             puffFire = MakeFlip("PuffFire", "puff_fire", 2, 2, 0, true, 200, false);
             flashPs = MakeFlip("Flash", "flash", 2, 2, 0, true, 60, false);
+            // hand-painted CC0 sheets: slash arcs (6 frames x 5 styles) and hit stars that burst and fade on their own
+            slashFlip = MakeFlip("Slash", "slash_sheet", 6, 5, 6, true, 24, false, true);
+            hitStar = MakeFlip("HitStar", "hit_star", 4, 4, 16, true, 40, false);
+            hitBurst = MakeFlip("HitBurst", "hit_burst", 4, 4, 16, true, 24, false);
             ringMesh = BuildRingMesh();
             slashMesh = BuildSlashMesh();
             crackMesh = BuildQuadXZ();
@@ -121,7 +126,7 @@ namespace Kagegan
             colm.enabled = true;
             var g = new Gradient();
             g.SetKeys(new[] { new GradientColorKey(Color.white, 0), new GradientColorKey(Color.white, 1) },
-                      new[] { new GradientAlphaKey(1, 0), new GradientAlphaKey(0.8f, 0.5f), new GradientAlphaKey(0, 1) });
+                      new[] { new GradientAlphaKey(0.9f, 0), new GradientAlphaKey(1f, 0.1f), new GradientAlphaKey(0.7f, 0.5f), new GradientAlphaKey(0.3f, 0.8f), new GradientAlphaKey(0, 1) });
             colm.color = g;
             var r = go.GetComponent<ParticleSystemRenderer>();
             r.sharedMaterial = m;
@@ -136,7 +141,7 @@ namespace Kagegan
         /// Flipbook particle system for an imported texture sheet. frames &gt; 0 animates through the sheet over the particle's
         /// life; frames == 0 picks a random cell (puff atlases). Returns null if the texture is not present.
         /// </summary>
-        ParticleSystem MakeFlip(string name, string texName, int tilesX, int tilesY, int frames, bool additive, int max, bool horizontal)
+        ParticleSystem MakeFlip(string name, string texName, int tilesX, int tilesY, int frames, bool additive, int max, bool horizontal, bool randomRow = false)
         {
             var tex = Resources.Load<Texture2D>("Kagegan/Vfx/" + texName);
             if (tex == null) return null;
@@ -145,19 +150,40 @@ namespace Kagegan
             var main = ps.main;
             main.startRotation = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
             var sol = ps.sizeOverLifetime;
-            sol.size = new ParticleSystem.MinMaxCurve(1f, frames > 0 ? AnimationCurve.Linear(0, 1f, 1, 1f) : new AnimationCurve(new Keyframe(0, 0.6f), new Keyframe(0.3f, 1f), new Keyframe(1, 1.35f)));
+            // animated sheets keep their own fade but also swell slightly; puffs grow as they thin out
+            sol.size = new ParticleSystem.MinMaxCurve(1f, frames > 0
+                ? new AnimationCurve(new Keyframe(0, 0.92f), new Keyframe(0.5f, 1f), new Keyframe(1, 1.12f))
+                : new AnimationCurve(new Keyframe(0, 0.55f), new Keyframe(0.25f, 0.95f), new Keyframe(1, 1.6f)));
             var col = ps.colorOverLifetime;
             var g = new Gradient();
             g.SetKeys(new[] { new GradientColorKey(Color.white, 0), new GradientColorKey(Color.white, 1) },
-                      frames > 0 ? new[] { new GradientAlphaKey(1, 0), new GradientAlphaKey(1, 0.8f), new GradientAlphaKey(0, 1) }
-                                 : new[] { new GradientAlphaKey(0, 0), new GradientAlphaKey(1, 0.1f), new GradientAlphaKey(0.7f, 0.5f), new GradientAlphaKey(0, 1) });
+                      frames > 0 ? new[] { new GradientAlphaKey(0.85f, 0), new GradientAlphaKey(1, 0.12f), new GradientAlphaKey(0.85f, 0.55f), new GradientAlphaKey(0.4f, 0.82f), new GradientAlphaKey(0, 1) }
+                                 : new[] { new GradientAlphaKey(0, 0), new GradientAlphaKey(0.9f, 0.12f), new GradientAlphaKey(0.62f, 0.45f), new GradientAlphaKey(0.25f, 0.78f), new GradientAlphaKey(0, 1) });
             col.color = g;
+            if (frames == 0)
+            {
+                // smoke and dust decelerate, turn slowly and dissipate instead of popping out
+                var lim = ps.limitVelocityOverLifetime;
+                lim.enabled = true;
+                lim.limit = new ParticleSystem.MinMaxCurve(0.4f);
+                lim.dampen = 0.08f;
+                var rol = ps.rotationOverLifetime;
+                rol.enabled = true;
+                rol.z = new ParticleSystem.MinMaxCurve(-0.6f, 0.6f);
+            }
             var tsa = ps.textureSheetAnimation;
             tsa.enabled = true;
             tsa.numTilesX = tilesX;
             tsa.numTilesY = tilesY;
             int total = tilesX * tilesY;
-            if (frames > 0)
+            if (frames > 0 && randomRow)
+            {
+                tsa.animation = ParticleSystemAnimationType.SingleRow;
+                tsa.rowMode = ParticleSystemAnimationRowMode.Random;
+                tsa.frameOverTime = new ParticleSystem.MinMaxCurve(1f, AnimationCurve.Linear(0f, 0f, 1f, (frames - 0.01f) / tilesX));
+                tsa.cycleCount = 1;
+            }
+            else if (frames > 0)
             {
                 tsa.animation = ParticleSystemAnimationType.WholeSheet;
                 tsa.frameOverTime = new ParticleSystem.MinMaxCurve(1f, AnimationCurve.Linear(0f, 0f, 1f, Mathf.Min(1f, (frames - 0.01f) / total)));
@@ -174,10 +200,12 @@ namespace Kagegan
             return ps;
         }
 
-        static void EmitF(ParticleSystem ps, Vector3 pos, Vector3 vel, Color c, float size, float life)
+        static void EmitF(ParticleSystem ps, Vector3 pos, Vector3 vel, Color c, float size, float life) => EmitF(ps, pos, vel, c, size, life, Random.value * 360f);
+
+        static void EmitF(ParticleSystem ps, Vector3 pos, Vector3 vel, Color c, float size, float life, float rotationDeg)
         {
             if (ps == null) return;
-            var ep = new ParticleSystem.EmitParams { position = pos, velocity = vel, startColor = c, startSize = size, startLifetime = life, rotation = Random.value * 360f };
+            var ep = new ParticleSystem.EmitParams { position = pos, velocity = vel, startColor = c, startSize = size, startLifetime = life, rotation = rotationDeg };
             ps.Emit(ep, 1);
         }
 
@@ -241,10 +269,16 @@ namespace Kagegan
             Color spark = Color.Lerp(color, Color.white, 0.35f);
             for (int i = 0; i < n; i++)
                 Emit(inst.sparks, pos, Random.onUnitSphere * Random.Range(4f, heavy ? 13f : 8f), spark, Random.Range(0.05f, 0.11f), Random.Range(0.12f, 0.28f));
-            if (inst.flashPs != null)
+            Color tint = Color.Lerp(Color.white, color, 0.55f);
+            if (inst.hitStar != null)
             {
-                EmitF(inst.flashPs, pos, Vector3.zero, Color.Lerp(Color.white, color, 0.35f), heavy ? 1.9f : 1.05f, heavy ? 0.13f : 0.09f);
-                if (heavy) EmitF(inst.flashPs, pos, Vector3.zero, color, 1.2f, 0.18f);
+                // painted cross-star that bursts and fades through its own frames
+                EmitF(inst.hitStar, pos, Vector3.zero, tint, heavy ? 2.6f : 1.7f, heavy ? 0.42f : 0.32f);
+                if (heavy && inst.hitBurst != null) EmitF(inst.hitBurst, pos, Vector3.zero, tint, 2.2f, 0.5f);
+            }
+            else if (inst.flashPs != null)
+            {
+                EmitF(inst.flashPs, pos, Vector3.zero, tint, heavy ? 1.9f : 1.05f, heavy ? 0.13f : 0.09f);
             }
             else Emit(inst.glow, pos, Vector3.zero, color, heavy ? 1.6f : 0.9f, 0.12f);
             if (heavy)
@@ -409,6 +443,14 @@ namespace Kagegan
         public static void Slash(Transform owner, Vector3 localOffset, Vector3 euler, Color color, float size, float life = 0.18f)
         {
             if (inst == null) return;
+            if (inst.slashFlip != null)
+            {
+                // painted swing arc; mirrored when the fighter faces left on the side-on camera
+                Vector3 p = owner.TransformPoint(localOffset);
+                float rot = euler.z + (owner.forward.x < 0f ? 180f : 0f) + Random.Range(-15f, 15f);
+                EmitF(inst.slashFlip, p, owner.forward * 0.8f, Color.Lerp(Color.white, color, 0.5f), size * 1.7f, Mathf.Max(0.22f, life * 1.6f), rot);
+                return;
+            }
             var r = inst.slashPool.Get();
             r.transform.SetPositionAndRotation(owner.TransformPoint(localOffset), owner.rotation * Quaternion.Euler(euler));
             inst.anims.Add(new Anim { kind = Kind.Slash, c = r, life = life, size0 = size * 0.8f, size1 = size * 1.15f, color = color * 0.55f });
@@ -465,7 +507,9 @@ namespace Kagegan
                         var r = (MeshRenderer)a.c;
                         float e = 1f - (1f - u) * (1f - u);
                         r.transform.localScale = Vector3.one * Mathf.Lerp(a.size0, a.size1, e);
-                        c *= (1f - u);
+                        // hold briefly, then an eased fade-out instead of a linear cut
+                        float fade = u < 0.15f ? 1f : Mathf.Pow(1f - (u - 0.15f) / 0.85f, 1.7f);
+                        c *= fade;
                         mpb.SetColor(IdColor, c);
                         r.SetPropertyBlock(mpb);
                         break;
@@ -473,7 +517,8 @@ namespace Kagegan
                     case Kind.Crack:
                     {
                         var r = (MeshRenderer)a.c;
-                        c.a = u < 0.75f ? 1f : (1f - u) * 4f;
+                        float cu = Mathf.Clamp01((u - 0.6f) / 0.4f);
+                        c.a = 1f - cu * cu * (3f - 2f * cu);
                         mpb.SetColor(IdColor, c);
                         r.SetPropertyBlock(mpb);
                         break;
@@ -482,7 +527,7 @@ namespace Kagegan
                     {
                         var lr = (LineRenderer)a.c;
                         if (Random.value < 0.5f) JaggedLine(lr, a.from, a.to);
-                        Color cc = c * (1f - u * 0.7f);
+                        Color cc = c * Mathf.Pow(1f - u, 1.5f);
                         lr.startColor = cc; lr.endColor = cc;
                         break;
                     }

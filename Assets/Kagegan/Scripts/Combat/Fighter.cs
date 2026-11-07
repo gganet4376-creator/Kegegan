@@ -398,7 +398,7 @@ namespace Kagegan
                 m.OnActive?.Invoke(this);
                 if (State != FState.Attack || CurMove != m) return;
                 if (m.Sfx != SfxId.Count) Sfx.PlayAt(m.Sfx, Center, m.Kind == HitKind.Light ? 0.45f : 0.7f, m.Kind == HitKind.Light ? 1.15f : 0.9f);
-                if (m.SlashFx && m.Damage > 0f && m.Kind != HitKind.Light) Fx.Slash(transform, new Vector3(0, Height * 0.55f, 0.55f), m.SlashEuler, m.FxColor, 1.1f + m.Radius);
+                if (m.SlashFx && m.Damage > 0f) Fx.Slash(transform, new Vector3(0, Height * 0.55f, 0.55f), m.SlashEuler, m.FxColor, (1.1f + m.Radius) * (m.Kind == HitKind.Light ? 0.65f : 1f));
             }
 
             if (InActiveFrames)

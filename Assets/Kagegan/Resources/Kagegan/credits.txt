@@ -31,6 +31,8 @@
 - "Animated particle effects #1" — para — https://opengameart.org/content/animated-particle-effects-1
 - "More Explosions" — https://opengameart.org/node/15642
 - "Smoke particle assets" — Kenney — https://opengameart.org/content/smoke-particle-assets
+- "Weapon Slash - Effect" — Cethiel — https://opengameart.org/content/weapon-slash-effect
+- "Animations - Blood, Hit and Both" — Sinestesia — https://opengameart.org/node/81933
 
 ## Иконки (CC BY 3.0)
 Иконки с https://game-icons.net — авторы Lorc, Delapouite, Felbrigg, Skoll, GUARD13007.
