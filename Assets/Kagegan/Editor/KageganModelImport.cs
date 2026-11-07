@@ -2,16 +2,23 @@ using UnityEditor;
 
 namespace Kagegan.EditorTools
 {
-    /// <summary>Import settings for the Quaternius Stylized Nature MegaKit (CC0) models in Resources/Kagegan/Nature.
+    /// <summary>Import settings for the Quaternius CC0 kit models in Resources/Kagegan/{Nature,City,Props}.
     /// Materials keep their names (the game swaps them for its toon shader at runtime); no animation, cameras or lights.</summary>
-    public class KageganNatureImport : AssetPostprocessor
+    public class KageganModelImport : AssetPostprocessor
     {
-        const string Folder = "/Kagegan/Resources/Kagegan/Nature/";
-        public override uint GetVersion() => 1;
+        static readonly string[] Folders = { "/Kagegan/Resources/Kagegan/Nature/", "/Kagegan/Resources/Kagegan/City/", "/Kagegan/Resources/Kagegan/Props/" };
+        public override uint GetVersion() => 2;
+
+        static bool InKit(string path)
+        {
+            path = path.Replace('\\', '/');
+            foreach (var f in Folders) if (path.Contains(f)) return true;
+            return false;
+        }
 
         void OnPreprocessModel()
         {
-            if (!assetPath.Replace('\\', '/').Contains(Folder)) return;
+            if (!InKit(assetPath)) return;
             var mi = (ModelImporter)assetImporter;
             mi.importAnimation = false;
             mi.animationType = ModelImporterAnimationType.None;

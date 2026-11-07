@@ -149,6 +149,8 @@ namespace Kagegan
                 for (int g = 0; g < groups.Length; g++)
                 {
                     Hud.Banner(g == 0 ? "ВОЛНА " + (Wave + 1) : "ПОДКРЕПЛЕНИЕ!", new Color(1f, 0.85f, 0.5f));
+                    if (g == 0) StartCoroutine(Announce(Wave == 2 ? "final_round" : "round_" + (Wave + 1), "fight"));
+                    else Sfx.Voice("ready", 0.8f);
                     foreach (var m in groups[g]) pending.Enqueue(m);
                     yield return StartCoroutine(FightUntilClear());
                     yield return new WaitForSeconds(0.8f);
@@ -157,6 +159,7 @@ namespace Kagegan
                 if (Wave < 2)
                 {
                     Hud.Banner("ВОЛНА ПРОЙДЕНА", new Color(0.6f, 1f, 0.6f));
+                    Sfx.Jingle("wave_clear");
                     Player.Hp = Mathf.Min(Player.MaxHp, Player.Hp + Player.MaxHp * 0.45f);
                     Player.Chakra = Player.MaxChakra;
                     yield return new WaitForSeconds(2.5f);
@@ -311,7 +314,9 @@ namespace Kagegan
             Hud.Banner(Boss.DisplayName.ToUpperInvariant(), Boss.Kit.AuraColor);
             Hud.Inst.SetBoss(Boss);
             Boss.Shout(Boss.Kit.IntroLine);
+            Sfx.Voice("prepare_yourself", 0.9f);
             yield return new WaitForSeconds(2.8f);
+            Sfx.Voice("fight");
             Boss.ForceAnimMode(AnimMode.Locomotion);
             Boss.ExitCinematic();
             Boss.Brain.Active = true;
@@ -329,10 +334,20 @@ namespace Kagegan
             // clean up summons
             foreach (var s in summons) if (s != null && s.Alive) s.Kill(Player);
             Hud.Banner("ПОБЕДА", UIKit.Gold);
+            Sfx.Voice(Player.Hp >= Player.MaxHp * 0.999f ? "flawless_victory" : "you_win");
+            Sfx.Jingle("victory");
             Player.Shout(Player.Kit.WinLine);
             Player.SetInvulnerable(4f);
             Projectile.ClearAll(); Hazard.ClearAll(); Beam.ClearAll();
             yield return new WaitForSeconds(2.2f);
+        }
+
+        /// <summary>Two announcer lines in sequence ("Round 1" ... "Fight!").</summary>
+        IEnumerator Announce(string first, string second)
+        {
+            Sfx.Voice(first);
+            yield return new WaitForSeconds(1.1f);
+            Sfx.Voice(second);
         }
 
         IEnumerator Ending()
@@ -349,6 +364,7 @@ namespace Kagegan
         {
             GameManager.Inst.SetControlsVisible(false);
             Hud.Banner("ПОРАЖЕНИЕ", new Color(1f, 0.35f, 0.3f));
+            Sfx.Voice("you_lose");
             yield return new WaitForSeconds(2.4f);
             OnDefeat?.Invoke();
         }

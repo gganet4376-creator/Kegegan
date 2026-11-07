@@ -58,6 +58,84 @@ namespace Kagegan
             }
         }
 
+        GameObject KitRoot(string name)
+        {
+            var go = new GameObject(name);
+            go.transform.SetParent(transform, false);
+            return go;
+        }
+
+        /// <summary>Training-ground dressing from the Fantasy Props / Medieval Village kits: weapon stands, benches,
+        /// banners, a market cart and fences behind the lane.</summary>
+        void DojoProps()
+        {
+            var root = KitRoot("DojoProps").transform;
+            var rnd = new System.Random(23);
+            ModelKit.Spawn("WeaponStand", root, new Vector3(4f, 0, 16.5f), 1.3f, 180f);
+            ModelKit.Spawn("WeaponStand", root, new Vector3(7.5f, 0, 16.2f), 1.3f, 170f);
+            ModelKit.Spawn("Bench", root, new Vector3(-6f, 0, 17f), 0.55f, 0f);
+            ModelKit.Spawn("Bench", root, new Vector3(11f, 0, 15.5f), 0.55f, 8f);
+            ModelKit.Spawn("Banner_1", root, new Vector3(-9f, 0, 19.5f), 2.6f, 180f);
+            ModelKit.Spawn("Banner_1", root, new Vector3(1f, 0, 19.5f), 2.6f, 180f);
+            ModelKit.Spawn("Stall_Cart_Empty", root, new Vector3(18f, 0, 13f), 2.6f, 200f);
+            ModelKit.Spawn("Prop_Wagon", root, new Vector3(-19f, 0, 12f), 1.6f, 75f);
+            ModelKit.Spawn("Barrel_Apples", root, new Vector3(16f, 0, 11.5f), 0.9f, 30f);
+            ModelKit.Spawn("Chest_Wood", root, new Vector3(-15f, 0, 14.5f), 0.7f, 190f);
+            for (float x = -30f; x <= 30f; x += 2.05f)
+            {
+                if (x > -2f && x < 2f) continue; // gap for the gate
+                ModelKit.Spawn("Prop_WoodenFence_Single", root, new Vector3(x, 0, 21.5f), 0.84f, 0f);
+            }
+            for (int i = 0; i < 5; i++)
+                ModelKit.Spawn(i % 2 == 0 ? "Prop_Crate" : "Barrel", root, new Vector3(-26f + (float)rnd.NextDouble() * 52f, 0, 9.5f + (float)rnd.NextDouble() * 3f), i % 2 == 0 ? 1f : 0.9f, (float)rnd.NextDouble() * 360f);
+        }
+
+        /// <summary>Downtown City MegaKit buildings as the street behind the lane, plus breakable street props.</summary>
+        void CityModels()
+        {
+            var root = KitRoot("CityModels").transform;
+            var rnd = new System.Random(41);
+            bool low = GraphicsQuality.Current == GraphicsPreset.Low;
+            float x = -44f;
+            while (x < 44f)
+            {
+                string b = ModelKit.Buildings[rnd.Next(ModelKit.Buildings.Length)];
+                float h = b == "Building_Large_2" ? 28f : b == "Building_Medium_2_001" ? 25f : 17f;
+                float w = b == "Building_Large_2" ? 20.6f : b == "Building_Medium_2_001" ? 15f : 12.5f;
+                ModelKit.Spawn(b, root, new Vector3(x + w * 0.5f, 0, 22f + (float)rnd.NextDouble() * 3f), h, rnd.NextDouble() < 0.5 ? 0f : 180f);
+                x += w + (low ? 6f : 1.5f);
+            }
+            for (float bx = -24f; bx <= 24f; bx += 4f)
+                ModelKit.Spawn("Prop_Bollard", root, new Vector3(bx, 0, LaneDepth + 5f), 0.9f, 0f);
+            if (!low)
+                for (int i = 0; i < 4; i++)
+                    ModelKit.Spawn("Prop_ACUnit", root, new Vector3(-20f + i * 13f, 0, 19f), 0.6f, (float)rnd.NextDouble() * 360f);
+            // breakable crates, barrels and planters along the fight
+            string[] brk = { "Crate_Wooden", "Barrel", "Prop_Planter_Single", "Crate_Metal", "Barrel" };
+            for (int i = 0; i < brk.Length; i++)
+            {
+                float a = i * 1.25f + 0.4f;
+                Vector3 p = new Vector3(Mathf.Cos(a) * 12f, 0, Mathf.Sin(a) * 12f);
+                float hh = brk[i] == "Prop_Planter_Single" ? 0.6f : brk[i] == "Barrel" ? 0.9f : 1f;
+                Destructible.CreateFromModel(transform, DestructKind.Crate, p, brk[i], hh, brk[i] == "Crate_Metal" ? 70f : 40f, new Color(0.5f, 0.42f, 0.35f), (float)rnd.NextDouble() * 360f);
+            }
+        }
+
+        /// <summary>Moon temple offerings: breakable vases and candle stands from the Fantasy Props kit.</summary>
+        void MoonProps()
+        {
+            var rnd = new System.Random(77);
+            for (int i = 0; i < 6; i++)
+            {
+                float a = i * 1.05f + 0.5f;
+                Vector3 p = new Vector3(Mathf.Cos(a), 0, Mathf.Sin(a)) * 9f;
+                if (i % 3 == 2)
+                    Destructible.CreateFromModel(transform, DestructKind.Lantern, p, "CandleStick_Stand", 1.3f, 25f, new Color(0.7f, 0.6f, 0.35f), (float)rnd.NextDouble() * 360f);
+                else
+                    Destructible.CreateFromModel(transform, DestructKind.Crate, p, i % 2 == 0 ? "Vase_2" : "Vase_4", i % 2 == 0 ? 0.75f : 0.7f, 20f, new Color(0.75f, 0.6f, 0.45f), (float)rnd.NextDouble() * 360f);
+            }
+        }
+
         /// <summary>Forest backdrop from the hand-made nature models: a tree line behind the lane and undergrowth
         /// between it and the fight. Nothing is placed on the camera side, so the view stays clear.</summary>
         void NatureBackdrop()
@@ -71,31 +149,31 @@ namespace Kagegan
             for (float x = -36f; x <= 36f; x += step + (float)rnd.NextDouble() * 2f)
             {
                 float z = 11f + (float)rnd.NextDouble() * 4f;
-                string m = rnd.NextDouble() < 0.12 ? NatureKit.Pick(NatureKit.DeadTrees, rnd) : NatureKit.Pick(NatureKit.Trees, rnd);
-                NatureKit.Spawn(m, root, new Vector3(x, 0, z), 8f + (float)rnd.NextDouble() * 4f, (float)rnd.NextDouble() * 360f);
+                string m = rnd.NextDouble() < 0.12 ? ModelKit.Pick(ModelKit.DeadTrees, rnd) : ModelKit.Pick(ModelKit.Trees, rnd);
+                ModelKit.Spawn(m, root, new Vector3(x, 0, z), 8f + (float)rnd.NextDouble() * 4f, (float)rnd.NextDouble() * 360f);
                 if (!low)
                 {
-                    m = NatureKit.Pick(NatureKit.Trees, rnd);
-                    NatureKit.Spawn(m, root, new Vector3(x + step * 0.5f, 0, z + 6f + (float)rnd.NextDouble() * 5f), 10f + (float)rnd.NextDouble() * 4f, (float)rnd.NextDouble() * 360f);
+                    m = ModelKit.Pick(ModelKit.Trees, rnd);
+                    ModelKit.Spawn(m, root, new Vector3(x + step * 0.5f, 0, z + 6f + (float)rnd.NextDouble() * 5f), 10f + (float)rnd.NextDouble() * 4f, (float)rnd.NextDouble() * 360f);
                 }
             }
             // a big twisted landmark tree far back
-            NatureKit.Spawn("TwistedTree_1", root, new Vector3(-6f, 0, 24f), 15f, 40f);
+            ModelKit.Spawn("TwistedTree_1", root, new Vector3(-6f, 0, 24f), 15f, 40f);
             // rocks and undergrowth between the props and the tree line
             int plants = low ? 14 : 34;
             for (int i = 0; i < plants; i++)
             {
                 float x = -30f + (float)rnd.NextDouble() * 60f;
                 float z = LaneDepth + 4.5f + (float)rnd.NextDouble() * 6f;
-                string m = NatureKit.Pick(NatureKit.Plants, rnd);
+                string m = ModelKit.Pick(ModelKit.Plants, rnd);
                 float h = m.StartsWith("Grass") || m.StartsWith("Flower") || m.StartsWith("Mushroom") ? 0.5f + (float)rnd.NextDouble() * 0.3f
                         : m == "Fern_1" ? 0.9f : 1.1f + (float)rnd.NextDouble() * 0.5f;
-                NatureKit.Spawn(m, root, new Vector3(x, 0, z), h, (float)rnd.NextDouble() * 360f);
+                ModelKit.Spawn(m, root, new Vector3(x, 0, z), h, (float)rnd.NextDouble() * 360f);
             }
             for (int i = 0; i < (low ? 4 : 9); i++)
             {
                 float x = -32f + (float)rnd.NextDouble() * 64f;
-                NatureKit.Spawn(NatureKit.Pick(NatureKit.Rocks, rnd), root, new Vector3(x, 0, 9f + (float)rnd.NextDouble() * 3f), 1.2f + (float)rnd.NextDouble() * 1.4f, (float)rnd.NextDouble() * 360f);
+                ModelKit.Spawn(ModelKit.Pick(ModelKit.Rocks, rnd), root, new Vector3(x, 0, 9f + (float)rnd.NextDouble() * 3f), 1.2f + (float)rnd.NextDouble() * 1.4f, (float)rnd.NextDouble() * 360f);
             }
         }
 
@@ -110,7 +188,7 @@ namespace Kagegan
                 switch (id)
                 {
                     case ArenaId.Forest:
-                        if (NatureKit.Available) break; // hand-made models are placed by NatureBackdrop instead
+                        if (ModelKit.Available) break; // hand-made models are placed by NatureBackdrop instead
                         if (rnd.NextDouble() < 0.55) Pine(mb, p, 8f + (float)rnd.NextDouble() * 6f, new Color(0.2f, 0.42f, 0.24f) * (0.85f + (float)rnd.NextDouble() * 0.3f));
                         else LeafTree(mb, p, 7f + (float)rnd.NextDouble() * 5f, new Color(0.3f, 0.5f, 0.22f) * (0.85f + (float)rnd.NextDouble() * 0.3f));
                         if (rnd.NextDouble() < 0.4) Rock(mb, p + new Vector3(1.5f, 0, -2f), 0.6f + (float)rnd.NextDouble(), new Color(0.48f, 0.48f, 0.46f));
@@ -150,7 +228,7 @@ namespace Kagegan
                 default: a.BuildMoon(stat); break;
             }
             BackdropBand(stat, id);
-            if (id == ArenaId.Forest && NatureKit.Available) a.NatureBackdrop();
+            if (id == ArenaId.Forest && ModelKit.Available) a.NatureBackdrop();
             a.AddStaticMesh(stat, "Static");
             if (a.grassMb != null) a.AddStaticMesh(a.grassMb, "Grass", Mat.ToonWind);
             a.BuildClouds();
@@ -225,11 +303,15 @@ namespace Kagegan
             }
         }
 
-        void Sky(Color top, Color horizon, Color bottom)
+        /// <summary>Sky dome. With a texture name it shows a photographed sky (Poly Haven, CC0) from Resources/Kagegan/Sky,
+        /// tinted towards the arena palette; otherwise a vertex-colour gradient.</summary>
+        void Sky(Color top, Color horizon, Color bottom, string texName = null, Color? tint = null)
         {
             skyTop = top; skyHorizon = horizon;
+            Texture2D skyTex = string.IsNullOrEmpty(texName) ? null : Resources.Load<Texture2D>("Kagegan/Sky/" + texName);
+            Color tintC = tint ?? Color.white;
             var mb = new MeshBuilder();
-            int lat = 10, lon = 16;
+            int lat = skyTex != null ? 18 : 10, lon = skyTex != null ? 32 : 16;
             int start = 0;
             for (int y = 0; y <= lat; y++)
             {
@@ -240,7 +322,14 @@ namespace Kagegan
                 {
                     float th = (float)x / lon * Mathf.PI * 2f;
                     Vector3 n = new Vector3(Mathf.Sin(phi) * Mathf.Cos(th), h, Mathf.Sin(phi) * Mathf.Sin(th));
-                    mb.V.Add(n * 140f); mb.N.Add(-n); mb.C.Add(c); mb.UV.Add(Vector2.zero); mb.Bone.Add(0);
+                    if (skyTex != null)
+                    {
+                        // the image holds the top 55% of an equirectangular panorama (zenith .. just below the horizon)
+                        float tv = Mathf.Clamp01(1f - v / 0.55f);
+                        Color tc = Color.Lerp(Color.white, c, 0.18f) * tintC; tc.a = 1f;
+                        mb.V.Add(n * 140f); mb.N.Add(-n); mb.C.Add(tc); mb.UV.Add(new Vector2((float)x / lon, tv)); mb.Bone.Add(0);
+                    }
+                    else { mb.V.Add(n * 140f); mb.N.Add(-n); mb.C.Add(c); mb.UV.Add(Vector2.zero); mb.Bone.Add(0); }
                 }
             }
             for (int y = 0; y < lat; y++)
@@ -255,7 +344,15 @@ namespace Kagegan
             skyMesh = mb.ToMesh("sky");
             go.AddComponent<MeshFilter>().sharedMesh = skyMesh;
             skyRenderer = go.AddComponent<MeshRenderer>();
-            skyRenderer.sharedMaterial = Mat.Sky;
+            if (skyTex != null)
+            {
+                skyTex.wrapModeU = TextureWrapMode.Repeat;
+                skyTex.wrapModeV = TextureWrapMode.Clamp;
+                var sm = new Material(Mat.Sky) { name = "Sky_" + texName };
+                sm.SetTexture("_MainTex", skyTex);
+                skyRenderer.sharedMaterial = sm;
+            }
+            else skyRenderer.sharedMaterial = Mat.Sky;
             skyRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             go.AddComponent<FollowCameraXZ>();
         }
@@ -573,7 +670,7 @@ namespace Kagegan
         void BuildDojo(MeshBuilder mb)
         {
             Lighting(new Vector3(-0.4f, 0.8f, -0.5f), new Color(1f, 0.96f, 0.86f), new Color(0.32f, 0.3f, 0.3f), new Color(0.93f, 0.9f, 0.82f), 25f, 110f, 0.55f);
-            Sky(new Color(0.55f, 0.75f, 0.95f), new Color(0.97f, 0.92f, 0.8f), new Color(0.9f, 0.85f, 0.7f));
+            Sky(new Color(0.55f, 0.75f, 0.95f), new Color(0.97f, 0.92f, 0.8f), new Color(0.9f, 0.85f, 0.7f), "sky_dojo");
             Ground(mb, 70f, new Color(0.93f, 0.8f, 0.55f), new Color(0.86f, 0.7f, 0.45f), new Color(0.55f, 0.65f, 0.35f), 11);
             grassMb = new MeshBuilder();
             GrassTufts(grassMb, 260, 6f, 26f, new Color(0.45f, 0.62f, 0.25f), 3);
@@ -592,15 +689,21 @@ namespace Kagegan
             }
             for (int i = 0; i < 6; i++) Pine(mb, new Vector3(-30f + i * 4f, 0, -30f - (i % 2) * 4f), 7f + i % 3, new Color(0.3f, 0.52f, 0.3f));
             Mountains(mb, 75f, new Color(0.62f, 0.7f, 0.8f), 12, 24f, 5);
-            // weapon rack
-            mb.SetColor(Mat.C(0.4f, 0.28f, 0.18f));
-            mb.Box(new Vector3(4f, 1f, 16.5f), new Vector3(3f, 0.12f, 0.12f));
-            mb.Box(new Vector3(4f, 0.4f, 16.5f), new Vector3(3f, 0.12f, 0.12f));
-            mb.SetColor(Mat.C(0.55f, 0.55f, 0.6f));
-            for (int i = 0; i < 5; i++) mb.Box(new Vector3(2.8f + i * 0.6f, 1.2f, 16.6f), new Vector3(0.05f, 2.2f, 0.05f), Quaternion.Euler(0, 0, 8));
+            bool kit = ModelKit.Has("Dummy");
+            if (kit) DojoProps();
+            else
+            {
+                // weapon rack
+                mb.SetColor(Mat.C(0.4f, 0.28f, 0.18f));
+                mb.Box(new Vector3(4f, 1f, 16.5f), new Vector3(3f, 0.12f, 0.12f));
+                mb.Box(new Vector3(4f, 0.4f, 16.5f), new Vector3(3f, 0.12f, 0.12f));
+                mb.SetColor(Mat.C(0.55f, 0.55f, 0.6f));
+                for (int i = 0; i < 5; i++) mb.Box(new Vector3(2.8f + i * 0.6f, 1.2f, 16.6f), new Vector3(0.05f, 2.2f, 0.05f), Quaternion.Euler(0, 0, 8));
+            }
             // straw dummies and lanterns are breakable
             for (int i = 0; i < 3; i++)
             {
+                if (kit && Destructible.CreateFromModel(transform, DestructKind.Dummy, new Vector3(-12f + i * 3f, 0, 13f), "Dummy", 1.86f, 60f, new Color(0.86f, 0.7f, 0.38f), 180f + (i - 1) * 15f) != null) continue;
                 var m = SingleMesh(b =>
                 {
                     b.SetColor(Mat.C(0.4f, 0.28f, 0.18f)); b.Limb(Vector3.zero, Vector3.up * 1.7f, 0.07f, 0.06f, 6, false);
@@ -614,6 +717,7 @@ namespace Kagegan
             for (int i = 0; i < 4; i++) Lantern(new Vector3(-16f + i * 9f, 0, 15.5f));
             for (int i = 0; i < 3; i++)
             {
+                if (kit && Destructible.CreateFromModel(transform, DestructKind.Crate, new Vector3(14f, 0, -8f + i * 1.1f), i == 1 ? "Barrel" : "Crate_Wooden", i == 1 ? 0.95f : 1.0f, 40f, new Color(0.52f, 0.36f, 0.22f), i * 37f) != null) continue;
                 var m = SingleMesh(b => { b.SetColor(Mat.C(0.52f, 0.36f, 0.22f)); b.Box(Vector3.up * 0.45f, new Vector3(0.9f, 0.9f, 0.9f)); b.SetColor(Mat.C(0.4f, 0.27f, 0.16f)); b.Box(Vector3.up * 0.45f, new Vector3(0.95f, 0.12f, 0.95f)); });
                 Destructible.Create(transform, DestructKind.Crate, new Vector3(14f, 0, -8f + i * 1.1f), m, 40f, new Color(0.52f, 0.36f, 0.22f), 1f);
             }
@@ -637,7 +741,7 @@ namespace Kagegan
         void BuildForest(MeshBuilder mb)
         {
             Lighting(new Vector3(0.5f, 0.6f, -0.4f), new Color(1f, 0.88f, 0.7f), new Color(0.25f, 0.32f, 0.28f), new Color(0.55f, 0.68f, 0.55f), 14f, 70f, 0.75f);
-            Sky(new Color(0.45f, 0.62f, 0.75f), new Color(0.85f, 0.83f, 0.68f), new Color(0.4f, 0.5f, 0.35f));
+            Sky(new Color(0.45f, 0.62f, 0.75f), new Color(0.85f, 0.83f, 0.68f), new Color(0.4f, 0.5f, 0.35f), "sky_forest");
             Ground(mb, 70f, new Color(0.38f, 0.55f, 0.27f), new Color(0.48f, 0.42f, 0.27f), new Color(0.2f, 0.32f, 0.18f), 21);
             grassMb = new MeshBuilder();
             GrassTufts(grassMb, 360, 2f, 30f, new Color(0.35f, 0.58f, 0.22f), 7);
@@ -654,7 +758,7 @@ namespace Kagegan
             for (int i = 0; i < 10; i++) Rock(mb, new Vector3((float)rnd.NextDouble() * 50f - 25f, 0, (float)rnd.NextDouble() * 50f - 25f) * (i < 5 ? 1.2f : 1f), 0.6f + (float)rnd.NextDouble(), new Color(0.5f, 0.5f, 0.48f));
             Mountains(mb, 70f, new Color(0.35f, 0.5f, 0.42f), 14, 22f, 9);
             // breakable trees inside the arena
-            bool kit = NatureKit.Available;
+            bool kit = ModelKit.Available;
             for (int i = 0; i < 11; i++)
             {
                 float a = (float)i / 11f * Mathf.PI * 2f + 0.3f;
@@ -662,7 +766,7 @@ namespace Kagegan
                 Vector3 tp = new Vector3(Mathf.Cos(a) * rr, 0, Mathf.Sin(a) * rr);
                 if (kit)
                 {
-                    string model = i % 5 == 4 ? NatureKit.Pick(NatureKit.DeadTrees, rnd) : NatureKit.Trees[i % NatureKit.Trees.Length];
+                    string model = i % 5 == 4 ? ModelKit.Pick(ModelKit.DeadTrees, rnd) : ModelKit.Trees[i % ModelKit.Trees.Length];
                     if (Destructible.CreateFromModel(transform, DestructKind.Tree, tp, model, 6.5f + (i % 3) * 0.8f, 110f, new Color(0.45f, 0.3f, 0.2f), (float)rnd.NextDouble() * 360f) != null) continue;
                 }
                 TreeProp(new Vector3(Mathf.Cos(a) * rr, 0, Mathf.Sin(a) * rr), 6f + (i % 3), i % 2 == 0 ? new Color(0.24f, 0.46f, 0.26f) : new Color(0.32f, 0.52f, 0.22f), i % 2 == 0);
@@ -671,7 +775,7 @@ namespace Kagegan
             {
                 float a = i * 1.3f + 0.6f;
                 Vector3 rp = new Vector3(Mathf.Cos(a) * 16f, 0, Mathf.Sin(a) * 16f);
-                if (kit && Destructible.CreateFromModel(transform, DestructKind.Rock, rp, NatureKit.Rocks[i % NatureKit.Rocks.Length], 1.5f + (i % 2) * 0.4f, 90f, new Color(0.55f, 0.55f, 0.52f), (float)rnd.NextDouble() * 360f) != null) continue;
+                if (kit && Destructible.CreateFromModel(transform, DestructKind.Rock, rp, ModelKit.Rocks[i % ModelKit.Rocks.Length], 1.5f + (i % 2) * 0.4f, 90f, new Color(0.55f, 0.55f, 0.52f), (float)rnd.NextDouble() * 360f) != null) continue;
                 var m = SingleMesh(b => Rock(b, Vector3.zero, 1.1f, new Color(0.55f, 0.55f, 0.52f)));
                 Destructible.Create(transform, DestructKind.Rock, rp, m, 90f, new Color(0.55f, 0.55f, 0.52f), 1.2f);
             }
@@ -683,7 +787,7 @@ namespace Kagegan
         void BuildCity(MeshBuilder mb)
         {
             Lighting(new Vector3(-0.7f, 0.35f, 0.4f), new Color(1f, 0.7f, 0.5f), new Color(0.3f, 0.26f, 0.36f), new Color(0.55f, 0.45f, 0.5f), 12f, 65f, 0.75f);
-            Sky(new Color(0.3f, 0.28f, 0.5f), new Color(0.95f, 0.6f, 0.42f), new Color(0.35f, 0.3f, 0.35f));
+            Sky(new Color(0.3f, 0.28f, 0.5f), new Color(0.95f, 0.6f, 0.42f), new Color(0.35f, 0.3f, 0.35f), "sky_city");
             Ground(mb, 70f, new Color(0.5f, 0.48f, 0.47f), new Color(0.42f, 0.4f, 0.4f), new Color(0.3f, 0.28f, 0.3f), 31);
             // road markings
             mb.SetColor(Mat.C(0.85f, 0.8f, 0.55f));
@@ -724,6 +828,7 @@ namespace Kagegan
                 });
                 Destructible.Create(transform, DestructKind.Wall, p, m, 120f, new Color(0.6f, 0.56f, 0.53f), 1.4f);
             }
+            if (ModelKit.Has("Building_Small_1")) CityModels();
             for (int i = 0; i < 4; i++)
             {
                 float a = i * 1.57f + 0.78f;
@@ -738,7 +843,7 @@ namespace Kagegan
         void BuildMoon(MeshBuilder mb)
         {
             Lighting(new Vector3(0.3f, 0.7f, 0.6f), new Color(0.75f, 0.8f, 1f), new Color(0.22f, 0.22f, 0.36f), new Color(0.12f, 0.12f, 0.25f), 18f, 80f, 0.8f);
-            Sky(new Color(0.03f, 0.03f, 0.12f), new Color(0.2f, 0.18f, 0.38f), new Color(0.05f, 0.05f, 0.1f));
+            Sky(new Color(0.03f, 0.03f, 0.12f), new Color(0.2f, 0.18f, 0.38f), new Color(0.05f, 0.05f, 0.1f), "sky_moon", new Color(0.32f, 0.32f, 0.5f));
             // void floor far below + outer rubble
             Ground(mb, 70f, new Color(0.25f, 0.24f, 0.35f), new Color(0.2f, 0.2f, 0.3f), new Color(0.1f, 0.1f, 0.18f), 41, -14f);
             // giant moon
@@ -800,6 +905,7 @@ namespace Kagegan
                 });
                 Destructible.Create(transform, DestructKind.Pillar, p, m, 140f, new Color(0.9f, 0.9f, 0.95f), 0.9f);
             }
+            if (ModelKit.Has("Vase_2")) MoonProps();
             Weather(new Color(0.8f, 0.8f, 1f, 0.8f), 18f, 0.08f, new Vector3(0.1f, 0.4f, 0.1f), 40f, false, 9f, Mat.FxAdd);
             weatherGo.transform.position = new Vector3(0, 0.5f, 0);
             PlayerSpawn = new Vector3(0, 0, -7f); EnemySpawn = new Vector3(0, 0, 7f);

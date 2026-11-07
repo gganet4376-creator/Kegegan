@@ -72,7 +72,7 @@ namespace Kagegan
         /// <summary>Breakable prop built from an imported nature model. Returns null if the model is missing.</summary>
         public static Destructible CreateFromModel(Transform parent, DestructKind kind, Vector3 pos, string model, float height, float hp, Color debris, float yaw)
         {
-            var go = NatureKit.Spawn(model, parent, pos, height, yaw);
+            var go = ModelKit.Spawn(model, parent, pos, height, yaw);
             if (go == null) return null;
             var d = go.AddComponent<Destructible>();
             d.rends = go.GetComponentsInChildren<Renderer>();

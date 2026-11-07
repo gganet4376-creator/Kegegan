@@ -314,6 +314,33 @@ namespace Kagegan
             if (inst != null) { inst.music.volume = Save.Data.music * 0.6f; inst.ambience.volume = Mathf.Min(inst.ambience.volume, Save.Data.sfx); }
         }
 
+        /// <summary>Announcer line (Kenney Voiceover Pack: Fighter, CC0) from Resources/Kagegan/Audio/Voice.</summary>
+        public static void Voice(string line, float volume = 1f) => PlayFile("Kagegan/Audio/Voice/" + line, volume);
+
+        /// <summary>Short music stinger from Resources/Kagegan/Audio/Jingles.</summary>
+        public static void Jingle(string name, float volume = 0.8f) => PlayFile("Kagegan/Audio/Jingles/" + name, volume * Mathf.Max(0.3f, Save.Data.music / Mathf.Max(0.01f, Save.Data.sfx)));
+
+        static void PlayFile(string path, float volume)
+        {
+            if (inst == null) return;
+            if (!inst.fileClips.TryGetValue(path, out var clip))
+            {
+                clip = Resources.Load<AudioClip>(path);
+                inst.fileClips[path] = clip;
+            }
+            if (clip == null) return;
+            if (inst.announcer == null)
+            {
+                inst.announcer = inst.gameObject.AddComponent<AudioSource>();
+                inst.announcer.playOnAwake = false;
+                inst.announcer.spatialBlend = 0f;
+            }
+            inst.announcer.PlayOneShot(clip, Mathf.Clamp01(volume * Save.Data.sfx));
+        }
+
+        AudioSource announcer;
+        readonly System.Collections.Generic.Dictionary<string, AudioClip> fileClips = new System.Collections.Generic.Dictionary<string, AudioClip>();
+
         public static void StopMusic() { if (inst != null) { inst.music.Stop(); inst.musicB.Stop(); inst.currentTrack = ""; } }
     }
 }

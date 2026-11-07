@@ -40,6 +40,17 @@
 - "Particle Pack" — Kenney — https://kenney.nl/assets/particle-pack — искры, огонь, электричество, земля
 - "Impact Sounds" — Kenney — https://kenney.nl/assets/impact-sounds — удары, блок, приземление, разрушение, шаги
 - "Interface Sounds" — Kenney — https://kenney.nl/assets/interface-sounds — звуки меню
+- "Downtown City MegaKit" (Standard) — Quaternius — https://quaternius.itch.io/downtown-city-megakit — здания и уличные предметы
+- "Fantasy Props MegaKit" (Standard) — Quaternius — https://quaternius.itch.io/fantasy-props-megakit — бочки, ящики, манекены, вазы, стойки
+- "Medieval Village MegaKit" (Standard) — Quaternius — https://quaternius.itch.io/medieval-village-megakit — повозка, заборы, ящики
+- "Voiceover Pack: Fighter" — Kenney — https://opengameart.org/content/voiceover-pack-fighter-40-taunts — голос диктора
+- "85 Short Music Jingles" — Kenney — https://opengameart.org/content/85-short-music-jingles — заставки победы
+
+## Небо (CC0, Poly Haven)
+- kloofendal_48d_partly_cloudy_puresky, industrial_sunset_puresky, qwantani_dusk_2_puresky, qwantani_moonrise_puresky — https://polyhaven.com/hdris
+
+## Шрифт (SIL Open Font License 1.1)
+- Russo One — Jovanny Lemonad — https://fonts.google.com/specimen/Russo+One (лицензия: Resources/Kagegan/Fonts/OFL.txt)
 
 ## Иконки (CC BY 3.0)
 Иконки с https://game-icons.net — авторы Lorc, Delapouite, Felbrigg, Skoll, GUARD13007.

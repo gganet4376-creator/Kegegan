@@ -18,7 +18,8 @@ namespace Kagegan
         public static void Init()
         {
             if (Font != null) return;
-            try { Font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"); } catch { Font = null; }
+            Font = Resources.Load<Font>("Kagegan/Fonts/RussoOne-Regular"); // Russo One (SIL OFL), has Cyrillic
+            if (Font == null) { try { Font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"); } catch { Font = null; } }
             if (Font == null) { try { Font = Resources.GetBuiltinResource<Font>("Arial.ttf"); } catch { Font = null; } }
             if (Font == null) Font = Font.CreateDynamicFontFromOSFont(new[] { "Roboto", "Noto Sans", "Arial", "DejaVu Sans" }, 32);
             Rounded = MakeRounded(64, 18);
