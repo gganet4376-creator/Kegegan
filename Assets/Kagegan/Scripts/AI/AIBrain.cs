@@ -105,8 +105,11 @@ namespace Kagegan
             if (!engage)
             {
                 // hold a flanking slot around the target while waiting for an attack token
-                float ang = flankAngle + Mathf.Sin(Time.time * 0.3f + flankAngle) * 25f;
-                Vector3 slot = t.transform.position + Quaternion.Euler(0, ang, 0) * Vector3.forward * 4.3f;
+                // lane slots: alternate sides of the target, staggered in distance and depth
+                int si = Mathf.RoundToInt(flankAngle / 60f);
+                float sideX = (si % 2 == 0 ? 1f : -1f) * (3.6f + (si / 2) * 1.3f + Mathf.Sin(Time.time * 0.4f + si) * 0.5f);
+                float sz = ((si % 3) - 1) * 1.5f;
+                Vector3 slot = Arena.ClampInside(t.transform.position + new Vector3(sideX, 0f, sz - t.transform.position.z * 0.5f), 1f);
                 Vector3 toSlot = KMath.Flat(slot - F.transform.position);
                 moveDir = toSlot.magnitude > 0.6f ? toSlot.normalized * Mathf.Clamp01(toSlot.magnitude / 2f) : Vector3.zero;
                 if (Random.value < 0.035f) TryTechnique(d);

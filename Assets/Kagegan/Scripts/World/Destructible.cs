@@ -197,6 +197,13 @@ namespace Kagegan
             mr.SetPropertyBlock(fadeBlock);
         }
 
+        /// <summary>Moves the prop (used to lay props out along the fighting lane).</summary>
+        public void Relocate(Vector3 pos)
+        {
+            transform.position = pos;
+            basePos = pos;
+        }
+
         public void Restore()
         {
             Broken = false; Hp = MaxHp; fallT = -1f; sinkT = -1f; wobble = 0f;

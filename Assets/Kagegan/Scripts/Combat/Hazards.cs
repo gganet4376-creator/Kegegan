@@ -155,7 +155,7 @@ namespace Kagegan
         {
             mpb = new MaterialPropertyBlock();
             var mb = new MeshBuilder();
-            mb.RingXZ(Vector3.zero, 0.88f, 1f, 32, new Color32(255, 255, 255, 255), new Color32(255, 255, 255, 255));
+            mb.RingXZ(Vector3.zero, 0.93f, 1f, 48, new Color32(255, 255, 255, 255), new Color32(255, 255, 255, 255));
             ringMesh = mb.ToMesh("hzring");
             mb.Clear();
             mb.RingXZ(Vector3.zero, 0f, 1f, 32, new Color32(255, 255, 255, 60), new Color32(255, 255, 255, 140));
@@ -203,11 +203,12 @@ namespace Kagegan
             Team team = Owner != null ? Owner.Team : Team.Enemy;
             if (!fired)
             {
+                // readable but unobtrusive telegraph: thin pulsing outline + faint fill growing to the edge
                 float u = Mathf.Clamp01(t / Mathf.Max(0.01f, Delay));
-                Color c = Color; c.a = 0.5f + 0.5f * Mathf.Sin(t * 25f);
+                Color c = Color; c.a = 0.45f + 0.3f * Mathf.Sin(t * 18f);
                 mpb.SetColor(IdColor, c); ring.SetPropertyBlock(mpb);
                 disc.transform.localScale = Vector3.one * u;
-                Color dc = Color; dc.a = 0.6f;
+                Color dc = Color; dc.a = 0.16f + 0.1f * u;
                 mpb.SetColor(IdColor, dc); disc.SetPropertyBlock(mpb);
                 if (t >= Delay) { fired = true; Fire(team); }
                 return;
@@ -222,7 +223,7 @@ namespace Kagegan
                     Combat.AreaDamage(Owner, team, transform.position + Vector3.up * 0.8f, Radius, Damage * 0.18f, 1f, 0f, false, Color, Kind != HazardKind.PoisonCloud);
                 }
                 FieldFx();
-                Color c = Color; c.a = 0.35f * Mathf.Clamp01((Delay + Duration - t) / 0.4f);
+                Color c = Color; c.a = 0.2f * Mathf.Clamp01((Delay + Duration - t) / 0.4f);
                 mpb.SetColor(IdColor, c); ring.SetPropertyBlock(mpb); disc.SetPropertyBlock(mpb);
             }
             if (t >= Delay + Duration + 0.05f) { Live.Remove(this); pool.Release(this); }
@@ -234,7 +235,7 @@ namespace Kagegan
             switch (Kind)
             {
                 case HazardKind.FireField: Fx.Fire(p, 0.6f, 2); break;
-                case HazardKind.PoisonCloud: if (Random.value < 0.4f) Fx.Smoke(p + Vector3.up * 0.4f, 1f, new Color(0.45f, 0.2f, 0.55f, 0.45f), 2); break;
+                case HazardKind.PoisonCloud: if (Random.value < 0.18f) Fx.Smoke(p + Vector3.up * 0.15f, 0.45f, new Color(0.55f, 0.3f, 0.65f, 0.22f), 1); break;
                 default: Fx.Trail(p, Color, 0.4f); break;
             }
         }

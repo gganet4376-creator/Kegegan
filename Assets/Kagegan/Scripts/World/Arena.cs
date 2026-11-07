@@ -11,6 +11,8 @@ namespace Kagegan
     {
         public static Arena Current;
         public static float Radius = 21f;
+        // 2.5D fighting lane (Mortal-Kombat-like side view): fighters move freely along X and a little in depth (Z)
+        public static float LaneHalf = 17f, LaneDepth = 3.6f;
         public ArenaId Id;
         public Vector3 PlayerSpawn = new Vector3(0, 0, -6f);
         public Vector3 EnemySpawn = new Vector3(0, 0, 6f);
@@ -28,14 +30,63 @@ namespace Kagegan
         public System.Action<int> PhaseChanged;
         MoonTiles moonTiles;
 
-        public static bool Inside(Vector3 p, float margin) => KMath.Flat(p).magnitude < Radius + margin;
+        public static bool Inside(Vector3 p, float margin) =>
+            Mathf.Abs(p.x) < LaneHalf + margin && p.z > -LaneDepth - margin - 2f && p.z < LaneDepth + margin + 6f;
 
         public static Vector3 ClampInside(Vector3 p, float margin)
         {
-            Vector3 f = KMath.Flat(p);
-            float max = Radius - margin;
-            if (f.magnitude > max) { f = f.normalized * max; p.x = f.x; p.z = f.z; }
+            p.x = Mathf.Clamp(p.x, -LaneHalf + margin, LaneHalf - margin);
+            float dz = Mathf.Max(0.4f, LaneDepth - margin * 0.5f);
+            p.z = Mathf.Clamp(p.z, -dz, dz);
             return p;
+        }
+
+        /// <summary>Moves breakable props out of the camera's way: tall ones line the back edge of the lane, low ones too.</summary>
+        void LayoutPropsForLane()
+        {
+            var rnd = new System.Random(17 + (int)Id);
+            int i = 0;
+            foreach (var d in Destructible.All)
+            {
+                Vector3 p = d.transform.position;
+                float x = Mathf.Clamp(p.x * 1.15f + ((float)rnd.NextDouble() - 0.5f) * 3f, -LaneHalf + 0.5f, LaneHalf - 0.5f);
+                bool tall = d.Kind == DestructKind.Tree || d.Kind == DestructKind.Pillar || d.Kind == DestructKind.Wall;
+                float z = tall ? LaneDepth + 1.2f + (float)rnd.NextDouble() * 3.5f : LaneDepth + 0.7f + (float)rnd.NextDouble() * 2f;
+                if (i % 3 == 2 && !tall) z = LaneDepth + 0.6f; // some low props right at the edge so fights knock into them
+                d.Relocate(new Vector3(x, 0f, z));
+                i++;
+            }
+        }
+
+        /// <summary>Mid-ground band behind the lane so the side view has depth (static, merged).</summary>
+        static void BackdropBand(MeshBuilder mb, ArenaId id)
+        {
+            var rnd = new System.Random(31 + (int)id);
+            for (float x = -34f; x <= 34f; x += 3.2f + (float)rnd.NextDouble() * 2.5f)
+            {
+                float z = 10f + (float)rnd.NextDouble() * 12f;
+                Vector3 p = new Vector3(x, 0, z);
+                switch (id)
+                {
+                    case ArenaId.Forest:
+                        if (rnd.NextDouble() < 0.55) Pine(mb, p, 8f + (float)rnd.NextDouble() * 6f, new Color(0.2f, 0.42f, 0.24f) * (0.85f + (float)rnd.NextDouble() * 0.3f));
+                        else LeafTree(mb, p, 7f + (float)rnd.NextDouble() * 5f, new Color(0.3f, 0.5f, 0.22f) * (0.85f + (float)rnd.NextDouble() * 0.3f));
+                        if (rnd.NextDouble() < 0.4) Rock(mb, p + new Vector3(1.5f, 0, -2f), 0.6f + (float)rnd.NextDouble(), new Color(0.48f, 0.48f, 0.46f));
+                        break;
+                    case ArenaId.City:
+                        if (rnd.NextDouble() < 0.5)
+                        {
+                            float h = 3f + (float)rnd.NextDouble() * 6f;
+                            mb.SetColor(Mat.C(0.5f, 0.47f, 0.48f));
+                            mb.Box(p + Vector3.up * h * 0.5f, new Vector3(3f + (float)rnd.NextDouble() * 2f, h, 2f), Quaternion.Euler(0, (float)rnd.NextDouble() * 20f - 10f, (float)rnd.NextDouble() * 8f - 4f));
+                        }
+                        else Rock(mb, p, 0.8f + (float)rnd.NextDouble(), new Color(0.42f, 0.4f, 0.41f));
+                        break;
+                    case ArenaId.Dojo:
+                        if (rnd.NextDouble() < 0.35) Pine(mb, p + Vector3.forward * 6f, 7f + (float)rnd.NextDouble() * 4f, new Color(0.32f, 0.56f, 0.3f));
+                        break;
+                }
+            }
         }
 
         public static Arena Build(ArenaId id, Transform parent)
@@ -56,9 +107,14 @@ namespace Kagegan
                 case ArenaId.City: a.BuildCity(stat); break;
                 default: a.BuildMoon(stat); break;
             }
+            BackdropBand(stat, id);
             a.AddStaticMesh(stat, "Static");
             if (a.grassMb != null) a.AddStaticMesh(a.grassMb, "Grass", Mat.ToonWind);
             a.BuildClouds();
+            LaneHalf = 17f;
+            a.LayoutPropsForLane();
+            a.PlayerSpawn = new Vector3(-5f, 0f, 0f);
+            a.EnemySpawn = new Vector3(5f, 0f, 0f);
             a.BuildWalls(Radius);
             a.ApplyLighting();
             return a;
@@ -86,19 +142,11 @@ namespace Kagegan
         {
             foreach (var w in walls) Destroy(w);
             walls.Clear();
-            int n = 24;
-            for (int i = 0; i < n; i++)
-            {
-                float a = (i + 0.5f) / n * Mathf.PI * 2f;
-                var go = new GameObject("Wall");
-                go.transform.SetParent(transform, false);
-                Vector3 d = new Vector3(Mathf.Cos(a), 0, Mathf.Sin(a));
-                go.transform.position = d * (r + 0.5f) + Vector3.up * 5f;
-                go.transform.rotation = Quaternion.LookRotation(d);
-                var b = go.AddComponent<BoxCollider>();
-                b.size = new Vector3(2f * Mathf.PI * (r + 0.5f) / n + 0.6f, 12f, 1f);
-                walls.Add(go);
-            }
+            // rectangular lane boundary
+            AddWall(new Vector3(-LaneHalf - 0.5f, 5f, 0f), new Vector3(1f, 12f, LaneDepth * 2f + 4f));
+            AddWall(new Vector3(LaneHalf + 0.5f, 5f, 0f), new Vector3(1f, 12f, LaneDepth * 2f + 4f));
+            AddWall(new Vector3(0f, 5f, -LaneDepth - 0.5f), new Vector3(LaneHalf * 2f + 2f, 12f, 1f));
+            AddWall(new Vector3(0f, 5f, LaneDepth + 0.5f), new Vector3(LaneHalf * 2f + 2f, 12f, 1f));
             // ground collider
             var g = new GameObject("GroundCollider");
             g.transform.SetParent(transform, false);
@@ -108,15 +156,27 @@ namespace Kagegan
             walls.Add(g);
         }
 
+        void AddWall(Vector3 pos, Vector3 size)
+        {
+            var go = new GameObject("Wall");
+            go.transform.SetParent(transform, false);
+            go.transform.position = pos;
+            go.AddComponent<BoxCollider>().size = size;
+            walls.Add(go);
+        }
+
         public void SetRadius(float r)
         {
             Radius = r;
+            LaneHalf = Mathf.Min(17f, r - 2.5f);
             BuildWalls(r);
             // anyone left outside the new boundary is pulled back in
             for (int i = 0; i < Fighter.All.Count; i++)
             {
                 var f = Fighter.All[i];
-                if (f == null || KMath.Flat(f.transform.position).magnitude < r - 1f) continue;
+                if (f == null) continue;
+                Vector3 cl = ClampInside(f.transform.position, 1f);
+                if (KMath.Flat(cl - f.transform.position).sqrMagnitude < 0.01f) continue;
                 Fx.Smoke(f.Center, 0.6f, new Color(0.8f, 0.8f, 1f, 0.5f), 6);
                 f.Teleport(ClampInside(f.transform.position, 2f));
             }

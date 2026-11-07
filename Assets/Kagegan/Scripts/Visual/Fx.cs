@@ -241,7 +241,11 @@ namespace Kagegan
             Color spark = Color.Lerp(color, Color.white, 0.35f);
             for (int i = 0; i < n; i++)
                 Emit(inst.sparks, pos, Random.onUnitSphere * Random.Range(4f, heavy ? 13f : 8f), spark, Random.Range(0.05f, 0.11f), Random.Range(0.12f, 0.28f));
-            if (inst.flashPs != null) EmitF(inst.flashPs, pos, Vector3.zero, color * 0.9f, heavy ? 1.5f : 0.85f, 0.11f);
+            if (inst.flashPs != null)
+            {
+                EmitF(inst.flashPs, pos, Vector3.zero, Color.Lerp(Color.white, color, 0.35f), heavy ? 1.9f : 1.05f, heavy ? 0.13f : 0.09f);
+                if (heavy) EmitF(inst.flashPs, pos, Vector3.zero, color, 1.2f, 0.18f);
+            }
             else Emit(inst.glow, pos, Vector3.zero, color, heavy ? 1.6f : 0.9f, 0.12f);
             if (heavy)
             {
@@ -297,7 +301,7 @@ namespace Kagegan
             {
                 if (ps == null) { Emit(inst.smoke, pos + Random.insideUnitSphere * size * 0.4f, Random.onUnitSphere * Random.Range(0.6f, 2f) * size, c, Random.Range(0.6f, 1.1f) * size, Random.Range(0.5f, 0.9f)); continue; }
                 Color cc = dark ? new Color(1f, 1f, 1f, c.a) : c;
-                EmitF(ps, pos + Random.insideUnitSphere * size * 0.4f, Random.onUnitSphere * Random.Range(0.5f, 1.8f) * size, cc, Random.Range(0.9f, 1.5f) * size, Random.Range(0.5f, 1f));
+                EmitF(ps, pos + Random.insideUnitSphere * size * 0.4f, Random.onUnitSphere * Random.Range(0.5f, 1.5f) * size, cc, Random.Range(0.6f, 1.05f) * size, Random.Range(0.45f, 0.85f));
             }
         }
 
@@ -354,11 +358,11 @@ namespace Kagegan
             if (inst == null) return;
             if (inst.explosionFlip != null)
             {
-                EmitF(inst.explosionFlip, pos + Vector3.up * radius * 0.3f, Vector3.zero, Color.white, radius * 2.6f, 0.9f);
+                EmitF(inst.explosionFlip, pos + Vector3.up * radius * 0.3f, Vector3.zero, Color.white, Mathf.Min(radius * 2.2f, 7f), 0.9f);
                 if (GraphicsQuality.ParticleMul > 0.6f) EmitF(inst.explosionFlip, pos + Random.insideUnitSphere * radius * 0.4f + Vector3.up * radius * 0.4f, Vector3.zero, Color.white, radius * 1.8f, 0.8f);
             }
             Fire(pos, radius * 0.55f, 12);
-            Smoke(pos + Vector3.up * 0.6f, radius * 0.7f, new Color(0.25f, 0.22f, 0.22f, 0.75f), 10);
+            Smoke(pos + Vector3.up * 0.4f, radius * 0.45f, new Color(0.25f, 0.22f, 0.22f, 0.5f), 6);
             var ring = RingFor(color);
             if (ring != null) EmitF(ring, pos + Vector3.up * 0.8f, Vector3.zero, Color.white, radius * 2.2f, 0.4f);
             Ring(new Vector3(pos.x, 0.08f, pos.z), color, 0.5f, radius * 2.2f, 0.5f, Quaternion.identity);

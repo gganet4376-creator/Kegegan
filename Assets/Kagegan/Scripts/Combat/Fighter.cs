@@ -592,12 +592,15 @@ namespace Kagegan
             {
                 atk.Rage = Mathf.Min(100f, atk.Rage + dmg * 0.3f);
                 atk.Stats.damageDealt += dmg; atk.Stats.hitsLanded++;
-                atk.ComboDealt++; atk.comboDealtTimer = 1.3f;
+                // a combo only continues while this target has not recovered since the previous hit
+                bool reeling = ComboTaken > 1 && (State == FState.Hitstun || State == FState.Juggle || State == FState.Stunned || State == FState.Knockdown);
+                atk.ComboDealt = reeling && atk.comboDealtTimer > 0f ? atk.ComboDealt + 1 : 1;
+                atk.comboDealtTimer = 1.1f;
                 if (atk.ComboDealt > atk.Stats.maxCombo) atk.Stats.maxCombo = atk.ComboDealt;
                 atk.LastHitDamage = dmg;
                 if (atk.Kit != null) atk.Kit.OnHitLanded(this, ref h);
                 // clones count toward the player's combo
-                if (atk.IsClone && atk.Owner != null) { atk.Owner.ComboDealt++; atk.Owner.comboDealtTimer = 1.3f; atk.Owner.Stats.damageDealt += dmg; }
+                if (atk.IsClone && atk.Owner != null) atk.Owner.Stats.damageDealt += dmg; // clone hits count as damage, not as the player's combo
             }
             flashAmount = h.Kind == HitKind.Light ? 0.35f : 0.55f; flashColor = new Color(1f, 0.92f, 0.85f);
             Fx.Hit(h.Point, h.FxColor, h.Kind != HitKind.Light);
@@ -642,7 +645,8 @@ namespace Kagegan
             {
                 float up = h.Launch > 0f ? h.Launch : (h.Knockdown ? 5f : 3.2f);
                 if (juggleHits > 9 && !h.Knockdown) up *= 0.25f;
-                Velocity.y = Mathf.Max(Velocity.y * 0.3f, up / Mathf.Sqrt(Weight));
+                Velocity.y = Mathf.Min(Mathf.Max(Velocity.y * 0.3f, up / Mathf.Sqrt(Weight)), 11f);
+                if (transform.position.y > 2.6f) Velocity.y = Mathf.Min(Velocity.y, 2f); // keep juggles inside the frame
                 knock = h.Dir * kb * (h.Knockdown ? 1.5f : 0.6f);
                 juggleHits++;
                 knockdownOnLand = h.Knockdown || juggleHits > 2 || !IsBoss;
@@ -719,10 +723,12 @@ namespace Kagegan
         {
             var v = ThrowVictim;
             if (v == null || !v.Alive || v.State != FState.Grabbed) { ThrowVictim = null; return; }
+            // the victim is pulled into the hold over a few frames (no snapping)
             Vector3 p = transform.position + transform.forward * 0.75f + Vector3.up * 0.2f;
+            float k = 1f - Mathf.Exp(-14f * Time.deltaTime);
             v.Cc.enabled = false;
-            v.transform.position = p;
-            v.transform.rotation = Quaternion.LookRotation(-transform.forward);
+            v.transform.position = Vector3.Lerp(v.transform.position, p, k);
+            v.transform.rotation = Quaternion.Slerp(v.transform.rotation, Quaternion.LookRotation(-transform.forward), k);
             v.Cc.enabled = true;
             if (State != FState.Attack || CurMove != throwMove) { v.ReleaseGrab(); ThrowVictim = null; }
         }
@@ -890,6 +896,8 @@ namespace Kagegan
         public Fighter MountVictim { get; private set; }
         Fighter pinnedBy;
         int mountHits, mountMaxHits;
+        Vector3 mountFrom, mountSeat;
+        float mountEnter;
         float mountTimer, mountActionT = -1f, mountHitAt;
         bool mountRight, mountHammer;
 
@@ -913,11 +921,12 @@ namespace Kagegan
             SetState(FState.Mount);
             Velocity = Vector3.zero; knock = Vector3.zero;
             // the victim lies on its back with the head toward its -forward: sit across the hips facing the head
-            Vector3 seat = t.transform.position - t.transform.forward * 0.25f;
-            Teleport(seat);
-            transform.rotation = Quaternion.LookRotation(KMath.Flat(-t.transform.forward).sqrMagnitude > 0.01f ? -t.transform.forward : transform.forward);
+            // pounce onto the opponent along a short arc instead of snapping into place
+            mountSeat = Arena.ClampInside(t.transform.position - t.transform.forward * 0.25f, 0.3f);
+            mountFrom = transform.position;
+            mountEnter = 0f;
             ForceAnimMode(AnimMode.Custom, PoseLib.MountSit);
-            Anim.Play(Clip.Seq(0f, PoseLib.Crouch, 0.15f, PoseLib.MountSit, 0.25f, PoseLib.MountSit));
+            Anim.Play(Clip.Seq(0f, PoseLib.Crouch, 0.12f, PoseLib.AirUp, 0.24f, PoseLib.MountSit, 0.34f, PoseLib.MountSit));
             Vector3 side = Vector3.Cross(Vector3.up, transform.forward);
             CameraRig.Cinematic(t.transform.position + Vector3.up * 0.6f, side + Vector3.up * 0.15f, 4.2f, 1.6f, mountTimer + 0.6f);
             Sfx.PlayAt(SfxId.Land, transform.position, 0.8f, 0.9f);
@@ -929,6 +938,18 @@ namespace Kagegan
         {
             var v = MountVictim;
             if (v == null || !v.Alive || v.State != FState.Knockdown) { EndMount(true); return; }
+            if (mountEnter < 1f)
+            {
+                mountEnter = Mathf.Min(1f, mountEnter + dt / 0.28f);
+                Vector3 p = Vector3.Lerp(mountFrom, mountSeat, mountEnter) + Vector3.up * Mathf.Sin(mountEnter * Mathf.PI) * 0.6f;
+                Cc.enabled = false;
+                transform.position = p;
+                Vector3 face = KMath.Flat(-v.transform.forward);
+                if (face.sqrMagnitude > 0.01f) transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(face), 1f - Mathf.Exp(-20f * dt));
+                Cc.enabled = true;
+                if (mountEnter >= 1f) { Fx.Dust(v.transform.position, 0.8f, 6); Sfx.PlayAt(SfxId.Land, transform.position, 0.8f, 0.9f); }
+                return;
+            }
             mountTimer -= dt;
             if (mountActionT >= 0f)
             {
@@ -1040,6 +1061,7 @@ namespace Kagegan
             }
 
             Velocity.y += gravity * dt;
+            if ((State == FState.Juggle || State == FState.Dead) && transform.position.y > 3.4f && Velocity.y > 0f) Velocity.y = 0f;
             Vector3 total = Velocity + knock;
             knock = Vector3.MoveTowards(knock, Vector3.zero, (Grounded ? 18f : 6f) * dt);
 
@@ -1104,11 +1126,13 @@ namespace Kagegan
                 var o = All[i];
                 if (o == this || !o.Alive || o.State == FState.Grabbed || o.ThrowVictim == this || ThrowVictim == o || o == MountVictim || o.MountVictim == this) continue;
                 Vector3 d = KMath.Flat(p - o.transform.position);
-                float min = BodyRadius + o.BodyRadius;
+                float min = (BodyRadius + o.BodyRadius) * 1.2f;
                 float m = d.magnitude;
-                if (m < min && Mathf.Abs(p.y - o.transform.position.y) < 1.2f)
+                if (m < min && Mathf.Abs(p.y - o.transform.position.y) < 1.4f)
                 {
-                    Vector3 push = (m > 0.001f ? d / m : transform.right) * (min - m) * 0.5f;
+                    // heavier fighters move less; a downed body is not shoved around
+                    float share = o.State == FState.Knockdown ? 1f : o.Weight / (Weight + o.Weight);
+                    Vector3 push = (m > 0.001f ? d / m : transform.right) * (min - m) * share;
                     Cc.Move(push);
                 }
             }

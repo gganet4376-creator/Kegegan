@@ -47,10 +47,11 @@ namespace Kagegan
                 case CharacterId.Kaito:
                     return new Look
                     {
-                        skin = new Color(1f, 0.85f, 0.7f), top = new Color(1f, 0.52f, 0.12f), sleeve = new Color(1f, 0.52f, 0.12f), top2 = new Color(0.12f, 0.14f, 0.28f),
-                        pants = new Color(0.95f, 0.5f, 0.12f), shoes = new Color(0.15f, 0.2f, 0.4f), hair = new Color(0.98f, 0.78f, 0.28f),
-                        eye = new Color(0.2f, 0.55f, 1f), accent = new Color(0.8f, 0.15f, 0.12f), hairStyle = HairStyle.Spiky, headband = true, scarf = true,
-                        bareForearms = false, eyeGlow = 0.35f
+                        // Kaito's own identity: wind-ninja in deep blue with a long red scarf and dark teal hair
+                        skin = new Color(0.98f, 0.84f, 0.72f), top = new Color(0.14f, 0.2f, 0.42f), sleeve = new Color(0.14f, 0.2f, 0.42f), top2 = new Color(0.9f, 0.9f, 0.92f),
+                        pants = new Color(0.16f, 0.17f, 0.22f), shoes = new Color(0.1f, 0.1f, 0.12f), hair = new Color(0.1f, 0.32f, 0.38f),
+                        eye = new Color(0.35f, 0.95f, 1f), accent = new Color(0.78f, 0.12f, 0.12f), hairStyle = HairStyle.Spiky, headband = false, scarf = true,
+                        bareForearms = true, eyeGlow = 0.45f
                     };
                 case CharacterId.Genryu:
                     return new Look
@@ -107,14 +108,19 @@ namespace Kagegan
         public static Fighter CreateClone(Fighter owner, Vector3 pos)
         {
             pos = Arena.ClampInside(pos, 1f);
-            var f = FighterFactory.Make("Двойник", LookFor(CharacterId.Kaito), StanceKind.Swift, RunStyle.Ninja, new KaitoKit(true), owner.Team, pos, FighterRoot, 30f, 6.8f);
+            // each double is slightly different: build, tempo, temperament
+            var look = LookFor(CharacterId.Kaito);
+            look.height *= Random.Range(0.97f, 1.03f);
+            look.accent = Color.Lerp(look.accent, new Color(0.9f, 0.4f, 0.2f), Random.value * 0.5f);
+            var f = FighterFactory.Make("Двойник", look, StanceKind.Swift, RunStyle.Ninja, new KaitoKit(true), owner.Team, pos, FighterRoot, 30f, Random.Range(6.3f, 7.1f));
+            f.Anim.TimeScale = Random.Range(0.9f, 1.12f);
             f.IsClone = true;
             f.Owner = owner;
             f.DamageMul = 0.6f;
             f.InfiniteChakra = false;
             f.transform.rotation = owner.transform.rotation;
             var tune = DifficultyTuning.For(Difficulty.Warrior);
-            tune.aggression = 1f; tune.reaction = 0.25f; tune.blockChance = 0.15f;
+            tune.aggression = Random.Range(0.75f, 1f); tune.reaction = Random.Range(0.18f, 0.35f); tune.blockChance = Random.Range(0.05f, 0.3f);
             var brain = f.gameObject.AddComponent<AIBrain>();
             brain.Setup(f, Archetype.Clone, tune);
             f.Target = owner.Target;

@@ -74,7 +74,7 @@ namespace Kagegan
     {
         public string Id;
         public Action Down, Up;
-        public Image Icon, CooldownFill, Glyph;
+        public Image Icon, CooldownFill, Glyph, Ring;
         public Text Label;
         public bool Held { get; private set; }
         public Vector2 DefaultPos;
@@ -187,9 +187,10 @@ namespace Kagegan
         void MakeButton(Def d)
         {
             var rt = UIKit.Box(Root, "Btn_" + d.id, new Vector2(1, 0), d.pos, new Vector2(d.size, d.size));
-            var img = UIKit.Img(rt, d.color, UIKit.Circle, true);
+            // unified style: dark translucent disc, white glyph, colour only in the thin ring
+            var img = UIKit.Img(rt, d.id == "light" ? new Color(0.3f, 0.06f, 0.06f, 0.7f) : new Color(0.05f, 0.06f, 0.09f, 0.58f), UIKit.Circle, true);
             var ring = UIKit.Box(rt, "Ring", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(d.size, d.size));
-            UIKit.Img(ring, new Color(1f, 1f, 1f, 0.55f), UIKit.Ring);
+            var ringImg = UIKit.Img(ring, Color.Lerp(d.color, Color.white, 0.25f), UIKit.Ring);
             var cdRt = UIKit.Box(rt, "Cooldown", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(d.size, d.size));
             var cd = cdRt.gameObject.AddComponent<Image>();
             cd.sprite = UIKit.Circle;
@@ -209,6 +210,7 @@ namespace Kagegan
             var b = rt.gameObject.AddComponent<TouchButton>();
             b.Setup(d.id, img, label, cd);
             b.Glyph = glyph;
+            b.Ring = ringImg;
             string id = d.id;
             b.Down = () => OnButton?.Invoke(id, true);
             b.Up = () => OnButton?.Invoke(id, false);

@@ -68,8 +68,7 @@ namespace Kagegan
                 {
                     var t = F.Kit.Techs[i];
                     b.Label.text = t.Short ?? t.Name;
-                    var c = t.Color * 0.55f; c.a = 1f;
-                    b.SetColor(c);
+                    if (b.Ring != null) { var rc = t.Color; rc.a = 1f; b.Ring.color = rc; }
                     if (b.Glyph != null) { b.Glyph.sprite = UIKit.Icon(t.Icon); b.Glyph.enabled = b.Glyph.sprite != null; }
                 }
                 else { b.Label.text = "—"; if (b.Glyph != null) b.Glyph.enabled = false; }

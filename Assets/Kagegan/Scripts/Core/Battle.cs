@@ -135,6 +135,7 @@ namespace Kagegan
             Player.FaceInstant(Vector3.zero);
             CameraRig.Inst.Player = Player.transform;
             CameraRig.Inst.MenuMode = false;
+            CameraRig.LaneMode = true;
             CameraRig.Inst.Snap();
         }
 
@@ -223,10 +224,11 @@ namespace Kagegan
 
         Vector3 EdgePoint()
         {
-            Vector3 away = Player != null ? -KMath.Flat(Player.transform.position).normalized : Vector3.forward;
-            if (away.sqrMagnitude < 0.01f) away = Vector3.forward;
-            float a = Mathf.Atan2(away.z, away.x) + Random.Range(-1.1f, 1.1f);
-            return new Vector3(Mathf.Cos(a), 0, Mathf.Sin(a)) * (Arena.Radius - 4f);
+            // enter from the far end of the lane (sometimes from behind the player)
+            float px = Player != null ? Player.transform.position.x : 0f;
+            float side = px < 0f ? 1f : -1f;
+            if (Random.value < 0.3f) side = -side;
+            return new Vector3(side * (Arena.LaneHalf - 2f), 0f, Random.Range(-Arena.LaneDepth + 1f, Arena.LaneDepth - 1f));
         }
 
         Fighter SpawnMinion(MinionType t, Vector3 pos)
@@ -266,16 +268,41 @@ namespace Kagegan
             if (Mode == BattleMode.BossRush) Save.Data.bossesUnlocked |= 1 << index;
             Save.Write();
             Vector3 pos = Arena.Current.EnemySpawn;
-            Boss = Roster.CreateBoss(index, pos, Tune);
+            // entrance: the boss leaps in from behind the treeline and lands hard in front of the player
+            Vector3 from = new Vector3(pos.x + 6f, 7f, Arena.LaneDepth + 6f);
+            Boss = Roster.CreateBoss(index, from, Tune);
             Boss.Target = Player;
-            Boss.FaceInstant(Player.transform.position);
             Boss.Brain.Active = false;
             Boss.OnDied += OnEnemyDied;
             enemies.Add(Boss);
             GameManager.Inst.SetControlsVisible(false);
             Player.SetMove(Vector3.zero);
+            Player.FaceInstant(pos);
             Sfx.PlayTrack(index == 0 ? "boss_serpent" : index == 1 ? "boss_thunder" : "boss_moon", 2);
-            Fx.Smoke(Boss.Center, 2f, new Color(0.4f, 0.35f, 0.45f, 0.7f), 18);
+            Boss.EnterCinematic();
+            Boss.ForceAnimMode(AnimMode.Custom, PoseLib.AirUp);
+            CameraRig.Cinematic(pos + Vector3.up * 1.5f, new Vector3(-0.35f, 0.1f, -1f), 9f, 1.2f, 1.4f);
+            Sfx.Play(SfxId.Whoosh, 1f, 0.6f);
+            for (float t = 0f; t < 0.9f; t += Time.deltaTime)
+            {
+                float u = t / 0.9f;
+                Vector3 p = Vector3.Lerp(from, pos, u) + Vector3.up * Mathf.Sin(u * Mathf.PI) * 3f;
+                Boss.transform.position = p;
+                Boss.FaceInstant(Player.transform.position);
+                if (u > 0.55f) Boss.ForceAnimMode(AnimMode.Custom, PoseLib.Slam);
+                yield return null;
+            }
+            Boss.Teleport(pos); // re-syncs the CharacterController with the landing spot
+            Boss.ForceAnimMode(AnimMode.Custom, PoseLib.LandSquash);
+            Fx.Dust(pos, 2.2f, 16);
+            Fx.Crack(pos, 3f);
+            Fx.Ring(pos + Vector3.up * 0.1f, Boss.Kit.AuraColor, 0.5f, 7f, 0.5f, Quaternion.identity);
+            Destructible.ImpactAt(pos, 5f, 60f, Boss);
+            Sfx.Play(SfxId.HeavyHit, 1f, 0.6f);
+            CameraRig.Shake(0.7f);
+            Haptics.Heavy();
+            yield return new WaitForSeconds(0.45f);
+            Fx.Smoke(Boss.Center, 1.6f, new Color(0.4f, 0.35f, 0.45f, 0.5f), 10);
             Fx.Ring(pos + Vector3.up * 0.1f, Boss.Kit.AuraColor, 0.5f, 9f, 0.7f, Quaternion.identity);
             Sfx.Play(SfxId.Roar, 1f, 0.9f);
             CameraRig.Cinematic(Boss.Center + Vector3.up * 0.3f, KMath.Flat(Player.transform.position - pos).normalized + Vector3.up * 0.05f, 4.2f, 0.5f, 2.8f);

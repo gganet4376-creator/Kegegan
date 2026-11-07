@@ -190,7 +190,8 @@ namespace Kagegan
                 if (add[i] != Vector3.zero) outQ[i] = outQ[i] * Quaternion.Euler(add[i]);
 
             // ----- apply with smoothing -----
-            float rate = actWeight > 0f ? 30f : (Mode == AnimMode.Down || Mode == AnimMode.Dead ? 11f : 15f);
+            // actions track their keys tightly so the limb is really extended on the active (damage) frames
+            float rate = actWeight > 0f ? 44f : (Mode == AnimMode.Down || Mode == AnimMode.Dead ? 11f : 15f);
             float k = 1f - Mathf.Exp(-rate * dt);
             var bones = Rig.Bones;
             for (int i = 0; i < (int)B.EyeL; i++)

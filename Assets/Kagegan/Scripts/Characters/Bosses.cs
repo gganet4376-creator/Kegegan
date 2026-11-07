@@ -68,8 +68,7 @@ namespace Kagegan
                 {
                     var o = pr.Owner;
                     if (o == null || !o.Alive || !v.Alive) return;
-                    v.Teleport(o.transform.position + o.transform.forward * 0.9f);
-                    o.BeginThrow(v, bindThrow);
+                    o.BeginThrow(v, bindThrow); // the hold pulls the victim in along the snake
                     Sfx.Play(SfxId.Hiss, 1f, 0.8f);
                     if (v.IsPlayer) Hud.Popup("СХВАЧЕН!", new Color(0.8f, 0.5f, 1f));
                 };

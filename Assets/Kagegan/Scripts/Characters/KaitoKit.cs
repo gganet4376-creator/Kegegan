@@ -13,7 +13,7 @@ namespace Kagegan
         readonly bool isClone;
         float surgeUntil;
         static readonly Color Cyan = new Color(0.45f, 0.8f, 1f);
-        static readonly Color Orange = new Color(1f, 0.6f, 0.15f);
+        static readonly Color Orange = new Color(0.35f, 0.85f, 1f); // Kaito's wind chakra (teal)
         public readonly List<Fighter> Clones = new List<Fighter>();
 
         public KaitoKit(bool clone = false) { isClone = clone; }

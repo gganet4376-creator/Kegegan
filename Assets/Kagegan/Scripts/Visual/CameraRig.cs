@@ -19,6 +19,8 @@ namespace Kagegan
         bool orbit;
         float orbitAngle;
         public bool MenuMode;
+        /// <summary>Side-on fighting-game camera along the arena lane (never orbits).</summary>
+        public static bool LaneMode = true;
         public Vector3 MenuFocus;
         public float MenuDistance = 4.2f;
 
@@ -87,6 +89,7 @@ namespace Kagegan
                 return;
             }
             if (Player == null) { p = transform.position; l = transform.position + transform.forward; return; }
+            if (LaneMode) { LaneTarget(out p, out l); return; }
 
             Vector3 a = Player.position;
             Vector3 b = Target != null ? Target.position : a + KMath.Flat(Player.forward) * 3f;
@@ -145,9 +148,9 @@ namespace Kagegan
         {
             ComputeTarget(out Vector3 tp, out Vector3 tl);
             float dt = Time.unscaledDeltaTime;
-            float rate = Time.unscaledTime < cineUntil ? 6f : 5f;
+            float rate = Time.unscaledTime < cineUntil ? 6f : (LaneMode ? 4f : 5f);
             pos = KMath.Damp(pos, tp, rate, dt);
-            look = KMath.Damp(look, tl, rate * 1.6f, dt);
+            look = KMath.Damp(look, tl, rate * 1.4f, dt);
             transform.position = pos;
             transform.rotation = Quaternion.LookRotation(look - pos);
 
@@ -163,9 +166,27 @@ namespace Kagegan
             }
         }
 
+        void LaneTarget(out Vector3 p, out Vector3 l)
+        {
+            Vector3 a = Player.position;
+            bool hasT = Target != null && Mathf.Abs(Target.position.x - a.x) < 13f;
+            Vector3 b = hasT ? Target.position : a + Vector3.right * (Player.forward.x >= 0f ? 2.5f : -2.5f);
+            Vector3 mid = Vector3.Lerp(a, b, 0.5f);
+            float dx = Mathf.Abs(b.x - a.x), dz = Mathf.Abs(b.z - a.z);
+            float d = Mathf.Clamp(5.4f + dx * 0.5f + dz * 0.35f, 6.4f, 11.5f);
+            // air combos: rise and pull back so both fighters stay in frame
+            float top = Mathf.Max(a.y, b.y);
+            float lift = Mathf.Max(0f, top * 0.55f);
+            d += Mathf.Max(0f, top - 1.2f) * 0.8f;
+            float cx = Mathf.Clamp(mid.x, -Arena.LaneHalf + 2f, Arena.LaneHalf - 2f);
+            p = new Vector3(cx, 1.45f + d * 0.11f + lift, mid.z * 0.5f - d);
+            l = new Vector3(cx, 1.1f + lift, mid.z * 0.5f + 1.5f);
+        }
+
         /// <summary>Camera-relative movement on the ground plane.</summary>
         public Vector3 ToWorld(Vector2 stick)
         {
+            if (LaneMode && !MenuMode) return new Vector3(stick.x, 0f, stick.y * 0.75f);
             Vector3 f = KMath.Flat(transform.forward).normalized;
             Vector3 r = KMath.Flat(transform.right).normalized;
             return r * stick.x + f * stick.y;
