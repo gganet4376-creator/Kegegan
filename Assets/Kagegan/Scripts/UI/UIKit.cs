@@ -149,7 +149,8 @@ namespace Kagegan
             b.colors = cb;
             var t = Label(rt, label, fontSize, Color.white);
             t.fontStyle = FontStyle.Bold;
-            b.onClick.AddListener(() => { Sfx.Play(SfxId.Click, 0.8f); onClick?.Invoke(); });
+            b.onClick.AddListener(() => { Sfx.Play(SfxId.Click, 0.8f); Haptics.Tick(); onClick?.Invoke(); });
+            rt.gameObject.AddComponent<ButtonPop>();
             return b;
         }
 
@@ -182,6 +183,31 @@ namespace Kagegan
             return whiteSprite;
         }
 
+        static readonly System.Collections.Generic.Dictionary<string, Sprite> icons = new System.Collections.Generic.Dictionary<string, Sprite>();
+
+        /// <summary>White silhouette icon from Resources/Kagegan/Icons (game-icons.net, CC BY 3.0). Null if missing.</summary>
+        public static Sprite Icon(string name)
+        {
+            if (string.IsNullOrEmpty(name)) return null;
+            if (icons.TryGetValue(name, out var sp)) return sp;
+            var tex = Resources.Load<Texture2D>("Kagegan/Icons/" + name);
+            sp = tex != null ? Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f)) : null;
+            icons[name] = sp;
+            return sp;
+        }
+
+        public static Image IconImage(Transform parent, string icon, Vector2 pos, float size, Color c)
+        {
+            var rt = Box(parent, "Icon", new Vector2(0.5f, 0.5f), pos, new Vector2(size, size));
+            var img = rt.gameObject.AddComponent<Image>();
+            img.sprite = Icon(icon);
+            img.preserveAspect = true;
+            img.color = c;
+            img.raycastTarget = false;
+            img.enabled = img.sprite != null;
+            return img;
+        }
+
         public static RectTransform FullPanel(Transform parent, string name, Color c)
         {
             var rt = Rect(parent, name, Vector2.zero, Vector2.one);
@@ -189,6 +215,73 @@ namespace Kagegan
             img.color = c;
             img.raycastTarget = true;
             return rt;
+        }
+    }
+
+    /// <summary>Small press/release scale animation for menu buttons.</summary>
+    public class ButtonPop : MonoBehaviour, IPointerDownHandler, IPointerUpHandler, IPointerExitHandler
+    {
+        float target = 1f, scale = 1f;
+        public void OnPointerDown(PointerEventData e) { target = 0.93f; }
+        public void OnPointerUp(PointerEventData e) { target = 1f; }
+        public void OnPointerExit(PointerEventData e) { target = 1f; }
+        void OnEnable() { scale = 0.9f; target = 1f; }
+        void Update()
+        {
+            if (Mathf.Abs(scale - target) < 0.001f) return;
+            scale = Mathf.Lerp(scale, target, 1f - Mathf.Exp(-18f * Time.unscaledDeltaTime));
+            transform.localScale = Vector3.one * scale;
+        }
+    }
+
+    /// <summary>Keeps a RectTransform inside Screen.safeArea (camera cut-outs, rounded corners, gesture bar) plus a small margin.</summary>
+    public class SafeArea : MonoBehaviour
+    {
+        Rect last;
+        Vector2Int lastRes;
+        RectTransform rt;
+        public float CornerMargin = 0.018f;
+
+        void Awake() { rt = (RectTransform)transform; Apply(); }
+        void Update() { if (Screen.safeArea != last || lastRes.x != Screen.width || lastRes.y != Screen.height) Apply(); }
+
+        void Apply()
+        {
+            last = Screen.safeArea;
+            lastRes = new Vector2Int(Screen.width, Screen.height);
+            if (Screen.width <= 0 || Screen.height <= 0) return;
+            Vector2 min = last.position, max = last.position + last.size;
+            min.x /= Screen.width; min.y /= Screen.height; max.x /= Screen.width; max.y /= Screen.height;
+            float m = Save.Data.safeAreaPadding ? CornerMargin : 0f;
+            min.x += m; max.x -= m; min.y += m * 0.5f; max.y -= m * 0.5f;
+            rt.anchorMin = min; rt.anchorMax = max;
+            rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
+        }
+    }
+
+    /// <summary>Full-screen fade used for scene/wave transitions.</summary>
+    public class ScreenFader : MonoBehaviour
+    {
+        public static ScreenFader Inst;
+        Image img;
+        float alpha, target;
+        public static void Create(Transform canvas)
+        {
+            var rt = UIKit.Rect(canvas, "Fader", Vector2.zero, Vector2.one);
+            var f = rt.gameObject.AddComponent<ScreenFader>();
+            f.img = rt.gameObject.AddComponent<Image>();
+            f.img.color = new Color(0, 0, 0, 0);
+            f.img.raycastTarget = false;
+            Inst = f;
+        }
+        public static void FadeOut() { if (Inst != null) { Inst.target = 1f; Inst.transform.SetAsLastSibling(); } }
+        public static void FadeIn() { if (Inst != null) Inst.target = 0f; }
+        public static void Flash(float a) { if (Inst != null) { Inst.alpha = a; Inst.target = 0f; Inst.transform.SetAsLastSibling(); } }
+        void Update()
+        {
+            alpha = Mathf.MoveTowards(alpha, target, Time.unscaledDeltaTime * 2.6f);
+            img.color = new Color(0, 0, 0, alpha);
+            img.raycastTarget = alpha > 0.5f;
         }
     }
 }

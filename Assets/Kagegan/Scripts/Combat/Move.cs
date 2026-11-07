@@ -94,7 +94,7 @@ namespace Kagegan
     /// <summary>A special technique bound to a button. Use returns false if it could not start (no target, wrong state).</summary>
     public class Technique
     {
-        public string Name, Short;
+        public string Name, Short, Icon;
         public float Cost, Cooldown, Range = 8f;
         public float Cd;
         public Color Color = Color.white;

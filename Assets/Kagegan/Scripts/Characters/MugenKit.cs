@@ -45,13 +45,13 @@ namespace Kagegan
 
             Techs = new[]
             {
-                new Technique { Name = "Поглощение (удерживать)", Short = "Поглот.", Cost = 5f, Cooldown = 0.6f, Range = 30f, Color = Violet, Hold = true, Offensive = false, AiUsable = false,
+                new Technique { Name = "Поглощение (удерживать)", Short = "Поглот.", Icon = "m_absorb", Cost = 5f, Cooldown = 0.6f, Range = 30f, Color = Violet, Hold = true, Offensive = false, AiUsable = false,
                                 Use = f2 => true, Held = OnAbsorbHeld },
-                new Technique { Name = "Выброс энергии", Short = "Выброс", Cost = 15f, Cooldown = 2.5f, Range = 15f, Color = new Color(1f, 0.6f, 1f), Use = UseRelease },
-                new Technique { Name = "Чакровые стержни", Short = "Стержни", Cost = 20f, Cooldown = 7f, Range = 18f, Color = new Color(0.5f, 0.5f, 0.6f), Use = UseRods },
-                new Technique { Name = "Телепортация", Short = "Телепорт", Cost = 15f, Cooldown = 4f, Range = 20f, Color = new Color(0.6f, 0.4f, 1f), Use = UseBlink, Offensive = false },
+                new Technique { Name = "Выброс энергии", Short = "Выброс", Icon = "m_release", Cost = 15f, Cooldown = 2.5f, Range = 15f, Color = new Color(1f, 0.6f, 1f), Use = UseRelease },
+                new Technique { Name = "Чакровые стержни", Short = "Стержни", Icon = "m_rods", Cost = 20f, Cooldown = 7f, Range = 18f, Color = new Color(0.5f, 0.5f, 0.6f), Use = UseRods },
+                new Technique { Name = "Телепортация", Short = "Телепорт", Icon = "m_blink", Cost = 15f, Cooldown = 4f, Range = 20f, Color = new Color(0.6f, 0.4f, 1f), Use = UseBlink, Offensive = false },
             };
-            Ult = new Technique { Name = "Небесный разлом", Short = "УЛЬТА", Color = Violet, Use = f2 => { f2.StartCoroutine(UltRoutine()); return true; } };
+            Ult = new Technique { Name = "Небесный разлом", Short = "УЛЬТА", Icon = "m_ult", Color = Violet, Use = f2 => { f2.StartCoroutine(UltRoutine()); return true; } };
         }
 
         Move DoublePalm()

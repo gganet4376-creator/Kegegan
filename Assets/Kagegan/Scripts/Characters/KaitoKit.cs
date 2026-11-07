@@ -53,12 +53,12 @@ namespace Kagegan
 
             Techs = new[]
             {
-                new Technique { Name = "Спиральная сфера", Short = "Сфера", Cost = 30f, Cooldown = 5f, Range = 7f, Color = Cyan, Use = UseSphere },
-                new Technique { Name = "Теневые двойники", Short = "Клоны", Cost = 35f, Cooldown = 12f, Range = 20f, Color = Orange, Use = UseClones, Offensive = false },
-                new Technique { Name = "Вихревой сюрикен", Short = "Сюрикен", Cost = 45f, Cooldown = 10f, Range = 16f, Color = new Color(0.7f, 0.95f, 1f), Use = UseShuriken },
-                new Technique { Name = "Режим чакры", Short = "Режим", Cost = 40f, Cooldown = 25f, Range = 30f, Color = new Color(1f, 0.75f, 0.2f), Use = UseSurge, Offensive = false },
+                new Technique { Name = "Спиральная сфера", Short = "Сфера", Icon = "k_sphere", Cost = 30f, Cooldown = 5f, Range = 7f, Color = Cyan, Use = UseSphere },
+                new Technique { Name = "Теневые двойники", Short = "Клоны", Icon = "k_clones", Cost = 35f, Cooldown = 12f, Range = 20f, Color = Orange, Use = UseClones, Offensive = false },
+                new Technique { Name = "Вихревой сюрикен", Short = "Сюрикен", Icon = "k_shuriken", Cost = 45f, Cooldown = 10f, Range = 16f, Color = new Color(0.7f, 0.95f, 1f), Use = UseShuriken },
+                new Technique { Name = "Режим чакры", Short = "Режим", Icon = "k_surge", Cost = 40f, Cooldown = 25f, Range = 30f, Color = new Color(1f, 0.75f, 0.2f), Use = UseSurge, Offensive = false },
             };
-            Ult = new Technique { Name = "Ураган теней", Short = "УЛЬТА", Color = Orange, Use = f => { f.StartCoroutine(UltRoutine()); return true; } };
+            Ult = new Technique { Name = "Ураган теней", Short = "УЛЬТА", Icon = "k_ult", Color = Orange, Use = f => { f.StartCoroutine(UltRoutine()); return true; } };
         }
 
         Move SpinKick()

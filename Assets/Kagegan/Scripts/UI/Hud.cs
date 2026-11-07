@@ -12,6 +12,9 @@ namespace Kagegan
         Image hp, hpLag, stamina, chakra, rage, targetHp, targetLag, bossHp, bossLag;
         Text playerName, targetName, bossName, waveText, comboText, popupText, bannerText, lineText, fpsText, statsText, storedText, enemyCount;
         RectTransform targetPanel, bossPanel, comboRt, statsPanel;
+        RawImage playerPortrait, bossPortrait;
+        Image playerBadge;
+        Text hpText, bossHpText;
         Image[] phasePips = new Image[3];
         float popupT, bannerT, lineT, comboShow;
         int lastCombo;
@@ -30,14 +33,20 @@ namespace Kagegan
         {
             inst = this;
             Root = UIKit.Rect(canvas, "HUD", Vector2.zero, Vector2.one);
+            Root.gameObject.AddComponent<SafeArea>();
 
             // ---- player panel (top-left) ----
-            var pause = UIKit.Button(Root, "II", new Vector2(0, 1), new Vector2(60, -60), new Vector2(84, 84), onPause, UIKit.Ink, 34);
-            var portrait = UIKit.Box(Root, "Portrait", new Vector2(0, 1), new Vector2(170, -62), new Vector2(92, 92));
-            UIKit.Img(portrait, new Color(1f, 0.7f, 0.3f), UIKit.Circle);
+            var pause = UIKit.Button(Root, "", new Vector2(0, 1), new Vector2(54, -58), new Vector2(84, 84), onPause, UIKit.Ink, 34);
+            UIKit.IconImage(pause.transform, "pause", Vector2.zero, 46, Color.white);
+            var portrait = UIKit.Box(Root, "Portrait", new Vector2(0, 1), new Vector2(166, -64), new Vector2(104, 104));
+            playerBadge = UIKit.Img(portrait, new Color(1f, 0.7f, 0.3f), UIKit.Circle);
+            playerPortrait = MakePortrait(portrait, 96);
+            var ring = UIKit.Box(portrait, "Ring", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(104, 104));
+            UIKit.Img(ring, new Color(1f, 0.85f, 0.5f), UIKit.Ring);
             playerName = UIKit.Label(UIKit.Box(Root, "PName", new Vector2(0, 1), new Vector2(236, -26), new Vector2(400, 40), new Vector2(0, 0.5f)), "", 30, Color.white, TextAnchor.MiddleLeft, FontStyle.Bold);
             hpLag = UIKit.Bar(Root, new Vector2(0, 1), new Vector2(236, -58), new Vector2(520, 30), new Color(1f, 0.9f, 0.6f), null, new Vector2(0, 0.5f));
             hp = UIKit.Bar(Root, new Vector2(0, 1), new Vector2(236, -58), new Vector2(520, 30), new Color(0.88f, 0.18f, 0.18f), new Color(0, 0, 0, 0), new Vector2(0, 0.5f));
+            hpText = UIKit.Label(UIKit.Box(Root, "HpText", new Vector2(0, 1), new Vector2(236, -58), new Vector2(510, 30), new Vector2(0, 0.5f)), "", 22, Color.white, TextAnchor.MiddleRight, FontStyle.Bold);
             stamina = UIKit.Bar(Root, new Vector2(0, 1), new Vector2(236, -86), new Vector2(250, 16), new Color(0.55f, 0.85f, 0.3f), null, new Vector2(0, 0.5f));
             chakra = UIKit.Bar(Root, new Vector2(0, 1), new Vector2(506, -86), new Vector2(250, 16), new Color(0.3f, 0.6f, 1f), null, new Vector2(0, 0.5f));
             rage = UIKit.Bar(Root, new Vector2(0, 1), new Vector2(236, -108), new Vector2(520, 12), new Color(1f, 0.6f, 0.1f), null, new Vector2(0, 0.5f));
@@ -56,6 +65,11 @@ namespace Kagegan
             bossName = UIKit.Label(UIKit.Box(bossPanel, "BName", new Vector2(0.5f, 1), new Vector2(0, -14), new Vector2(980, 38)), "", 32, UIKit.Gold, TextAnchor.MiddleCenter, FontStyle.Bold);
             bossLag = UIKit.Bar(bossPanel, new Vector2(0.5f, 0), new Vector2(0, 18), new Vector2(980, 26), new Color(1f, 0.9f, 0.6f));
             bossHp = UIKit.Bar(bossPanel, new Vector2(0.5f, 0), new Vector2(0, 18), new Vector2(980, 26), new Color(0.75f, 0.12f, 0.35f), new Color(0, 0, 0, 0));
+            bossHpText = UIKit.Label(UIKit.Box(bossPanel, "BossHpText", new Vector2(0.5f, 0), new Vector2(0, 18), new Vector2(960, 26)), "", 20, Color.white, TextAnchor.MiddleRight, FontStyle.Bold);
+            var bp = UIKit.Box(bossPanel, "BossPortrait", new Vector2(0, 0.5f), new Vector2(-62, 6), new Vector2(96, 96));
+            UIKit.Img(bp, new Color(0.25f, 0.1f, 0.2f), UIKit.Circle);
+            bossPortrait = MakePortrait(bp, 88);
+            UIKit.Img(UIKit.Box(bp, "Ring", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(96, 96)), UIKit.Gold, UIKit.Ring);
             for (int i = 0; i < 3; i++)
             {
                 var pip = UIKit.Box(bossPanel, "Pip", new Vector2(0.5f, 0), new Vector2(-30 + i * 30, -8), new Vector2(22, 22));
@@ -79,10 +93,35 @@ namespace Kagegan
             var lockBtn = UIKit.Button(Root, "Цель", new Vector2(1, 1), new Vector2(-70, -110), new Vector2(110, 70), () => { var pc = FindAnyObjectByType<PlayerController>(); if (pc != null) pc.CycleTarget(); }, UIKit.Ink, 28);
         }
 
+        static RawImage MakePortrait(RectTransform parent, float size)
+        {
+            var maskRt = UIKit.Box(parent, "Mask", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(size, size));
+            var mimg = maskRt.gameObject.AddComponent<Image>();
+            mimg.sprite = UIKit.Circle;
+            mimg.raycastTarget = false;
+            var mask = maskRt.gameObject.AddComponent<Mask>();
+            mask.showMaskGraphic = false;
+            var pr = UIKit.Box(maskRt, "Portrait", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(size, size));
+            var raw = pr.gameObject.AddComponent<RawImage>();
+            raw.raycastTarget = false;
+            raw.enabled = false;
+            return raw;
+        }
+
+        static void SetPortrait(RawImage img, Fighter f)
+        {
+            if (img == null || f == null || f.Rig == null) return;
+            var tex = Portraits.Get(f.DisplayName, f.Rig.Look);
+            img.texture = tex;
+            img.enabled = tex != null;
+        }
+
         public void Bind(Fighter player)
         {
             Player = player;
             playerName.text = player.DisplayName;
+            SetPortrait(playerPortrait, player);
+            if (player.Kit != null) playerBadge.color = player.Kit.AuraColor;
             player.OnShout = Line;
         }
 
@@ -90,7 +129,7 @@ namespace Kagegan
         {
             Boss = boss;
             bossPanel.gameObject.SetActive(boss != null);
-            if (boss != null) { bossName.text = boss.DisplayName; boss.OnShout = Line; bossHp.fillAmount = bossLag.fillAmount = 1f; }
+            if (boss != null) { bossName.text = boss.DisplayName; boss.OnShout = Line; bossHp.fillAmount = bossLag.fillAmount = 1f; SetPortrait(bossPortrait, boss); }
         }
 
         public void SetWave(string text) { waveText.text = text; }
@@ -114,6 +153,8 @@ namespace Kagegan
             if (p != null)
             {
                 hp.fillAmount = p.HpFrac;
+                hpText.text = Mathf.CeilToInt(p.Hp) + " / " + Mathf.CeilToInt(p.MaxHp);
+                hp.color = p.HpFrac < 0.25f ? Color.Lerp(new Color(0.88f, 0.18f, 0.18f), new Color(1f, 0.5f, 0.4f), Mathf.PingPong(Time.unscaledTime * 3f, 1f)) : new Color(0.88f, 0.18f, 0.18f);
                 hpLag.fillAmount = Mathf.MoveTowards(hpLag.fillAmount, p.HpFrac, dt * 0.35f);
                 if (hpLag.fillAmount < hp.fillAmount) hpLag.fillAmount = hp.fillAmount;
                 stamina.fillAmount = p.Stamina / p.MaxStamina;
@@ -159,6 +200,7 @@ namespace Kagegan
             if (Boss != null)
             {
                 bossHp.fillAmount = Boss.HpFrac;
+                bossHpText.text = Mathf.CeilToInt(Boss.Hp) + " / " + Mathf.CeilToInt(Boss.MaxHp);
                 bossLag.fillAmount = Mathf.Max(Boss.HpFrac, Mathf.MoveTowards(bossLag.fillAmount, Boss.HpFrac, dt * 0.25f));
                 var bb = Boss.Brain as BossBrain;
                 for (int i = 0; i < 3; i++) phasePips[i].color = bb != null && bb.Phase >= i ? Boss.Kit.AuraColor : new Color(0.2f, 0.2f, 0.2f, 0.8f);

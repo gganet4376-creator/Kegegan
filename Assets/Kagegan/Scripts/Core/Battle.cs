@@ -179,13 +179,22 @@ namespace Kagegan
         IEnumerator LoadWave(int w)
         {
             GameManager.Inst.SetControlsVisible(false);
+            if (Player != null)
+            {
+                // fade out of the previous location and show where we are going
+                ScreenFader.FadeOut();
+                Hud.Banner("СЛЕДУЮЩАЯ ЛОКАЦИЯ: " + WaveName(w).ToUpperInvariant(), UIKit.Paper);
+                yield return new WaitForSecondsRealtime(0.6f);
+            }
             Projectile.ClearAll(); Beam.ClearAll(); Hazard.ClearAll(); Fx.ClearAll();
             var arena = Arena.Build(ArenaFor(w), GameManager.Inst.WorldRoot);
             SpawnPlayer(arena.PlayerSpawn);
-            Sfx.PlayMusic(1);
+            Sfx.PlayTrack(w == 0 ? "forest" : w == 1 ? "city" : "moon", 1);
+            Sfx.SetAmbience(w == 1 ? null : "amb_wind", w == 0 ? 0.35f : 0.25f);
             Hud.Inst.SetBoss(null);
             Hud.Inst.SetWave("Волна " + (w + 1) + "/3 — " + WaveName(w) + "   •   " + Names.Difficulty(Diff));
             CameraRig.Orbit(arena.PlayerSpawn + Vector3.up * 1.5f, 9f, 3f, 2.2f);
+            ScreenFader.FadeIn();
             Hud.Banner(WaveName(w).ToUpperInvariant(), UIKit.Paper);
             if (w == 0 || Mode == BattleMode.BossOnly) Player.Shout(Player.Kit.IntroLine);
             yield return new WaitForSeconds(2.2f);
@@ -265,21 +274,30 @@ namespace Kagegan
             enemies.Add(Boss);
             GameManager.Inst.SetControlsVisible(false);
             Player.SetMove(Vector3.zero);
-            Sfx.PlayMusic(2);
+            Sfx.PlayTrack(index == 0 ? "boss_serpent" : index == 1 ? "boss_thunder" : "boss_moon", 2);
             Fx.Smoke(Boss.Center, 2f, new Color(0.4f, 0.35f, 0.45f, 0.7f), 18);
             Fx.Ring(pos + Vector3.up * 0.1f, Boss.Kit.AuraColor, 0.5f, 9f, 0.7f, Quaternion.identity);
             Sfx.Play(SfxId.Roar, 1f, 0.9f);
             CameraRig.Cinematic(Boss.Center + Vector3.up * 0.3f, KMath.Flat(Player.transform.position - pos).normalized + Vector3.up * 0.05f, 4.2f, 0.5f, 2.8f);
+            Boss.EnterCinematic();
             Boss.ForceAnimMode(AnimMode.Custom, PoseLib.Roar);
             Hud.Banner(Boss.DisplayName.ToUpperInvariant(), Boss.Kit.AuraColor);
             Hud.Inst.SetBoss(Boss);
             Boss.Shout(Boss.Kit.IntroLine);
             yield return new WaitForSeconds(2.8f);
             Boss.ForceAnimMode(AnimMode.Locomotion);
+            Boss.ExitCinematic();
             Boss.Brain.Active = true;
             CameraRig.EndCinematic();
             GameManager.Inst.SetControlsVisible(true);
             while (Boss != null && Boss.Alive) yield return null;
+            // boss defeat: slow motion close-up, then the victory pose
+            TimeFx.SlowMo(1.4f, 0.2f);
+            if (Boss != null) CameraRig.Cinematic(Boss.Center, KMath.Flat(Player.transform.position - Boss.transform.position).normalized + Vector3.up * 0.2f, 5f, 1f, 1.6f);
+            Haptics.Heavy();
+            yield return new WaitForSecondsRealtime(1.5f);
+            Player.Anim.Mode = AnimMode.Victory;
+            CameraRig.Cinematic(Player.Center, Player.transform.forward + Vector3.up * 0.1f, 4f, 0.6f, 2f);
             // clean up summons
             foreach (var s in summons) if (s != null && s.Alive) s.Kill(Player);
             Hud.Banner("ПОБЕДА", UIKit.Gold);
@@ -344,7 +362,7 @@ namespace Kagegan
             SpawnPlayer(arena.PlayerSpawn);
             Player.InfiniteChakra = true;
             Player.NoCooldowns = true;
-            Sfx.PlayMusic(0);
+            Sfx.PlayTrack("menu", 0);
             Hud.Inst.SetWave("Полигон");
             Hud.Inst.SetBoss(null);
             Hud.Inst.SetTraining(true);

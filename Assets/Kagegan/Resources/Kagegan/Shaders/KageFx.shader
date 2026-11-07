@@ -1,5 +1,5 @@
 // Unlit vertex-colored effect shader (particles, slashes, shockwaves, beams, sky dome, ghosts).
-// Blend mode is chosen per material: additive (One One) or alpha (SrcAlpha OneMinusSrcAlpha).
+// Blend mode is chosen per material: additive (One One) or premultiplied alpha (One OneMinusSrcAlpha).
 Shader "Kagegan/Fx"
 {
     Properties
@@ -50,6 +50,7 @@ Shader "Kagegan/Fx"
             fixed4 frag (v2f i) : SV_Target
             {
                 fixed4 c = tex2D(_MainTex, i.uv) * i.color;
+                c.rgb *= c.a; // premultiplied: works for additive (One One) and alpha (One OneMinusSrcAlpha)
                 c.rgb = lerp(c.rgb, _KageFogColor.rgb * c.a, i.fog);
                 return c;
             }

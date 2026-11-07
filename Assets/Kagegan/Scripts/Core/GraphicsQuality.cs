@@ -36,13 +36,61 @@ namespace Kagegan
             string gpu = (SystemInfo.graphicsDeviceName ?? "").ToLowerInvariant();
             bool weakGpu = gpu.Contains("powervr") || gpu.Contains("ge8") || gpu.Contains("mali-g52") || gpu.Contains("mali-g51")
                            || gpu.Contains("mali-t") || gpu.Contains("adreno (tm) 5") || gpu.Contains("adreno (tm) 610");
+            bool flagshipGpu = gpu.Contains("immortalis") || gpu.Contains("mali-g92") || gpu.Contains("mali-g72") && gpu.Contains("mc12")
+                               || gpu.Contains("adreno (tm) 8") || gpu.Contains("adreno (tm) 7") || gpu.Contains("xclipse");
             if (Application.isMobilePlatform)
             {
                 if (ram <= 4600 || weakGpu || SystemInfo.processorCount <= 4) return GraphicsPreset.Low;
                 if (ram <= 6500) return GraphicsPreset.Medium;
+                if (flagshipGpu && ram >= 9000) return GraphicsPreset.Ultra; // e.g. Vivo X200 Pro mini (Dimensity 9400, Immortalis-G925)
                 return GraphicsPreset.High;
             }
-            return GraphicsPreset.High;
+            return GraphicsPreset.Ultra;
+        }
+
+        /// <summary>Highest refresh rate the display reports (60 if unknown).</summary>
+        public static int DisplayMaxFps()
+        {
+            int best = 60;
+            try
+            {
+#if UNITY_2022_2_OR_NEWER
+                double hz = Screen.currentResolution.refreshRateRatio.value;
+#else
+                double hz = Screen.currentResolution.refreshRate;
+#endif
+                if (hz > 1) best = Mathf.RoundToInt((float)hz);
+                foreach (var r in Screen.resolutions)
+                {
+#if UNITY_2022_2_OR_NEWER
+                    int h = Mathf.RoundToInt((float)r.refreshRateRatio.value);
+#else
+                    int h = r.refreshRate;
+#endif
+                    if (h > best) best = h;
+                }
+            }
+            catch { }
+            return Mathf.Clamp(best, 30, 144);
+        }
+
+        /// <summary>Frame-rate options offered in settings: 30 / 60 / 90 / 120 limited by the panel.</summary>
+        public static int[] FpsOptions()
+        {
+            int max = DisplayMaxFps();
+            var list = new System.Collections.Generic.List<int> { 30, 60 };
+            if (max >= 89) list.Add(90);
+            if (max >= 119) list.Add(120);
+            return list.ToArray();
+        }
+
+        static int ApplyFps()
+        {
+            int want = Save.Data.targetFps <= 0 ? 60 : Save.Data.targetFps;
+            int max = DisplayMaxFps();
+            if (want > max) want = max >= 119 ? 120 : max >= 89 ? 90 : 60;
+            Application.targetFrameRate = want;
+            return want;
         }
 
         public static void Apply(GraphicsPreset p)
@@ -62,15 +110,20 @@ namespace Kagegan
                     MaxActiveEnemies = 4; DebrisPerBreak = 6; GroundDetail = true;
                     QualitySettings.antiAliasing = 0;
                     break;
-                default:
-                    BaseRenderScale = 1f; Outlines = true; DynamicLights = 4; ParticleMul = 1f; WeatherMul = 1f;
+                case GraphicsPreset.High:
+                    BaseRenderScale = 0.9f; Outlines = true; DynamicLights = 4; ParticleMul = 1f; WeatherMul = 1f;
                     MaxActiveEnemies = 5; DebrisPerBreak = 10; GroundDetail = true;
-                    QualitySettings.antiAliasing = Application.isMobilePlatform ? 2 : 4;
+                    QualitySettings.antiAliasing = 2;
+                    break;
+                default: // Ultra: flagship phones (full resolution, 4x MSAA, dense particles and weather)
+                    BaseRenderScale = 1f; Outlines = true; DynamicLights = 4; ParticleMul = 1.25f; WeatherMul = 1.4f;
+                    MaxActiveEnemies = 5; DebrisPerBreak = 14; GroundDetail = true;
+                    QualitySettings.antiAliasing = 4;
                     break;
             }
 
             QualitySettings.vSyncCount = 0;
-            Application.targetFrameRate = Save.Data.targetFps <= 30 ? 30 : 60;
+            ApplyFps();
             QualitySettings.shadows = ShadowQuality.Disable; // characters use cheap blob shadows on every preset
             QualitySettings.skinWeights = SkinWeights.OneBone;
             QualitySettings.lodBias = p == GraphicsPreset.Low ? 0.6f : (p == GraphicsPreset.Medium ? 1f : 1.5f);
@@ -130,7 +183,7 @@ namespace Kagegan
             if (checkTimer < 1.5f) return;
             checkTimer = 0f;
 
-            float target = Application.targetFrameRate > 0 ? Application.targetFrameRate : 30f;
+            float target = Application.targetFrameRate > 0 ? Application.targetFrameRate : 60f;
             float scale = GraphicsQuality.CurrentRenderScale;
             if (Fps < target * 0.88f && scale > 0.5f)
             {

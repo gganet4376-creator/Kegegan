@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace Kagegan
 {
-    public enum FState { Idle, Attack, Block, Dodge, Hitstun, Juggle, Knockdown, GetUp, Grabbed, Stunned, Channel, Cinematic, Dead }
+    public enum FState { Idle, Attack, Block, Dodge, Hitstun, Juggle, Knockdown, GetUp, Grabbed, Stunned, Channel, Cinematic, Dead, Mount }
     public enum Cmd { None, Light, Heavy, Jump, Dodge, Grab, Tech, Ult }
 
     public class FighterStats
@@ -179,8 +179,10 @@ namespace Kagegan
                     break;
                 case FState.Knockdown:
                     stateTimer -= dt;
+                    if (pinnedBy != null && pinnedBy.State == FState.Mount && pinnedBy.MountVictim == this) { stateTimer = Mathf.Max(stateTimer, 0.3f); break; }
+                    pinnedBy = null;
                     if (buffered == Cmd.Dodge && stateTimer < 0.6f) { buffered = Cmd.None; stateTimer = 0f; }
-                    if (stateTimer <= 0f) { SetState(FState.GetUp); stateTimer = 0.42f; invulnUntil = Time.time + 0.6f; }
+                    if (stateTimer <= 0f) BeginGetUp();
                     break;
                 case FState.GetUp:
                     stateTimer -= dt;
@@ -195,6 +197,9 @@ namespace Kagegan
                     break;
                 case FState.Channel:
                     control = true;
+                    break;
+                case FState.Mount:
+                    UpdateMount(dt);
                     break;
             }
 
@@ -237,7 +242,10 @@ namespace Kagegan
                 case Cmd.Heavy: DoHeavy(); break;
                 case Cmd.Jump: DoJump(); break;
                 case Cmd.Dodge: DoDodge(); break;
-                case Cmd.Grab: if (Grounded && Kit.Grab != null) StartMove(Kit.Grab); break;
+                case Cmd.Grab:
+                    if (CanMount(Target)) BeginMount(Target);
+                    else if (Grounded && Kit.Grab != null) StartMove(Kit.Grab);
+                    break;
                 case Cmd.Tech: Kit.UseTech(bufferedTech); break;
                 case Cmd.Ult: Kit.UseUlt(); break;
             }
@@ -274,7 +282,12 @@ namespace Kagegan
 
         void DoJump()
         {
-            if (Grounded) { Velocity.y = JumpPower; Grounded = false; airJumpUsed = false; Sfx.Play(SfxId.Whoosh, 0.4f, 1.3f); Fx.Dust(transform.position, 0.6f, 4); }
+            if (Grounded)
+            {
+                Velocity.y = JumpPower; Grounded = false; airJumpUsed = false;
+                Sfx.Play(SfxId.Whoosh, 0.4f, 1.3f); Fx.Dust(transform.position, 0.6f, 4);
+                Anim.Play(Clip.Seq(0f, PoseLib.LandSquash, 0.07f, PoseLib.AirUp, 0.22f, null)); // push-off then tuck
+            }
             else if (!airJumpUsed) { airJumpUsed = true; Velocity.y = JumpPower * 0.85f; Fx.Smoke(transform.position, 0.4f, new Color(1, 1, 1, 0.4f), 4); }
         }
 
@@ -374,8 +387,8 @@ namespace Kagegan
                 activeFired = true;
                 m.OnActive?.Invoke(this);
                 if (State != FState.Attack || CurMove != m) return;
-                if (m.Sfx != SfxId.Count) Sfx.Play(m.Sfx, 0.6f);
-                if (m.SlashFx && m.Damage > 0f) Fx.Slash(transform, new Vector3(0, Height * 0.55f, 0.55f), m.SlashEuler, m.FxColor, 1.1f + m.Radius);
+                if (m.Sfx != SfxId.Count) Sfx.PlayAt(m.Sfx, Center, m.Kind == HitKind.Light ? 0.45f : 0.7f, m.Kind == HitKind.Light ? 1.15f : 0.9f);
+                if (m.SlashFx && m.Damage > 0f && m.Kind != HitKind.Light) Fx.Slash(transform, new Vector3(0, Height * 0.55f, 0.55f), m.SlashEuler, m.FxColor, 1.1f + m.Radius);
             }
 
             if (InActiveFrames)
@@ -412,6 +425,7 @@ namespace Kagegan
         public void CancelMove()
         {
             if (State == FState.Attack) { CurMove?.OnEnd?.Invoke(this); }
+            if (State == FState.Mount) EndMount(false);
             Anim.StopAction();
             if (ThrowVictim != null) { ThrowVictim.ReleaseGrab(); ThrowVictim = null; }
         }
@@ -462,6 +476,7 @@ namespace Kagegan
                 var res = f.ReceiveHit(ref h);
                 if (res == HitResult.Hit || res == HitResult.Armored)
                 {
+                    Anim.Recoil(m.Kind == HitKind.Light ? 0.4f : 0.9f);
                     m.OnHit?.Invoke(this, f);
                     if (m.Launch > 0f && Grounded) chaseUntil = Time.time + 0.7f;
                 }
@@ -474,7 +489,7 @@ namespace Kagegan
         {
             int pa = Move.Power(a.CurMove.Kind), pb = Move.Power(b.CurMove.Kind);
             Fx.Parry(point);
-            Sfx.Play(SfxId.Clash, 1f);
+            Sfx.PlayAt(SfxId.Clash, point, 1f);
             TimeFx.HitStop(0.1f);
             CameraRig.Shake(0.3f);
             if (a.IsPlayer || b.IsPlayer) Haptics.Medium();
@@ -530,7 +545,7 @@ namespace Kagegan
                     Stats.parries++;
                     counterUntil = Time.time + 0.9f;
                     Fx.Parry(h.Point);
-                    Sfx.Play(SfxId.Parry, 1f);
+                    Sfx.PlayAt(SfxId.Parry, h.Point, 1f);
                     TimeFx.HitStop(0.12f);
                     TimeFx.SlowMo(0.35f, 0.4f);
                     CameraRig.Shake(0.2f);
@@ -548,7 +563,7 @@ namespace Kagegan
                 if (chip > 0f) Hp = Mathf.Max(1f, Hp - chip);
                 knock = h.Dir * Mathf.Min(h.Knockback, 4f) * 0.6f / Weight;
                 Fx.Block(h.Point);
-                Sfx.Play(SfxId.Block, 0.8f);
+                Sfx.PlayAt(SfxId.Block, h.Point, 0.8f);
                 TimeFx.HitStop(0.03f);
                 if (IsPlayer) Haptics.Light();
                 if (Stamina <= 0f)
@@ -584,9 +599,9 @@ namespace Kagegan
                 // clones count toward the player's combo
                 if (atk.IsClone && atk.Owner != null) { atk.Owner.ComboDealt++; atk.Owner.comboDealtTimer = 1.3f; atk.Owner.Stats.damageDealt += dmg; }
             }
-            flashAmount = 1f; flashColor = Color.white;
+            flashAmount = h.Kind == HitKind.Light ? 0.35f : 0.55f; flashColor = new Color(1f, 0.92f, 0.85f);
             Fx.Hit(h.Point, h.FxColor, h.Kind != HitKind.Light);
-            Sfx.Play(h.Kind == HitKind.Light ? SfxId.Hit : SfxId.HeavyHit, 0.85f);
+            Sfx.Impact(dmg, h.Kind != HitKind.Light, h.Point);
             TimeFx.HitStop(h.HitStop);
             CameraRig.Shake(h.Shake);
             if (IsPlayer) Haptics.Medium();
@@ -611,7 +626,11 @@ namespace Kagegan
             if (h.Kind == HitKind.Grab) return HitResult.Hit; // grab handler takes over
 
             bool fromBehind = !frontal;
-            Anim.Flinch(1f, fromBehind);
+            float rel = (h.Point.y - transform.position.y) / Mathf.Max(0.5f, Height);
+            int zone = rel > 0.78f ? 1 : rel < 0.42f ? 2 : 0;
+            float side = Vector3.Dot(transform.right, h.Point - Center) >= 0f ? -1f : 1f;
+            Anim.HurtPose = fromBehind ? PoseLib.HurtBack : zone == 1 ? PoseLib.HurtHead : zone == 2 ? PoseLib.HurtLow : (h.Kind == HitKind.Light && Random.value < 0.4f ? PoseLib.Hurt : PoseLib.HurtBody);
+            Anim.Flinch(1f, fromBehind, zone, side);
             float kb = h.Knockback / Weight;
             if (h.Slam && !Grounded)
             {
@@ -837,12 +856,172 @@ namespace Kagegan
             ComboTaken = 0; juggleHits = 0;
         }
 
+        // ================== get-up variants ==================
+        void BeginGetUp()
+        {
+            SetState(FState.GetUp);
+            int v;
+            if (Anim.Stance == StanceKind.Swift || Anim.Stance == StanceKind.Thunder) v = Random.value < 0.7f ? 1 : 2;
+            else if (Anim.Stance == StanceKind.Heavy || IsBoss) v = Random.value < 0.75f ? 0 : 2;
+            else v = Random.Range(0, 3);
+            switch (v)
+            {
+                case 1: // kip-up: spring back to the feet
+                    stateTimer = 0.42f;
+                    Anim.Play(Clip.Seq(0f, PoseLib.Down, 0.1f, PoseLib.KipTuck, 0.24f, PoseLib.AirUp, 0.42f, null));
+                    Velocity.y = 3.2f; Grounded = false;
+                    Sfx.Play(SfxId.Whoosh, 0.4f, 1.2f);
+                    break;
+                case 2: // backward roll away from the attacker
+                    stateTimer = 0.55f;
+                    Anim.Play(Clip.Seq(0f, PoseLib.Down, 0.12f, PoseLib.RollBack, 0.34f, PoseLib.Crouch, 0.55f, null));
+                    knock = -transform.forward * 4.5f;
+                    break;
+                default: // push up through one knee
+                    stateTimer = 0.5f;
+                    Anim.Play(Clip.Seq(0f, PoseLib.Down, 0.15f, PoseLib.GetUpMid, 0.32f, PoseLib.OneKnee, 0.5f, null));
+                    break;
+            }
+            invulnUntil = Time.time + stateTimer + 0.15f;
+            Fx.Dust(transform.position, 0.6f, 4);
+        }
+
+        // ================== mount: pin a downed opponent and rain blows ==================
+        public Fighter MountVictim { get; private set; }
+        Fighter pinnedBy;
+        int mountHits, mountMaxHits;
+        float mountTimer, mountActionT = -1f, mountHitAt;
+        bool mountRight, mountHammer;
+
+        public bool CanMountTarget => IsPlayer && CanMount(Target);
+
+        bool CanMount(Fighter t)
+        {
+            return t != null && t.Alive && t.Team != Team && t.State == FState.Knockdown && Grounded && State != FState.Mount
+                   && KMath.Flat(t.transform.position - transform.position).magnitude < 2.2f;
+        }
+
+        void BeginMount(Fighter t)
+        {
+            CancelMove();
+            MountVictim = t;
+            t.pinnedBy = this;
+            mountHits = 0;
+            mountMaxHits = t.IsBoss ? 3 : 6;
+            mountTimer = t.IsBoss ? 2.2f : 3.5f;
+            mountActionT = -1f;
+            SetState(FState.Mount);
+            Velocity = Vector3.zero; knock = Vector3.zero;
+            // the victim lies on its back with the head toward its -forward: sit across the hips facing the head
+            Vector3 seat = t.transform.position - t.transform.forward * 0.25f;
+            Teleport(seat);
+            transform.rotation = Quaternion.LookRotation(KMath.Flat(-t.transform.forward).sqrMagnitude > 0.01f ? -t.transform.forward : transform.forward);
+            ForceAnimMode(AnimMode.Custom, PoseLib.MountSit);
+            Anim.Play(Clip.Seq(0f, PoseLib.Crouch, 0.15f, PoseLib.MountSit, 0.25f, PoseLib.MountSit));
+            Vector3 side = Vector3.Cross(Vector3.up, transform.forward);
+            CameraRig.Cinematic(t.transform.position + Vector3.up * 0.6f, side + Vector3.up * 0.15f, 4.2f, 1.6f, mountTimer + 0.6f);
+            Sfx.PlayAt(SfxId.Land, transform.position, 0.8f, 0.9f);
+            Fx.Dust(t.transform.position, 1f, 8);
+            if (IsPlayer) { Haptics.Medium(); Hud.Popup("ВЕРХОМ!  Атака — удары, Мощный — добить", new Color(1f, 0.8f, 0.5f)); }
+        }
+
+        void UpdateMount(float dt)
+        {
+            var v = MountVictim;
+            if (v == null || !v.Alive || v.State != FState.Knockdown) { EndMount(true); return; }
+            mountTimer -= dt;
+            if (mountActionT >= 0f)
+            {
+                mountActionT += dt;
+                if (mountHitAt > 0f && mountActionT >= mountHitAt)
+                {
+                    mountHitAt = -1f;
+                    float dmg = mountHammer ? 20f : 6.5f;
+                    v.TakeGroundPound(this, dmg * DamageMul * (Kit != null ? Kit.OutgoingMul(null) : 1f), mountHammer);
+                    mountHits++;
+                    Anim.Recoil(mountHammer ? 1f : 0.5f);
+                    if (mountHammer) { Fx.Crack(v.transform.position, 2.4f); Fx.Ring(v.transform.position + Vector3.up * 0.1f, HitColor, 0.4f, 4f, 0.4f, Quaternion.identity); CameraRig.Shake(0.55f); }
+                }
+                if (mountActionT >= (mountHammer ? 0.55f : 0.26f))
+                {
+                    mountActionT = -1f;
+                    if (mountHammer || !v.Alive) { EndMount(true); return; }
+                }
+                return;
+            }
+            if (mountTimer <= 0f) { EndMount(true); return; }
+            var c = buffered;
+            if (c == Cmd.Heavy || (c == Cmd.Light && mountHits >= mountMaxHits - 1))
+            {
+                buffered = Cmd.None;
+                mountHammer = true; mountActionT = 0f; mountHitAt = 0.3f;
+                Anim.Play(Clip.Seq(0f, null, 0.18f, PoseLib.MountHammerWind, 0.3f, PoseLib.MountHammer, 0.55f, PoseLib.MountSit));
+                Sfx.Play(SfxId.Whoosh, 0.7f, 0.8f);
+            }
+            else if (c == Cmd.Light)
+            {
+                buffered = Cmd.None;
+                mountRight = !mountRight;
+                mountHammer = false; mountActionT = 0f; mountHitAt = 0.12f;
+                Anim.Play(Clip.Seq(0f, null, 0.07f, mountRight ? PoseLib.MountWindR : PoseLib.MountWindL, 0.12f, mountRight ? PoseLib.MountPunchR : PoseLib.MountPunchL, 0.26f, PoseLib.MountSit));
+                Sfx.Play(SfxId.Whoosh, 0.45f, 1.2f);
+            }
+            else if (c == Cmd.Dodge || c == Cmd.Jump) { buffered = Cmd.None; EndMount(true); }
+        }
+
+        void EndMount(bool hopOff)
+        {
+            var v = MountVictim;
+            MountVictim = null;
+            if (v != null && v.pinnedBy == this) { v.pinnedBy = null; if (v.State == FState.Knockdown) v.stateTimer = Mathf.Min(v.stateTimer, 0.5f); }
+            if (State == FState.Mount) SetState(FState.Idle);
+            ForceAnimMode(AnimMode.Locomotion);
+            Anim.StopAction();
+            if (hopOff) { knock = -transform.forward * 3.5f; Velocity.y = 4f; Grounded = false; }
+            CameraRig.EndCinematic();
+        }
+
+        /// <summary>Damage dealt to a pinned, downed fighter (mount blows): no launch, stays on the ground.</summary>
+        public void TakeGroundPound(Fighter attacker, float dmg, bool heavy)
+        {
+            if (!Alive) return;
+            dmg *= DefenseMul * (1f - DamageReduction) * Mathf.Max(0.5f, 1f - ComboTaken * 0.04f);
+            Hp -= dmg;
+            ComboTaken++;
+            LastHitDamage = dmg;
+            lastHitTakenTime = Time.time;
+            Stats.damageTaken += dmg; Stats.hitsTaken++;
+            Rage = Mathf.Min(100f, Rage + dmg * 0.45f);
+            if (attacker != null)
+            {
+                attacker.Stats.damageDealt += dmg; attacker.Stats.hitsLanded++;
+                attacker.ComboDealt++; attacker.comboDealtTimer = 1.3f;
+                if (attacker.ComboDealt > attacker.Stats.maxCombo) attacker.Stats.maxCombo = attacker.ComboDealt;
+                attacker.LastHitDamage = dmg;
+                attacker.Rage = Mathf.Min(100f, attacker.Rage + dmg * 0.3f);
+            }
+            Vector3 p = Rig.BonePos(B.Head);
+            Fx.Hit(p, attacker != null ? attacker.HitColor : Color.white, heavy);
+            Sfx.Impact(heavy ? 30f : dmg, heavy, p);
+            TimeFx.HitStop(heavy ? 0.1f : 0.04f);
+            CameraRig.Shake(heavy ? 0.4f : 0.15f);
+            if (attacker != null && attacker.IsPlayer) { if (heavy) Haptics.Heavy(); else Haptics.Light(); }
+            flashAmount = 0.5f; flashColor = new Color(1f, 0.92f, 0.85f);
+            Anim.Flinch(heavy ? 1f : 0.6f, false, 1, Random.value < 0.5f ? 1f : -1f);
+            OnDamaged?.Invoke(this, dmg);
+            if (Hp <= 0f)
+            {
+                Hp = 0f;
+                Die(attacker, new HitInfo { Dir = attacker != null ? KMath.Flat(transform.position - attacker.transform.position).normalized : -transform.forward, Knockback = 2f });
+            }
+        }
+
         // ================== physics ==================
         void ApplyPhysics(float dt, bool control)
         {
             float gravity = -24f;
-            if (State == FState.Juggle && juggleHits <= 9 && Time.time - lastHitTakenTime < 0.55f && Velocity.y < 2f) gravity *= 0.35f;
-            if (State == FState.Attack && !Grounded && CurMove != null && Time.time - lastHitTakenTime > 0f && Velocity.y < 0f) gravity *= 0.4f; // air combos hang
+            if (State == FState.Juggle && juggleHits <= 9 && Time.time - lastHitTakenTime < 0.45f && Velocity.y < 2f) gravity *= 0.5f;
+            if (State == FState.Attack && !Grounded && CurMove != null && Velocity.y < 0f) gravity *= 0.55f; // air combos hang briefly
             if (State == FState.Channel && !Grounded) gravity *= 0.3f;
 
             if (control && State != FState.Dodge)
@@ -905,7 +1084,15 @@ namespace Kagegan
                 Fx.Dust(transform.position, 1.2f, 10);
                 Fx.Crack(transform.position, 1.6f);
             }
-            else if (State != FState.Dodge) Fx.Dust(transform.position, 0.5f, 3);
+            else if (State != FState.Dodge)
+            {
+                Fx.Dust(transform.position, 0.5f, 3);
+                if (State == FState.Idle)
+                {
+                    Anim.Play(Clip.Seq(0f, null, 0.05f, PoseLib.LandSquash, 0.22f, null)); // absorb the landing
+                    Sfx.PlayAt(SfxId.Land, transform.position, 0.35f, 1.2f);
+                }
+            }
         }
 
         void SeparateFromOthers()
@@ -915,7 +1102,7 @@ namespace Kagegan
             for (int i = 0; i < All.Count; i++)
             {
                 var o = All[i];
-                if (o == this || !o.Alive || o.State == FState.Grabbed || o.ThrowVictim == this || ThrowVictim == o) continue;
+                if (o == this || !o.Alive || o.State == FState.Grabbed || o.ThrowVictim == this || ThrowVictim == o || o == MountVictim || o.MountVictim == this) continue;
                 Vector3 d = KMath.Flat(p - o.transform.position);
                 float min = BodyRadius + o.BodyRadius;
                 float m = d.magnitude;
@@ -973,9 +1160,13 @@ namespace Kagegan
                 case FState.Grabbed: mode = AnimMode.Grabbed; break;
                 case FState.Stunned: mode = AnimMode.Dizzy; break;
                 case FState.Dead: mode = AnimMode.Dead; break;
+                case FState.Mount: mode = AnimMode.Custom; break;
                 default: mode = Grounded ? AnimMode.Locomotion : AnimMode.Air; break;
             }
-            if (Anim.Mode != AnimMode.Victory && Anim.Mode != AnimMode.Custom || mode != AnimMode.Locomotion) Anim.Mode = mode;
+            bool keepVictory = Anim.Mode == AnimMode.Victory && State == FState.Idle && moveInput.sqrMagnitude < 0.01f;
+            bool keepCustom = Anim.Mode == AnimMode.Custom && (State == FState.Channel || State == FState.Cinematic || State == FState.Mount);
+            if (!(keepVictory || keepCustom) || mode != AnimMode.Locomotion) Anim.Mode = mode;
+            if (State == FState.Mount) Anim.CustomPose = PoseLib.MountSit;
             Anim.MoveSpeed = KMath.Flat(Velocity).magnitude;
             Anim.VerticalSpeed = Velocity.y;
             Anim.InCombat = Target != null && Target.Alive;

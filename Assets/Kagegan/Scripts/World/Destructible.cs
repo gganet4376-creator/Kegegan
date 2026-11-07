@@ -178,6 +178,25 @@ namespace Kagegan
             sinkT = 0f;
         }
 
+        static MaterialPropertyBlock fadeBlock;
+        static readonly int IdFade = Shader.PropertyToID("_Fade");
+        float fade = 1f, fadeTarget = 1f;
+
+        /// <summary>Camera occlusion: request a temporary dithered fade (1 = opaque).</summary>
+        public void RequestFade(float target) { fadeTarget = Mathf.Min(fadeTarget, target); fadeHold = 0.25f; enabled = true; }
+        float fadeHold;
+
+        void LateUpdate()
+        {
+            if (fadeHold > 0f) fadeHold -= Time.unscaledDeltaTime; else fadeTarget = 1f;
+            if (Mathf.Abs(fade - fadeTarget) < 0.01f) return;
+            fade = Mathf.MoveTowards(fade, fadeTarget, Time.unscaledDeltaTime * 4f);
+            if (fadeBlock == null) fadeBlock = new MaterialPropertyBlock();
+            mr.GetPropertyBlock(fadeBlock);
+            fadeBlock.SetFloat(IdFade, fade);
+            mr.SetPropertyBlock(fadeBlock);
+        }
+
         public void Restore()
         {
             Broken = false; Hp = MaxHp; fallT = -1f; sinkT = -1f; wobble = 0f;

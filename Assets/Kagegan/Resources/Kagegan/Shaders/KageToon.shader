@@ -13,6 +13,8 @@ Shader "Kagegan/Toon"
         _FlashColor ("Flash Color", Color) = (1,1,1,1)
         _Emit ("Extra Emission", Range(0,2)) = 0
         _EmitColor ("Extra Emission Color", Color) = (1,0.6,0.2,1)
+        _Fade ("Camera Fade (dither)", Range(0,1)) = 1
+        _Wind ("Wind sway (grass)", Range(0,1)) = 0
     }
     SubShader
     {
@@ -29,7 +31,7 @@ Shader "Kagegan/Toon"
             #include "UnityCG.cginc"
 
             fixed4 _Color, _ShadowTint, _RimColor, _FlashColor, _EmitColor;
-            half _Flash, _Emit;
+            half _Flash, _Emit, _Fade, _Wind;
 
             float4 _KageLightDir;     // xyz = direction TO the sun
             fixed4 _KageLightColor;
@@ -45,6 +47,7 @@ Shader "Kagegan/Toon"
                 float4 vertex : POSITION;
                 float3 normal : NORMAL;
                 fixed4 color : COLOR;
+                float2 uv : TEXCOORD0;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
@@ -54,6 +57,7 @@ Shader "Kagegan/Toon"
                 fixed4 color : COLOR;
                 float3 wpos : TEXCOORD0;
                 half3 wnormal : TEXCOORD1;
+                float4 spos : TEXCOORD2;
                 UNITY_VERTEX_OUTPUT_STEREO
             };
 
@@ -63,14 +67,28 @@ Shader "Kagegan/Toon"
                 UNITY_SETUP_INSTANCE_ID(v);
                 UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(o);
                 o.wpos = mul(unity_ObjectToWorld, v.vertex).xyz;
+                if (_Wind > 0)
+                {
+                    // grass blades: tips (uv.y = 1) bend with a travelling gust
+                    float gust = sin(_Time.y * 1.7 + o.wpos.x * 0.35 + o.wpos.z * 0.22) * 0.6 + sin(_Time.y * 3.1 + o.wpos.z * 0.9) * 0.25;
+                    o.wpos.xz += float2(0.08, 0.05) * gust * v.uv.y * _Wind;
+                }
                 o.pos = UnityWorldToClipPos(o.wpos);
                 o.wnormal = UnityObjectToWorldNormal(v.normal);
                 o.color = v.color;
+                o.spos = ComputeScreenPos(o.pos);
                 return o;
             }
 
             fixed4 frag (v2f i) : SV_Target
             {
+                // screen-door fade for props that block the camera's view of the fighters
+                if (_Fade < 0.999)
+                {
+                    float2 px = floor(i.spos.xy / max(i.spos.w, 1e-4) * _ScreenParams.xy);
+                    float d = frac(52.9829189 * frac(dot(px, float2(0.06711056, 0.00583715)))); // interleaved gradient noise
+                    clip(_Fade - d);
+                }
                 half3 n = normalize(i.wnormal);
                 half3 l = normalize(_KageLightDir.xyz);
                 half3 vdir = normalize(_WorldSpaceCameraPos.xyz - i.wpos);

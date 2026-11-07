@@ -12,6 +12,8 @@ namespace Kagegan
     {
         static Fx inst;
         ParticleSystem sparks, smoke, fire, debris, glow, leaves;
+        // flipbook / textured systems built from imported CC0 VFX textures (null when a texture is missing)
+        ParticleSystem ringGold, ringEnergy, ringVoid, ringLightning, ringFire, fireBurst, explosionFlip, groundRing, puffWhite, puffBlack, puffFire, flashPs;
         readonly List<Anim> anims = new List<Anim>(64);
         Pool<MeshRenderer> ringPool, slashPool, crackPool, spherePool;
         Pool<LineRenderer> boltPool;
@@ -70,6 +72,18 @@ namespace Kagegan
             sr.velocityScale = 0.06f;
             sr.lengthScale = 1.2f;
 
+            ringGold = MakeFlip("RingGold", "ring_gold", 8, 8, 64, true, 24, false);
+            ringEnergy = MakeFlip("RingEnergy", "ring_energy", 8, 8, 64, true, 24, false);
+            ringVoid = MakeFlip("RingVoid", "ring_void", 8, 8, 64, true, 16, false);
+            ringLightning = MakeFlip("RingLightning", "ring_lightning", 8, 8, 64, true, 16, false);
+            ringFire = MakeFlip("RingFire", "ring_fire", 8, 8, 64, true, 16, false);
+            fireBurst = MakeFlip("FireBurst", "fire_burst", 8, 8, 64, true, 24, false);
+            explosionFlip = MakeFlip("Explosion", "explosion_sheet", 10, 10, 91, false, 12, false);
+            groundRing = MakeFlip("GroundRing", "smoke_ring", 8, 8, 64, false, 12, true);
+            puffWhite = MakeFlip("PuffWhite", "puff_white", 2, 2, 0, false, 220, false);
+            puffBlack = MakeFlip("PuffBlack", "puff_black", 2, 2, 0, false, 120, false);
+            puffFire = MakeFlip("PuffFire", "puff_fire", 2, 2, 0, true, 200, false);
+            flashPs = MakeFlip("Flash", "flash", 2, 2, 0, true, 60, false);
             ringMesh = BuildRingMesh();
             slashMesh = BuildSlashMesh();
             crackMesh = BuildQuadXZ();
@@ -118,6 +132,66 @@ namespace Kagegan
             return ps;
         }
 
+        /// <summary>
+        /// Flipbook particle system for an imported texture sheet. frames &gt; 0 animates through the sheet over the particle's
+        /// life; frames == 0 picks a random cell (puff atlases). Returns null if the texture is not present.
+        /// </summary>
+        ParticleSystem MakeFlip(string name, string texName, int tilesX, int tilesY, int frames, bool additive, int max, bool horizontal)
+        {
+            var tex = Resources.Load<Texture2D>("Kagegan/Vfx/" + texName);
+            if (tex == null) return null;
+            tex.wrapMode = TextureWrapMode.Clamp;
+            var ps = MakePS(name, Mat.FxTex(tex, additive, "Fx_" + texName), max, 0f, false);
+            var main = ps.main;
+            main.startRotation = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
+            var sol = ps.sizeOverLifetime;
+            sol.size = new ParticleSystem.MinMaxCurve(1f, frames > 0 ? AnimationCurve.Linear(0, 1f, 1, 1f) : new AnimationCurve(new Keyframe(0, 0.6f), new Keyframe(0.3f, 1f), new Keyframe(1, 1.35f)));
+            var col = ps.colorOverLifetime;
+            var g = new Gradient();
+            g.SetKeys(new[] { new GradientColorKey(Color.white, 0), new GradientColorKey(Color.white, 1) },
+                      frames > 0 ? new[] { new GradientAlphaKey(1, 0), new GradientAlphaKey(1, 0.8f), new GradientAlphaKey(0, 1) }
+                                 : new[] { new GradientAlphaKey(0, 0), new GradientAlphaKey(1, 0.1f), new GradientAlphaKey(0.7f, 0.5f), new GradientAlphaKey(0, 1) });
+            col.color = g;
+            var tsa = ps.textureSheetAnimation;
+            tsa.enabled = true;
+            tsa.numTilesX = tilesX;
+            tsa.numTilesY = tilesY;
+            int total = tilesX * tilesY;
+            if (frames > 0)
+            {
+                tsa.animation = ParticleSystemAnimationType.WholeSheet;
+                tsa.frameOverTime = new ParticleSystem.MinMaxCurve(1f, AnimationCurve.Linear(0f, 0f, 1f, Mathf.Min(1f, (frames - 0.01f) / total)));
+                tsa.cycleCount = 1;
+            }
+            else
+            {
+                tsa.frameOverTime = new ParticleSystem.MinMaxCurve(0f);
+                tsa.startFrame = new ParticleSystem.MinMaxCurve(0f, total - 0.001f);
+            }
+            var r = ps.GetComponent<ParticleSystemRenderer>();
+            r.maxParticleSize = 1.5f;
+            if (horizontal) r.renderMode = ParticleSystemRenderMode.HorizontalBillboard;
+            return ps;
+        }
+
+        static void EmitF(ParticleSystem ps, Vector3 pos, Vector3 vel, Color c, float size, float life)
+        {
+            if (ps == null) return;
+            var ep = new ParticleSystem.EmitParams { position = pos, velocity = vel, startColor = c, startSize = size, startLifetime = life, rotation = Random.value * 360f };
+            ps.Emit(ep, 1);
+        }
+
+        static ParticleSystem RingFor(Color c)
+        {
+            Color.RGBToHSV(c, out float h, out float s, out float v);
+            if (s < 0.25f) return inst.ringEnergy;
+            if (h > 0.68f && h < 0.92f) return inst.ringVoid ?? inst.ringEnergy;
+            if (h > 0.11f && h < 0.2f) return inst.ringLightning ?? inst.ringGold;
+            if (h <= 0.11f || h >= 0.92f) return inst.ringFire ?? inst.ringGold;
+            if (h >= 0.45f && h <= 0.68f) return inst.ringEnergy;
+            return inst.ringGold;
+        }
+
         MeshRenderer MakeMeshObj(string name, Mesh mesh, Material m)
         {
             var go = new GameObject(name);
@@ -163,11 +237,18 @@ namespace Kagegan
         public static void Hit(Vector3 pos, Color color, bool heavy)
         {
             if (inst == null) return;
-            int n = Scaled(heavy ? 22 : 11);
+            int n = Scaled(heavy ? 14 : 7);
+            Color spark = Color.Lerp(color, Color.white, 0.35f);
             for (int i = 0; i < n; i++)
-                Emit(inst.sparks, pos, Random.onUnitSphere * Random.Range(4f, heavy ? 14f : 9f), color, Random.Range(0.08f, 0.16f), Random.Range(0.15f, 0.35f));
-            Emit(inst.glow, pos, Vector3.zero, color, heavy ? 1.6f : 0.9f, 0.12f);
-            if (heavy) Ring(pos, color, 0.3f, 2.4f, 0.25f, Quaternion.LookRotation(Camera.main != null ? Camera.main.transform.forward : Vector3.forward) * Quaternion.Euler(90, 0, 0));
+                Emit(inst.sparks, pos, Random.onUnitSphere * Random.Range(4f, heavy ? 13f : 8f), spark, Random.Range(0.05f, 0.11f), Random.Range(0.12f, 0.28f));
+            if (inst.flashPs != null) EmitF(inst.flashPs, pos, Vector3.zero, color * 0.9f, heavy ? 1.5f : 0.85f, 0.11f);
+            else Emit(inst.glow, pos, Vector3.zero, color, heavy ? 1.6f : 0.9f, 0.12f);
+            if (heavy)
+            {
+                var ring = RingFor(color) ?? inst.ringGold;
+                if (ring != null) EmitF(ring, pos, Vector3.zero, Color.white, 2.6f, 0.32f);
+                if (inst.puffWhite != null) for (int i = 0; i < Scaled(3); i++) EmitF(inst.puffWhite, pos + Random.insideUnitSphere * 0.2f, Random.onUnitSphere * 1.2f, new Color(1f, 1f, 1f, 0.35f), Random.Range(0.6f, 1f), 0.45f);
+            }
             WorldLighting.Flash(pos, color * 1.2f, heavy ? 5f : 3f, 0.15f);
         }
 
@@ -176,48 +257,61 @@ namespace Kagegan
             if (inst == null) return;
             int n = Scaled(8);
             for (int i = 0; i < n; i++)
-                Emit(inst.sparks, pos, Random.onUnitSphere * Random.Range(3f, 7f), new Color(0.6f, 0.8f, 1f), 0.08f, 0.2f);
-            Emit(inst.glow, pos, Vector3.zero, new Color(0.5f, 0.7f, 1f), 0.8f, 0.1f);
+                Emit(inst.sparks, pos, Random.onUnitSphere * Random.Range(3f, 7f), new Color(0.65f, 0.85f, 1f), 0.07f, 0.2f);
+            if (inst.flashPs != null) EmitF(inst.flashPs, pos, Vector3.zero, new Color(0.5f, 0.7f, 1f), 0.8f, 0.1f);
+            if (inst.ringEnergy != null) EmitF(inst.ringEnergy, pos, Vector3.zero, new Color(0.7f, 0.85f, 1f, 0.7f), 1.3f, 0.22f);
         }
 
         public static void Parry(Vector3 pos)
         {
             if (inst == null) return;
-            int n = Scaled(26);
+            int n = Scaled(20);
             for (int i = 0; i < n; i++)
-                Emit(inst.sparks, pos, Random.onUnitSphere * Random.Range(8f, 16f), new Color(1f, 0.95f, 0.5f), 0.12f, 0.35f);
-            Ring(pos, new Color(1f, 0.9f, 0.4f), 0.2f, 3f, 0.3f, Quaternion.LookRotation(Camera.main != null ? Camera.main.transform.forward : Vector3.forward) * Quaternion.Euler(90, 0, 0));
+                Emit(inst.sparks, pos, Random.onUnitSphere * Random.Range(7f, 15f), new Color(1f, 0.95f, 0.55f), 0.1f, 0.32f);
+            if (inst.ringGold != null) EmitF(inst.ringGold, pos, Vector3.zero, Color.white, 3.2f, 0.36f);
+            if (inst.flashPs != null) EmitF(inst.flashPs, pos, Vector3.zero, new Color(1f, 0.9f, 0.5f), 1.8f, 0.14f);
             WorldLighting.Flash(pos, new Color(1f, 0.9f, 0.5f) * 2f, 6f, 0.25f);
         }
 
         public static void Dust(Vector3 pos, float size, int count = 8)
         {
             if (inst == null) return;
-            int n = Scaled(count);
+            int n = Scaled(Mathf.Max(2, count / 2));
+            var ps = inst.puffWhite ?? inst.smoke;
             for (int i = 0; i < n; i++)
             {
-                Vector3 d = Random.insideUnitSphere; d.y = Mathf.Abs(d.y) * 0.4f;
-                Emit(inst.smoke, pos + d * size * 0.3f, d * Random.Range(1f, 3f) * size, new Color(0.78f, 0.7f, 0.58f, 0.6f), Random.Range(0.5f, 1f) * size, Random.Range(0.6f, 1.2f));
+                Vector3 d = Random.insideUnitSphere; d.y = Mathf.Abs(d.y) * 0.35f;
+                var c = new Color(0.82f, 0.74f, 0.6f, 0.55f);
+                if (ps == inst.smoke) Emit(ps, pos + d * size * 0.3f, d * Random.Range(1f, 3f) * size, c, Random.Range(0.5f, 1f) * size, Random.Range(0.6f, 1.2f));
+                else EmitF(ps, pos + d * size * 0.3f + Vector3.up * 0.2f, d * Random.Range(1f, 2.6f) * size, c, Random.Range(0.8f, 1.4f) * size, Random.Range(0.7f, 1.3f));
             }
         }
 
         public static void Smoke(Vector3 pos, float size, Color c, int count = 12)
         {
             if (inst == null) return;
-            int n = Scaled(count);
+            int n = Scaled(Mathf.Max(3, count * 2 / 3));
+            bool dark = c.r + c.g + c.b < 1.2f;
+            var ps = dark ? (inst.puffBlack ?? inst.puffWhite) : inst.puffWhite;
             for (int i = 0; i < n; i++)
-                Emit(inst.smoke, pos + Random.insideUnitSphere * size * 0.4f, Random.onUnitSphere * Random.Range(0.6f, 2f) * size, c, Random.Range(0.6f, 1.1f) * size, Random.Range(0.5f, 0.9f));
+            {
+                if (ps == null) { Emit(inst.smoke, pos + Random.insideUnitSphere * size * 0.4f, Random.onUnitSphere * Random.Range(0.6f, 2f) * size, c, Random.Range(0.6f, 1.1f) * size, Random.Range(0.5f, 0.9f)); continue; }
+                Color cc = dark ? new Color(1f, 1f, 1f, c.a) : c;
+                EmitF(ps, pos + Random.insideUnitSphere * size * 0.4f, Random.onUnitSphere * Random.Range(0.5f, 1.8f) * size, cc, Random.Range(0.9f, 1.5f) * size, Random.Range(0.5f, 1f));
+            }
         }
 
         public static void Fire(Vector3 pos, float size, int count = 10)
         {
             if (inst == null) return;
-            int n = Scaled(count);
+            int n = Scaled(Mathf.Max(2, count * 2 / 3));
             for (int i = 0; i < n; i++)
             {
-                Color c = Color.Lerp(new Color(1f, 0.85f, 0.3f), new Color(1f, 0.3f, 0.05f), Random.value);
-                Emit(inst.fire, pos + Random.insideUnitSphere * size * 0.5f, Random.onUnitSphere * size * 1.5f + Vector3.up * size, c, Random.Range(0.5f, 1f) * size, Random.Range(0.25f, 0.6f));
+                Vector3 v = Random.onUnitSphere * size * 1.2f + Vector3.up * size * 1.4f;
+                if (inst.puffFire != null) EmitF(inst.puffFire, pos + Random.insideUnitSphere * size * 0.5f, v, Color.white, Random.Range(0.7f, 1.2f) * size, Random.Range(0.25f, 0.55f));
+                else Emit(inst.fire, pos + Random.insideUnitSphere * size * 0.5f, v, new Color(1f, 0.6f, 0.2f), Random.Range(0.5f, 1f) * size, Random.Range(0.25f, 0.6f));
             }
+            if (count >= 8 && inst.fireBurst != null) EmitF(inst.fireBurst, pos, Vector3.zero, Color.white, size * 2.2f, 0.45f);
         }
 
         public static void Glow(Vector3 pos, Color c, float size, float life)
@@ -258,11 +352,16 @@ namespace Kagegan
         public static void Explosion(Vector3 pos, float radius, Color color)
         {
             if (inst == null) return;
-            Fire(pos, radius * 0.6f, 24);
-            Smoke(pos + Vector3.up * 0.5f, radius * 0.6f, new Color(0.25f, 0.22f, 0.22f, 0.7f), 14);
-            Hit(pos, color, true);
-            Burst(pos, color, radius * 0.9f, 0.35f);
-            Ring(new Vector3(pos.x, 0.06f, pos.z), color, 0.5f, radius * 2.2f, 0.45f, Quaternion.identity);
+            if (inst.explosionFlip != null)
+            {
+                EmitF(inst.explosionFlip, pos + Vector3.up * radius * 0.3f, Vector3.zero, Color.white, radius * 2.6f, 0.9f);
+                if (GraphicsQuality.ParticleMul > 0.6f) EmitF(inst.explosionFlip, pos + Random.insideUnitSphere * radius * 0.4f + Vector3.up * radius * 0.4f, Vector3.zero, Color.white, radius * 1.8f, 0.8f);
+            }
+            Fire(pos, radius * 0.55f, 12);
+            Smoke(pos + Vector3.up * 0.6f, radius * 0.7f, new Color(0.25f, 0.22f, 0.22f, 0.75f), 10);
+            var ring = RingFor(color);
+            if (ring != null) EmitF(ring, pos + Vector3.up * 0.8f, Vector3.zero, Color.white, radius * 2.2f, 0.4f);
+            Ring(new Vector3(pos.x, 0.08f, pos.z), color, 0.5f, radius * 2.2f, 0.5f, Quaternion.identity);
             Crack(pos, radius * 0.9f);
             Debris(pos, new Color(0.45f, 0.37f, 0.3f), 10, radius * 2f);
             WorldLighting.Flash(pos + Vector3.up, color * 2.5f, radius * 3f, 0.5f);
@@ -271,6 +370,17 @@ namespace Kagegan
         public static void Ring(Vector3 pos, Color color, float size0, float size1, float life, Quaternion rot)
         {
             if (inst == null) return;
+            if (rot == Quaternion.identity && inst.groundRing != null)
+            {
+                // ground shockwave: dusty ring lying on the floor, tinted by the technique colour
+                EmitF(inst.groundRing, new Vector3(pos.x, Mathf.Max(0.1f, pos.y), pos.z), Vector3.zero, Color.Lerp(new Color(0.85f, 0.8f, 0.72f, 0.9f), color, 0.35f), size1 * 1.3f, Mathf.Max(0.35f, life));
+                return;
+            }
+            if (rot != Quaternion.identity)
+            {
+                var flip = RingFor(color);
+                if (flip != null) { EmitF(flip, pos, Vector3.zero, Color.white, size1 * 1.1f, Mathf.Max(0.3f, life)); return; }
+            }
             var r = inst.ringPool.Get();
             r.transform.SetPositionAndRotation(pos, rot);
             inst.anims.Add(new Anim { kind = Kind.Ring, c = r, life = life, size0 = size0, size1 = size1, color = color });
@@ -279,6 +389,13 @@ namespace Kagegan
         public static void Burst(Vector3 pos, Color color, float size, float life)
         {
             if (inst == null) return;
+            var flip = RingFor(color);
+            if (flip != null)
+            {
+                EmitF(flip, pos, Vector3.zero, Color.white, size * 2f, Mathf.Max(0.3f, life));
+                if (inst.flashPs != null) EmitF(inst.flashPs, pos, Vector3.zero, color, size * 0.9f, 0.15f);
+                return;
+            }
             var r = inst.spherePool.Get();
             r.transform.position = pos;
             inst.anims.Add(new Anim { kind = Kind.Sphere, c = r, life = life, size0 = size * 0.3f, size1 = size, color = color });
@@ -290,7 +407,7 @@ namespace Kagegan
             if (inst == null) return;
             var r = inst.slashPool.Get();
             r.transform.SetPositionAndRotation(owner.TransformPoint(localOffset), owner.rotation * Quaternion.Euler(euler));
-            inst.anims.Add(new Anim { kind = Kind.Slash, c = r, life = life, size0 = size * 0.8f, size1 = size * 1.15f, color = color });
+            inst.anims.Add(new Anim { kind = Kind.Slash, c = r, life = life, size0 = size * 0.8f, size1 = size * 1.15f, color = color * 0.55f });
         }
 
         public static void Crack(Vector3 pos, float size)
@@ -390,6 +507,8 @@ namespace Kagegan
             inst.anims.Clear();
             inst.ringPool.ReleaseAll(); inst.slashPool.ReleaseAll(); inst.crackPool.ReleaseAll(); inst.spherePool.ReleaseAll(); inst.boltPool.ReleaseAll();
             inst.sparks.Clear(); inst.smoke.Clear(); inst.fire.Clear(); inst.debris.Clear(); inst.glow.Clear();
+            foreach (var ps in new[] { inst.ringGold, inst.ringEnergy, inst.ringVoid, inst.ringLightning, inst.ringFire, inst.fireBurst, inst.explosionFlip, inst.groundRing, inst.puffWhite, inst.puffBlack, inst.puffFire, inst.flashPs })
+                if (ps != null) ps.Clear();
         }
 
         // ================= meshes =================

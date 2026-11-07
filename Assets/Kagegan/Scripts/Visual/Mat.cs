@@ -5,6 +5,7 @@ namespace Kagegan
     /// <summary>Shared materials and procedurally generated textures. Everything uses vertex colors, so a handful of materials cover the game.</summary>
     public static class Mat
     {
+        public static Material ToonWind;
         public static Material Toon, Outline, FxAdd, FxAlpha, FxAddSolid, FxAlphaSolid, Sky, Ghost, Decal;
         public static Texture2D SoftDot, Ring, Crack, Streak, White;
         static bool built;
@@ -16,6 +17,7 @@ namespace Kagegan
             Shader toon = Load("KageToon", "Unlit/Color");
             Shader outline = Load("KageOutline", "Unlit/Color");
             Shader fx = Load("KageFx", "Sprites/Default");
+            fxShader = fx;
 
             SoftDot = MakeRadial(64, (r) => Mathf.Pow(Mathf.Clamp01(1f - r), 2f));
             Ring = MakeRadial(128, (r) => Mathf.Clamp01(1f - Mathf.Abs(r - 0.82f) * 7f) * Mathf.Clamp01(r * 1.3f));
@@ -25,6 +27,8 @@ namespace Kagegan
 
             Toon = new Material(toon) { name = "KageToon", enableInstancing = true };
             Outline = new Material(outline) { name = "KageOutline", enableInstancing = true };
+            ToonWind = new Material(toon) { name = "KageToonWind" };
+            ToonWind.SetFloat("_Wind", 1f);
 
             FxAdd = MakeFx(fx, SoftDot, true, "FxAdd");
             FxAlpha = MakeFx(fx, SoftDot, false, "FxAlpha");
@@ -53,10 +57,19 @@ namespace Kagegan
             return s;
         }
 
+        static Shader fxShader;
+
+        /// <summary>Effect material for an imported VFX texture (flipbooks, puffs). Null-safe: returns the soft-dot material if the texture is missing.</summary>
+        public static Material FxTex(Texture tex, bool additive, string name)
+        {
+            if (tex == null) return additive ? FxAdd : FxAlpha;
+            return MakeFx(fxShader, tex, additive, name);
+        }
+
         static Material MakeFx(Shader s, Texture tex, bool additive, string name)
         {
             var m = new Material(s) { name = name, mainTexture = tex };
-            m.SetFloat("_SrcBlend", (float)(additive ? UnityEngine.Rendering.BlendMode.One : UnityEngine.Rendering.BlendMode.SrcAlpha));
+            m.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.One); // shader outputs premultiplied colour
             m.SetFloat("_DstBlend", (float)(additive ? UnityEngine.Rendering.BlendMode.One : UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha));
             m.SetFloat("_ZWrite", 0f);
             m.renderQueue = 3000;

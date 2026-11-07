@@ -52,12 +52,12 @@ namespace Kagegan
 
             Techs = new[]
             {
-                new Technique { Name = "Огненный шар", Short = "Огонь", Cost = 30f, Cooldown = 6f, Range = 16f, Color = Fire, Use = UseFireball },
-                new Technique { Name = "Огненная волна", Short = "Волна", Cost = 35f, Cooldown = 9f, Range = 12f, Color = new Color(1f, 0.35f, 0.1f), Use = UseFlameWave },
-                new Technique { Name = "Дух-страж", Short = "Страж", Cost = 25f, Cooldown = 3f, Range = 30f, Color = Spirit, Use = ToggleGuardian, Offensive = false },
-                new Technique { Name = "Контрстойка", Short = "Контр", Cost = 15f, Cooldown = 4f, Range = 4f, Color = new Color(1f, 0.9f, 0.5f), Use = UseCounterStance },
+                new Technique { Name = "Огненный шар", Short = "Огонь", Icon = "g_fireball", Cost = 30f, Cooldown = 6f, Range = 16f, Color = Fire, Use = UseFireball },
+                new Technique { Name = "Огненная волна", Short = "Волна", Icon = "g_wave", Cost = 35f, Cooldown = 9f, Range = 12f, Color = new Color(1f, 0.35f, 0.1f), Use = UseFlameWave },
+                new Technique { Name = "Дух-страж", Short = "Страж", Icon = "g_guardian", Cost = 25f, Cooldown = 3f, Range = 30f, Color = Spirit, Use = ToggleGuardian, Offensive = false },
+                new Technique { Name = "Контрстойка", Short = "Контр", Icon = "g_counter", Cost = 15f, Cooldown = 4f, Range = 4f, Color = new Color(1f, 0.9f, 0.5f), Use = UseCounterStance },
             };
-            Ult = new Technique { Name = "Падение небес", Short = "УЛЬТА", Color = Fire, Use = f2 => { f2.StartCoroutine(UltRoutine()); return true; } };
+            Ult = new Technique { Name = "Падение небес", Short = "УЛЬТА", Icon = "g_ult", Color = Fire, Use = f2 => { f2.StartCoroutine(UltRoutine()); return true; } };
         }
 
         Move Stomp()

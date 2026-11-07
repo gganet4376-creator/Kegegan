@@ -28,6 +28,8 @@ namespace Kagegan
         public bool vibration = true;
         public float music = 0.55f, sfx = 0.9f;
         public bool showFps;
+        public float shake = 1f;
+        public bool safeAreaPadding = true;
         public float buttonScale = 1f;
         public float buttonAlpha = 0.85f;
         public List<LayoutEntry> layout = new List<LayoutEntry>();

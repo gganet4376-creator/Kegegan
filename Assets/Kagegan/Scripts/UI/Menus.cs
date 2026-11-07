@@ -45,6 +45,7 @@ namespace Kagegan
         RectTransform Screen(string name, Color bg)
         {
             var rt = UIKit.FullPanel(canvas, name, bg);
+            rt.gameObject.AddComponent<ScreenAppear>();
             screens.Add(rt);
             return rt;
         }
@@ -67,7 +68,8 @@ namespace Kagegan
             UIKit.Button(side, "Полигон", new Vector2(0.5f, 1), new Vector2(0, y - 255), new Vector2(600, 100), () => { pendingMode = BattleMode.Training; ShowCharSelect(); });
             UIKit.Button(side, "Настройки", new Vector2(0.5f, 1), new Vector2(0, y - 375), new Vector2(600, 100), () => ShowSettings(ShowMain));
             UIKit.Button(side, "Выход", new Vector2(0.5f, 1), new Vector2(0, y - 495), new Vector2(600, 90), Application.Quit, new Color(0.15f, 0.12f, 0.14f, 0.9f), 34);
-            UIKit.Label(UIKit.Box(side, "Ver", new Vector2(0.5f, 0), new Vector2(0, 40), new Vector2(700, 40)), "Офлайн • v" + Application.version, 24, new Color(1, 1, 1, 0.5f));
+            UIKit.Label(UIKit.Box(side, "Ver", new Vector2(0.5f, 0), new Vector2(0, 74), new Vector2(700, 40)), "Офлайн • v" + Application.version, 24, new Color(1, 1, 1, 0.5f));
+            UIKit.Label(UIKit.Box(side, "Credits", new Vector2(0.5f, 0), new Vector2(0, 30), new Vector2(720, 50)), "Звуки, музыка, эффекты: OpenGameArt (CC0). Иконки: game-icons.net — Lorc, Delapouite и др. (CC BY 3.0)", 17, new Color(1, 1, 1, 0.45f));
         }
 
         public void ShowMain() { Show(main); }
@@ -182,21 +184,30 @@ namespace Kagegan
         {
             settings = Screen("Settings", new Color(0.03f, 0.02f, 0.05f, 0.88f));
             UIKit.Label(UIKit.Box(settings, "T", new Vector2(0.5f, 1), new Vector2(0, -80), new Vector2(1400, 100)), "НАСТРОЙКИ", 70, UIKit.Paper, TextAnchor.MiddleCenter, FontStyle.Bold);
-            float y = -190;
+            float y = -175;
             int row = 0;
-            Func<float> nextY = () => y - (row++) * 92;
+            Func<float> nextY = () => y - (row++) * 76;
 
             SettingRow("Качество графики", () => Names.Preset((GraphicsPreset)Save.Data.graphics), d =>
             {
-                Save.Data.graphics = (Save.Data.graphics + d + 3) % 3;
+                Save.Data.graphics = (Save.Data.graphics + d + 4) % 4;
                 GraphicsQuality.Apply((GraphicsPreset)Save.Data.graphics);
             }, nextY());
             SettingRow("Динамическое разрешение", () => Save.Data.dynamicResolution ? "Вкл" : "Выкл", d => { Save.Data.dynamicResolution = !Save.Data.dynamicResolution; GraphicsQuality.SetRenderScale(GraphicsQuality.BaseRenderScale, false); }, nextY());
-            SettingRow("Частота кадров", () => Save.Data.targetFps + " FPS", d => { Save.Data.targetFps = Save.Data.targetFps == 30 ? 60 : 30; Application.targetFrameRate = Save.Data.targetFps; }, nextY());
+            SettingRow("Частота кадров", () => Save.Data.targetFps + " FPS", d =>
+            {
+                var opts = GraphicsQuality.FpsOptions();
+                int i = System.Array.IndexOf(opts, Save.Data.targetFps);
+                i = i < 0 ? 1 : (i + d + opts.Length) % opts.Length;
+                Save.Data.targetFps = opts[Mathf.Clamp(i, 0, opts.Length - 1)];
+                Application.targetFrameRate = Save.Data.targetFps;
+            }, nextY());
             SettingRow("Виброотдача", () => Save.Data.vibration ? "Вкл" : "Выкл", d => { Save.Data.vibration = !Save.Data.vibration; if (Save.Data.vibration) Haptics.Medium(); }, nextY());
             SettingRow("Музыка", () => Mathf.RoundToInt(Save.Data.music * 100) + "%", d => { Save.Data.music = Mathf.Clamp01(Save.Data.music + d * 0.1f); Sfx.RefreshVolume(); }, nextY());
             SettingRow("Звуки", () => Mathf.RoundToInt(Save.Data.sfx * 100) + "%", d => { Save.Data.sfx = Mathf.Clamp01(Save.Data.sfx + d * 0.1f); Sfx.Play(SfxId.Hit); }, nextY());
             SettingRow("Показывать FPS", () => Save.Data.showFps ? "Вкл" : "Выкл", d => Save.Data.showFps = !Save.Data.showFps, nextY());
+            SettingRow("Тряска камеры", () => Mathf.RoundToInt(Save.Data.shake * 100) + "%", d => { Save.Data.shake = Mathf.Clamp(Save.Data.shake + d * 0.25f, 0f, 1.5f); CameraRig.ShakeScale = Save.Data.shake; CameraRig.Shake(0.4f); }, nextY());
+            SettingRow("Отступ от краёв экрана", () => Save.Data.safeAreaPadding ? "Вкл" : "Выкл", d => Save.Data.safeAreaPadding = !Save.Data.safeAreaPadding, nextY());
             SettingRow("Размер кнопок", () => Mathf.RoundToInt(Save.Data.buttonScale * 100) + "%", d => { Save.Data.buttonScale = Mathf.Clamp(Save.Data.buttonScale + d * 0.05f, 0.7f, 1.3f); GameManager.Inst.Touch.ApplyScaleAlpha(); }, nextY());
             SettingRow("Прозрачность кнопок", () => Mathf.RoundToInt(Save.Data.buttonAlpha * 100) + "%", d => { Save.Data.buttonAlpha = Mathf.Clamp(Save.Data.buttonAlpha + d * 0.05f, 0.3f, 1f); GameManager.Inst.Touch.ApplyScaleAlpha(); }, nextY());
 
@@ -207,7 +218,7 @@ namespace Kagegan
 
         void SettingRow(string label, Func<string> value, Action<int> change, float y)
         {
-            var rowRt = UIKit.Box(settings, "Row", new Vector2(0.5f, 1), new Vector2(0, y), new Vector2(1300, 80));
+            var rowRt = UIKit.Box(settings, "Row", new Vector2(0.5f, 1), new Vector2(0, y), new Vector2(1300, 68));
             UIKit.Img(rowRt, new Color(1, 1, 1, 0.05f));
             UIKit.Label(UIKit.Box(rowRt, "L", new Vector2(0, 0.5f), new Vector2(30, 0), new Vector2(700, 80), new Vector2(0, 0.5f)), label, 34, Color.white, TextAnchor.MiddleLeft);
             var valueText = UIKit.Label(UIKit.Box(rowRt, "V", new Vector2(1, 0.5f), new Vector2(-260, 0), new Vector2(300, 80)), "", 34, UIKit.Gold, TextAnchor.MiddleCenter, FontStyle.Bold);
@@ -277,12 +288,26 @@ namespace Kagegan
         {
             defeat = Screen("Defeat", new Color(0.15f, 0.02f, 0.02f, 0.75f));
             UIKit.Label(UIKit.Box(defeat, "T", new Vector2(0.5f, 0.5f), new Vector2(0, 200), new Vector2(1200, 160)), "ПОРАЖЕНИЕ", 120, new Color(1f, 0.4f, 0.35f), TextAnchor.MiddleCenter, FontStyle.Bold);
-            UIKit.Label(UIKit.Box(defeat, "S", new Vector2(0.5f, 0.5f), new Vector2(0, 90), new Vector2(1400, 60)), "Совет: блок в момент удара — парирование, рывок в момент удара — идеальное уклонение.", 30, Color.white);
-            UIKit.Button(defeat, "Попробовать снова", new Vector2(0.5f, 0.5f), new Vector2(-300, -80), new Vector2(520, 120), () => GameManager.Inst.Retry(), UIKit.Accent, 42);
-            UIKit.Button(defeat, "В меню", new Vector2(0.5f, 0.5f), new Vector2(300, -80), new Vector2(420, 120), () => GameManager.Inst.ShowMenu());
+            defeatInfo = UIKit.Label(UIKit.Box(defeat, "Info", new Vector2(0.5f, 0.5f), new Vector2(0, 95), new Vector2(1500, 90)), "", 32, UIKit.Paper);
+            UIKit.Label(UIKit.Box(defeat, "S", new Vector2(0.5f, 0.5f), new Vector2(0, 20), new Vector2(1500, 60)), "Совет: блок в момент удара — парирование, рывок в момент удара — идеальное уклонение, лежачего врага можно оседлать кнопкой «Захват».", 26, new Color(1f, 1f, 1f, 0.75f));
+            UIKit.Button(defeat, "Реванш", new Vector2(0.5f, 0.5f), new Vector2(-280, -110), new Vector2(500, 130), () => GameManager.Inst.Retry(), UIKit.Accent, 48);
+            UIKit.Button(defeat, "В меню", new Vector2(0.5f, 0.5f), new Vector2(290, -110), new Vector2(420, 130), () => GameManager.Inst.ShowMenu());
         }
 
-        public void ShowDefeat() { Show(defeat); }
+        Text defeatInfo;
+
+        public void ShowDefeat()
+        {
+            Show(defeat);
+            var b = GameManager.Inst.Battle;
+            if (defeatInfo != null && b != null)
+            {
+                string where = b.Mode == BattleMode.Training ? "Полигон" : "Волна " + (b.Wave + 1) + " — " + Battle.WaveName(b.Wave) + (b.Boss != null && b.Boss.Alive ? ", босс: " + b.Boss.DisplayName + " (" + Mathf.RoundToInt(b.Boss.HpFrac * 100) + "% здоровья)" : "");
+                var p = b.Player;
+                defeatInfo.text = where + (p != null ? "\nНанесено урона: " + Mathf.RoundToInt(p.Stats.damageDealt) + "   Макс. серия: " + p.Stats.maxCombo : "");
+            }
+            Haptics.Heavy();
+        }
 
         // ===================== results =====================
         void BuildResults()
@@ -355,6 +380,23 @@ namespace Kagegan
         {
             int m = Mathf.FloorToInt(t / 60f), s = Mathf.FloorToInt(t % 60f);
             return m + ":" + s.ToString("00");
+        }
+    }
+
+    /// <summary>Fade + slight zoom when a menu screen opens.</summary>
+    public class ScreenAppear : MonoBehaviour
+    {
+        CanvasGroup g;
+        float t;
+        void Awake() { g = gameObject.AddComponent<CanvasGroup>(); }
+        void OnEnable() { t = 0f; if (g != null) g.alpha = 0f; transform.localScale = Vector3.one * 0.97f; }
+        void Update()
+        {
+            if (t >= 1f) return;
+            t = Mathf.Min(1f, t + Time.unscaledDeltaTime / 0.25f);
+            float e = 1f - (1f - t) * (1f - t);
+            g.alpha = e;
+            transform.localScale = Vector3.one * Mathf.Lerp(0.97f, 1f, e);
         }
     }
 }

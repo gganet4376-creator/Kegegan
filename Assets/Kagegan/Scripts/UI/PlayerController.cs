@@ -68,10 +68,16 @@ namespace Kagegan
                 {
                     var t = F.Kit.Techs[i];
                     b.Label.text = t.Short ?? t.Name;
-                    var c = t.Color * 0.6f; c.a = 1f;
+                    var c = t.Color * 0.55f; c.a = 1f;
                     b.SetColor(c);
+                    if (b.Glyph != null) { b.Glyph.sprite = UIKit.Icon(t.Icon); b.Glyph.enabled = b.Glyph.sprite != null; }
                 }
-                else b.Label.text = "—";
+                else { b.Label.text = "—"; if (b.Glyph != null) b.Glyph.enabled = false; }
+            }
+            if (Touch.Buttons.TryGetValue("ult", out var u) && u.Glyph != null && F.Kit.Ult != null)
+            {
+                var sp = UIKit.Icon(F.Kit.Ult.Icon);
+                if (sp != null) { u.Glyph.sprite = sp; u.Glyph.enabled = true; }
             }
         }
 
@@ -185,7 +191,9 @@ namespace Kagegan
                 u.Label.text = F.Rage >= 100f ? (Mathf.Sin(Time.unscaledTime * 8f) > 0f ? "УЛЬТА!" : "УЛЬТА") : "УЛЬТА";
             }
             if (Touch.Buttons.TryGetValue("heavy", out var h))
-                h.Label.text = F.Kit.CanFinish(F.Target) ? "ДОБИТЬ" : "Мощный";
+                h.Label.text = F.Kit.CanFinish(F.Target) ? "ДОБИТЬ" : F.State == FState.Mount ? "Добить" : "Мощный";
+            if (Touch.Buttons.TryGetValue("grab", out var g))
+                g.Label.text = F.CanMountTarget ? "Верхом" : "Захват";
         }
 
         void OnDisable()

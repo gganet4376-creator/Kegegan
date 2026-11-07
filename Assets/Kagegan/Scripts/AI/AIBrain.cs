@@ -27,6 +27,13 @@ namespace Kagegan
         protected float reactTimer = -1f;
         protected Fighter lastSeenAttacker;
         protected float retreatUntil;
+        static int slotCounter;
+        protected float flankAngle;
+        float punishCheck;
+        int seenAttacks;
+        float seenAttacksDecay;
+        Move lastSeenMove;
+        bool blockedRecently;
 
         public virtual bool FinalPhase => false;
 
@@ -35,6 +42,8 @@ namespace Kagegan
             F = f; Type = type; Tune = tune;
             F.Brain = this;
             strafeSign = Random.value < 0.5f ? -1f : 1f;
+            // each minion takes its own angle around the target so groups surround instead of stacking
+            flankAngle = (slotCounter++ % 6) * 60f + Random.Range(-12f, 12f);
             UsesTokens = type != Archetype.Clone && type != Archetype.Boss;
             PreferredRange = type == Archetype.Ranged ? 7f : type == Archetype.Heavy ? 1.6f : 1.3f;
             nextAttackTime = Time.time + Random.Range(0.6f, 1.6f);
@@ -95,12 +104,39 @@ namespace Kagegan
 
             if (!engage)
             {
-                // circle at a respectful distance waiting for a token
-                float want = 4.5f;
-                Vector3 side = Vector3.Cross(Vector3.up, DirToTarget) * strafeSign;
-                moveDir = (d > want + 0.8f ? DirToTarget : d < want - 0.8f ? -DirToTarget : Vector3.zero) + side * 0.6f;
-                if (Random.value < 0.05f) strafeSign = -strafeSign;
-                if (Random.value < 0.04f) TryTechnique(d);
+                // hold a flanking slot around the target while waiting for an attack token
+                float ang = flankAngle + Mathf.Sin(Time.time * 0.3f + flankAngle) * 25f;
+                Vector3 slot = t.transform.position + Quaternion.Euler(0, ang, 0) * Vector3.forward * 4.3f;
+                Vector3 toSlot = KMath.Flat(slot - F.transform.position);
+                moveDir = toSlot.magnitude > 0.6f ? toSlot.normalized * Mathf.Clamp01(toSlot.magnitude / 2f) : Vector3.zero;
+                if (Random.value < 0.035f) TryTechnique(d);
+                return;
+            }
+
+            // wounded minions back off and fight from range
+            if (Type != Archetype.Boss && Type != Archetype.Clone && F.HpFrac < 0.25f && d < 3f && Random.value < 0.25f)
+            {
+                retreatUntil = Time.time + Random.Range(0.6f, 1.2f);
+                ReleaseToken();
+                return;
+            }
+
+            // punish a whiffed attack: the target is stuck in recovery right next to us
+            if (t.State == FState.Attack && t.CurMove != null && t.MoveTime > t.CurMove.Startup + t.CurMove.Active && d < 2.4f && F.CanAct && Random.value < 0.35f + Tune.aggression * 0.4f)
+            {
+                F.Press(Random.value < 0.45f ? Cmd.Heavy : Cmd.Light);
+                comboLeft = Random.Range(1, 3);
+                nextAttackTime = Time.time + 0.1f;
+                return;
+            }
+
+            // after soaking a blow on the guard, hit back immediately
+            if (blockedRecently && d < 2.2f)
+            {
+                blockedRecently = false;
+                F.Press(F.CounterReady ? Cmd.Light : (Random.value < 0.5f ? Cmd.Light : Cmd.Grab));
+                comboLeft = 2;
+                nextAttackTime = Time.time + 0.12f;
                 return;
             }
 
@@ -123,7 +159,9 @@ namespace Kagegan
                 if (comboLeft > 0)
                 {
                     comboLeft--;
+                    // finishers vary: heavy ender, launcher (heavy after 2 lights) or a throw against a turtling target
                     bool heavy = comboLeft == 0 && Random.value < 0.55f;
+                    if (comboLeft == 0 && t.IsBlocking && Random.value < 0.4f && F.Kit.Grab != null) { F.Press(Cmd.Grab); Pause(); return; }
                     F.Press(heavy ? Cmd.Heavy : Cmd.Light);
                     if (comboLeft == 0) Pause();
                     else nextAttackTime = Time.time + 0.08f;
@@ -181,6 +219,11 @@ namespace Kagegan
             var t = F.Target;
             if (t == null || F.State == FState.Dead) return;
             bool threat = t.InStartup && t.CurMove != null && t.CurMove.Damage > 0f && DistToTarget < t.CurMove.Range + 1.2f;
+            // adapt: a target that keeps attacking gets blocked more often
+            if (t.State == FState.Attack && t.CurMove != lastSeenMove) { lastSeenMove = t.CurMove; seenAttacks++; }
+            seenAttacksDecay += dt;
+            if (seenAttacksDecay > 2.5f) { seenAttacksDecay = 0f; seenAttacks = Mathf.Max(0, seenAttacks - 3); }
+            if (F.State == FState.Block && t.State == FState.Attack && t.MoveTime > t.CurMove?.Startup) blockedRecently = true;
             if (threat && reactTimer < 0f && lastSeenAttacker != t) { reactTimer = Tune.reaction * Random.Range(0.8f, 1.3f); lastSeenAttacker = t; }
             if (!threat && t.State != FState.Attack) lastSeenAttacker = null;
             if (reactTimer >= 0f)
@@ -188,7 +231,7 @@ namespace Kagegan
                 reactTimer -= dt;
                 if (reactTimer < 0f && t.State == FState.Attack && (F.State == FState.Idle || F.State == FState.Block))
                 {
-                    float r = Random.value;
+                    float r = Random.value - Mathf.Min(0.2f, seenAttacks * 0.03f);
                     if (t.CurMove != null && t.CurMove.Kind == HitKind.Grab) { if (r < Tune.blockChance) F.Press(Cmd.Dodge); }
                     else if (r < Tune.parryChance) blockUntil = Time.time + 0.35f;     // fresh block = parry window
                     else if (r < Tune.blockChance) blockUntil = Time.time + Random.Range(0.4f, 0.9f);

@@ -46,10 +46,11 @@ namespace Kagegan
             if (Save.Data.graphics < 0)
             {
                 Save.Data.graphics = (int)GraphicsQuality.AutoDetect();
-                if (Save.Data.graphics == 0) Save.Data.targetFps = 30;
+                Save.Data.targetFps = Save.Data.graphics == 0 ? 30 : 60;
                 Save.Write();
             }
             GraphicsQuality.Apply((GraphicsPreset)Save.Data.graphics);
+            CameraRig.ShakeScale = Save.Data.shake;
 
             Mat.Build();
             UIKit.Init();
@@ -83,6 +84,7 @@ namespace Kagegan
             Touch.Build(Canvas.transform);
             Menus = Canvas.gameObject.AddComponent<Menus>();
             Menus.Build(Canvas.transform);
+            ScreenFader.Create(Canvas.transform);
             PlayerCtl = gameObject.AddComponent<PlayerController>();
         }
 
@@ -91,6 +93,7 @@ namespace Kagegan
         // ===================== menu =====================
         public void ShowMenu()
         {
+            ScreenFader.Flash(1f);
             TimeFx.Clear();
             CleanupBattle();
             inMenu = true;
@@ -101,7 +104,8 @@ namespace Kagegan
             SetShowcase((CharacterId)Save.Data.lastCharacter);
             CameraRig.Inst.MenuMode = true;
             CameraRig.Inst.Snap();
-            Sfx.PlayMusic(0);
+            Sfx.PlayTrack("menu", 0);
+            Sfx.SetAmbience(null, 0f);
             Menus.ShowMain();
         }
 
@@ -151,6 +155,7 @@ namespace Kagegan
             Hud.Root.gameObject.SetActive(true);
             Hud.SetTraining(false);
             TimeFx.Clear();
+            ScreenFader.Flash(1f);
             var go = new GameObject("Battle");
             go.transform.SetParent(WorldRoot, false);
             Battle = go.AddComponent<Battle>();
@@ -205,7 +210,8 @@ namespace Kagegan
             var p = Battle.Player;
             SetControlsVisible(false);
             Hud.Root.gameObject.SetActive(false);
-            Sfx.PlayMusic(3);
+            Sfx.PlayTrack("ending", 3);
+            Sfx.SetAmbience(null, 0f);
             Arena.Current?.SetPhase(0);
             p.SetInvulnerable(60f);
             p.Teleport(Vector3.zero);

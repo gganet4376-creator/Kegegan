@@ -57,20 +57,26 @@ namespace Kagegan
                 default: a.BuildMoon(stat); break;
             }
             a.AddStaticMesh(stat, "Static");
+            if (a.grassMb != null) a.AddStaticMesh(a.grassMb, "Grass", Mat.ToonWind);
+            a.BuildClouds();
             a.BuildWalls(Radius);
             a.ApplyLighting();
             return a;
         }
 
         // ================= shared helpers =================
-        void AddStaticMesh(MeshBuilder mb, string name)
+        MeshBuilder grassMb;
+
+        void AddStaticMesh(MeshBuilder mb, string name) => AddStaticMesh(mb, name, Mat.Toon);
+
+        void AddStaticMesh(MeshBuilder mb, string name, Material mat)
         {
             if (mb.V.Count == 0) return;
             var go = new GameObject(name);
             go.transform.SetParent(transform, false);
             go.AddComponent<MeshFilter>().sharedMesh = mb.ToMesh(name);
             var r = go.AddComponent<MeshRenderer>();
-            r.sharedMaterial = Mat.Toon;
+            r.sharedMaterial = mat;
             r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             r.receiveShadows = false;
             go.isStatic = true;
@@ -177,8 +183,76 @@ namespace Kagegan
             }
         }
 
+        float stormTimer = 5f;
+
+        /// <summary>Drifting cloud layer made from the CC0 smoke-puff atlas.</summary>
+        void BuildClouds()
+        {
+            var tex = Resources.Load<Texture2D>("Kagegan/Vfx/puff_white");
+            if (tex == null) return;
+            Color c; int count;
+            switch (Id)
+            {
+                case ArenaId.City: c = new Color(0.35f, 0.33f, 0.4f, 0.85f); count = 22; break;
+                case ArenaId.MoonTemple: c = new Color(0.45f, 0.38f, 0.7f, 0.35f); count = 14; break;
+                case ArenaId.Forest: c = new Color(0.95f, 0.95f, 0.92f, 0.7f); count = 16; break;
+                default: c = new Color(1f, 1f, 1f, 0.8f); count = 14; break;
+            }
+            count = Mathf.RoundToInt(count * Mathf.Max(0.5f, GraphicsQuality.WeatherMul));
+            var go = new GameObject("Clouds");
+            go.transform.SetParent(transform, false);
+            go.transform.position = new Vector3(0f, 55f, 0f);
+            var ps = go.AddComponent<ParticleSystem>();
+            ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            var main = ps.main;
+            main.loop = true; main.prewarm = true;
+            main.startLifetime = 120f; main.startSpeed = 0f;
+            main.startSize = new ParticleSystem.MinMaxCurve(28f, 55f);
+            main.startColor = c;
+            main.maxParticles = count;
+            main.simulationSpace = ParticleSystemSimulationSpace.World;
+            main.startRotation = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
+            var em = ps.emission; em.rateOverTime = count / 120f;
+            var sh = ps.shape; sh.shapeType = ParticleSystemShapeType.Box; sh.scale = new Vector3(200f, 18f, 200f);
+            var vel = ps.velocityOverLifetime; vel.enabled = true; vel.space = ParticleSystemSimulationSpace.World;
+            vel.x = new ParticleSystem.MinMaxCurve(1.2f, 2.2f); vel.y = new ParticleSystem.MinMaxCurve(0f, 0f); vel.z = new ParticleSystem.MinMaxCurve(0.3f, 0.8f);
+            var tsa = ps.textureSheetAnimation; tsa.enabled = true; tsa.numTilesX = 2; tsa.numTilesY = 2;
+            tsa.frameOverTime = new ParticleSystem.MinMaxCurve(0f); tsa.startFrame = new ParticleSystem.MinMaxCurve(0f, 3.999f);
+            var col = ps.colorOverLifetime; col.enabled = true;
+            var g = new Gradient();
+            g.SetKeys(new[] { new GradientColorKey(Color.white, 0), new GradientColorKey(Color.white, 1) }, new[] { new GradientAlphaKey(0, 0), new GradientAlphaKey(1, 0.1f), new GradientAlphaKey(1, 0.9f), new GradientAlphaKey(0, 1) });
+            col.color = g;
+            var r = go.GetComponent<ParticleSystemRenderer>();
+            tex.wrapMode = TextureWrapMode.Clamp;
+            r.sharedMaterial = Mat.FxTex(tex, false, "Clouds");
+            r.sharedMaterial.renderQueue = 1500; // behind the arena, in front of the sky dome
+            r.maxParticleSize = 3f;
+            ps.Play();
+        }
+
+        void Storm()
+        {
+            // thunderstorm over the ruined city: lightning flashes the whole scene, thunder follows
+            stormTimer -= Time.deltaTime;
+            if (stormTimer > 0f) return;
+            stormTimer = Random.Range(6f, 13f);
+            Vector3 p = new Vector3(Random.Range(-45f, 45f), 0f, Random.Range(25f, 60f)) * (Random.value < 0.5f ? 1f : -1f);
+            Fx.Lightning(p + Vector3.up * 70f, p, new Color(0.8f, 0.85f, 1f), 0.6f, 0.35f);
+            WorldLighting.SetSun(sunDir, sunCol * 2.4f, ambCol * 2f);
+            Invoke(nameof(ApplyLighting), 0.12f);
+            StartCoroutine(Thunder(Random.Range(0.4f, 1.4f)));
+        }
+
+        System.Collections.IEnumerator Thunder(float delay)
+        {
+            yield return new WaitForSeconds(delay);
+            Sfx.Play(SfxId.Thunder, 0.55f, 0.7f);
+            CameraRig.Shake(0.08f);
+        }
+
         void Update()
         {
+            if (Id == ArenaId.City && dimensionUntil <= 0f) Storm();
             if (dimensionUntil > 0f && Time.time > dimensionUntil)
             {
                 dimensionUntil = 0f;
@@ -273,6 +347,7 @@ namespace Kagegan
         static void GrassTufts(MeshBuilder mb, int count, float rMin, float rMax, Color c, int seed)
         {
             if (!GraphicsQuality.GroundDetail) count /= 3;
+            if (GraphicsQuality.Current == GraphicsPreset.Ultra) count = count * 3 / 2;
             var rnd = new System.Random(seed);
             for (int i = 0; i < count; i++)
             {
@@ -397,7 +472,8 @@ namespace Kagegan
             Lighting(new Vector3(-0.4f, 0.8f, -0.5f), new Color(1f, 0.96f, 0.86f), new Color(0.32f, 0.3f, 0.3f), new Color(0.93f, 0.9f, 0.82f), 25f, 110f, 0.55f);
             Sky(new Color(0.55f, 0.75f, 0.95f), new Color(0.97f, 0.92f, 0.8f), new Color(0.9f, 0.85f, 0.7f));
             Ground(mb, 70f, new Color(0.93f, 0.8f, 0.55f), new Color(0.86f, 0.7f, 0.45f), new Color(0.55f, 0.65f, 0.35f), 11);
-            GrassTufts(mb, 260, 6f, 26f, new Color(0.45f, 0.62f, 0.25f), 3);
+            grassMb = new MeshBuilder();
+            GrassTufts(grassMb, 260, 6f, 26f, new Color(0.45f, 0.62f, 0.25f), 3);
             // main hall behind the arena + side buildings
             House(mb, new Vector3(-6f, 0, 24f), 0, new Vector3(16f, 4.2f, 6f), new Color(0.96f, 0.94f, 0.88f), new Color(0.48f, 0.5f, 0.55f), new Color(0.35f, 0.24f, 0.17f));
             House(mb, new Vector3(-25f, 0, 8f), 70, new Vector3(9f, 3.4f, 5f), new Color(0.96f, 0.94f, 0.88f), new Color(0.48f, 0.5f, 0.55f), new Color(0.35f, 0.24f, 0.17f));
@@ -460,7 +536,8 @@ namespace Kagegan
             Lighting(new Vector3(0.5f, 0.6f, -0.4f), new Color(1f, 0.88f, 0.7f), new Color(0.25f, 0.32f, 0.28f), new Color(0.55f, 0.68f, 0.55f), 14f, 70f, 0.75f);
             Sky(new Color(0.45f, 0.62f, 0.75f), new Color(0.85f, 0.83f, 0.68f), new Color(0.4f, 0.5f, 0.35f));
             Ground(mb, 70f, new Color(0.38f, 0.55f, 0.27f), new Color(0.48f, 0.42f, 0.27f), new Color(0.2f, 0.32f, 0.18f), 21);
-            GrassTufts(mb, 360, 2f, 30f, new Color(0.35f, 0.58f, 0.22f), 7);
+            grassMb = new MeshBuilder();
+            GrassTufts(grassMb, 360, 2f, 30f, new Color(0.35f, 0.58f, 0.22f), 7);
             var rnd = new System.Random(4);
             // dense ring of background trees
             for (int i = 0; i < 46; i++)

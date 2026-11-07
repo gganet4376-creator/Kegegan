@@ -74,7 +74,7 @@ namespace Kagegan
     {
         public string Id;
         public Action Down, Up;
-        public Image Icon, CooldownFill;
+        public Image Icon, CooldownFill, Glyph;
         public Text Label;
         public bool Held { get; private set; }
         public Vector2 DefaultPos;
@@ -144,25 +144,26 @@ namespace Kagegan
         public Action<string, bool> OnButton;
         CanvasGroup group;
 
-        struct Def { public string id, label; public Vector2 pos; public float size; public Color color; }
+        struct Def { public string id, label, icon; public Vector2 pos; public float size; public Color color; }
 
         static readonly Def[] Defs =
         {
-            new Def { id = "light", label = "Атака", pos = new Vector2(-170, 170), size = 210, color = new Color(0.78f, 0.16f, 0.15f, 1f) },
-            new Def { id = "heavy", label = "Мощный", pos = new Vector2(-380, 150), size = 130, color = new Color(0.55f, 0.28f, 0.14f, 1f) },
-            new Def { id = "block", label = "Блок", pos = new Vector2(-330, 330), size = 135, color = new Color(0.2f, 0.32f, 0.6f, 1f) },
-            new Def { id = "dodge", label = "Рывок", pos = new Vector2(-130, 390), size = 120, color = new Color(0.2f, 0.45f, 0.45f, 1f) },
-            new Def { id = "jump", label = "Прыжок", pos = new Vector2(-520, 110), size = 110, color = new Color(0.25f, 0.25f, 0.55f, 1f) },
-            new Def { id = "grab", label = "Захват", pos = new Vector2(-510, 270), size = 100, color = new Color(0.45f, 0.25f, 0.45f, 1f) },
-            new Def { id = "tech0", label = "Т1", pos = new Vector2(-470, 440), size = 115, color = new Color(0.3f, 0.2f, 0.45f, 1f) },
-            new Def { id = "tech1", label = "Т2", pos = new Vector2(-300, 520), size = 115, color = new Color(0.3f, 0.2f, 0.45f, 1f) },
-            new Def { id = "swap", label = "Смена", pos = new Vector2(-620, 420), size = 80, color = new Color(0.2f, 0.2f, 0.25f, 1f) },
-            new Def { id = "ult", label = "УЛЬТА", pos = new Vector2(-110, 570), size = 120, color = new Color(0.85f, 0.55f, 0.1f, 1f) },
+            new Def { id = "light", label = "Атака", icon = "light", pos = new Vector2(-165, 165), size = 210, color = new Color(0.72f, 0.14f, 0.13f, 1f) },
+            new Def { id = "heavy", label = "Мощный", icon = "heavy", pos = new Vector2(-378, 128), size = 128, color = new Color(0.52f, 0.26f, 0.12f, 1f) },
+            new Def { id = "block", label = "Блок", icon = "block", pos = new Vector2(-332, 318), size = 128, color = new Color(0.18f, 0.3f, 0.58f, 1f) },
+            new Def { id = "dodge", label = "Рывок", icon = "dodge", pos = new Vector2(-140, 378), size = 116, color = new Color(0.16f, 0.42f, 0.42f, 1f) },
+            new Def { id = "jump", label = "Прыжок", icon = "jump", pos = new Vector2(-528, 96), size = 100, color = new Color(0.24f, 0.24f, 0.52f, 1f) },
+            new Def { id = "grab", label = "Захват", icon = "grab", pos = new Vector2(-522, 246), size = 96, color = new Color(0.42f, 0.22f, 0.42f, 1f) },
+            new Def { id = "tech0", label = "Т1", icon = null, pos = new Vector2(-482, 420), size = 118, color = new Color(0.3f, 0.2f, 0.45f, 1f) },
+            new Def { id = "tech1", label = "Т2", icon = null, pos = new Vector2(-306, 502), size = 118, color = new Color(0.3f, 0.2f, 0.45f, 1f) },
+            new Def { id = "swap", label = "Смена", icon = "swap", pos = new Vector2(-618, 402), size = 76, color = new Color(0.2f, 0.2f, 0.25f, 1f) },
+            new Def { id = "ult", label = "УЛЬТА", icon = "ult", pos = new Vector2(-120, 548), size = 122, color = new Color(0.82f, 0.52f, 0.1f, 1f) },
         };
 
         public void Build(Transform canvas)
         {
             Root = UIKit.Rect(canvas, "TouchControls", Vector2.zero, Vector2.one);
+            Root.gameObject.AddComponent<SafeArea>();
             group = Root.gameObject.AddComponent<CanvasGroup>();
 
             // joystick zone: left 42% of the screen
@@ -199,10 +200,15 @@ namespace Kagegan
             cd.color = new Color(0, 0, 0, 0.6f);
             cd.fillAmount = 0f;
             cd.raycastTarget = false;
-            var label = UIKit.Label(rt, d.label, d.size > 150 ? 40 : d.size > 110 ? 28 : 24, Color.white);
+            // icon in the middle, caption under it (readable at arm's length on a 6.3" screen)
+            var glyph = UIKit.IconImage(rt, d.icon, new Vector2(0, d.size * 0.08f), d.size * 0.5f, new Color(1f, 1f, 1f, 0.95f));
+            var capRt = UIKit.Box(rt, "Caption", new Vector2(0.5f, 0f), new Vector2(0, d.size * 0.2f), new Vector2(d.size * 1.1f, d.size * 0.26f));
+            var label = UIKit.Label(capRt, d.label, d.size > 150 ? 30 : d.size > 110 ? 23 : 20, Color.white);
             label.fontStyle = FontStyle.Bold;
+            if (glyph.sprite == null) { capRt.anchoredPosition = Vector2.zero; capRt.anchorMin = capRt.anchorMax = new Vector2(0.5f, 0.5f); label.fontSize += 4; }
             var b = rt.gameObject.AddComponent<TouchButton>();
             b.Setup(d.id, img, label, cd);
+            b.Glyph = glyph;
             string id = d.id;
             b.Down = () => OnButton?.Invoke(id, true);
             b.Up = () => OnButton?.Invoke(id, false);

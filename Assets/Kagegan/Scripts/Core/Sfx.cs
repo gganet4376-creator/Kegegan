@@ -19,9 +19,16 @@ namespace Kagegan
         AudioClip[] clips;
         AudioSource[] voices;
         int nextVoice;
-        AudioSource music;
+        AudioSource music, musicB, ambience;
         AudioClip[] themes = new AudioClip[4];
         int currentTheme = -1;
+        string currentTrack = "";
+        float musicFade = 1f;
+        AudioClip[][] variants;
+        int[] lastVariant;
+        readonly System.Collections.Generic.Dictionary<string, AudioClip> musicClips = new System.Collections.Generic.Dictionary<string, AudioClip>();
+        // per-sound loudness trims for the recorded samples
+        static readonly float[] trim = new float[(int)SfxId.Count];
         static System.Random rng = new System.Random(1234);
 
         public static void Init(GameObject host)
@@ -42,6 +49,13 @@ namespace Kagegan
             music = gameObject.AddComponent<AudioSource>();
             music.loop = true;
             music.playOnAwake = false;
+            musicB = gameObject.AddComponent<AudioSource>();
+            musicB.loop = true;
+            musicB.playOnAwake = false;
+            ambience = gameObject.AddComponent<AudioSource>();
+            ambience.loop = true;
+            ambience.playOnAwake = false;
+            LoadSamples();
 
             clips = new AudioClip[(int)SfxId.Count];
             clips[(int)SfxId.Hit] = Make("hit", 0.16f, (t, d) => Noise() * Env(t, 0.002f, 0.12f) * 0.8f + Sine(160 - 300 * t, t) * Env(t, 0.001f, 0.1f) * 0.6f);
@@ -66,6 +80,30 @@ namespace Kagegan
             clips[(int)SfxId.Hiss] = Make("hiss", 0.5f, (t, d) => Noise() * Mathf.Sin(Mathf.PI * t / d) * 0.3f);
             clips[(int)SfxId.Charge] = Make("charge", 0.9f, (t, d) => Sine(200 + 600 * t / d, t) * (t / d) * 0.4f + Noise() * 0.05f);
             clips[(int)SfxId.Land] = Make("land", 0.12f, (t, d) => LowNoise(0.4f) * Env(t, 0.001f, 0.1f) * 0.6f);
+        }
+
+        /// <summary>Loads recorded CC0 samples (Resources/Kagegan/Audio/Sfx/name_N.ogg). Missing ones fall back to synthesis.</summary>
+        void LoadSamples()
+        {
+            variants = new AudioClip[(int)SfxId.Count][];
+            lastVariant = new int[(int)SfxId.Count];
+            for (int i = 0; i < trim.Length; i++) trim[i] = 1f;
+            trim[(int)SfxId.Energy] = 1f; trim[(int)SfxId.Charge] = 1f; trim[(int)SfxId.Release] = 1f;
+            trim[(int)SfxId.Whoosh] = 0.55f; trim[(int)SfxId.Land] = 0.7f; trim[(int)SfxId.Crumble] = 0.8f; trim[(int)SfxId.Block] = 0.85f;
+            var all = Resources.LoadAll<AudioClip>("Kagegan/Audio/Sfx");
+            var groups = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.List<AudioClip>>();
+            foreach (var c in all)
+            {
+                int us = c.name.LastIndexOf('_');
+                string key = (us > 0 ? c.name.Substring(0, us) : c.name).ToLowerInvariant();
+                if (!groups.TryGetValue(key, out var list)) groups[key] = list = new System.Collections.Generic.List<AudioClip>();
+                list.Add(c);
+            }
+            for (int i = 0; i < (int)SfxId.Count; i++)
+            {
+                string key = ((SfxId)i).ToString().ToLowerInvariant();
+                if (groups.TryGetValue(key, out var list) && list.Count > 0) variants[i] = list.ToArray();
+            }
         }
 
         // ---------- synthesis helpers ----------
@@ -165,15 +203,96 @@ namespace Kagegan
         }
 
         // ---------- API ----------
-        public static void Play(SfxId id, float volume = 1f, float pitch = 1f)
+        public static void Play(SfxId id, float volume = 1f, float pitch = 1f) => Play(id, volume, pitch, 0f);
+
+        /// <summary>Plays a random variant (never the same one twice in a row) with pitch/volume jitter and stereo pan.</summary>
+        public static void Play(SfxId id, float volume, float pitch, float pan)
         {
             if (inst == null || inst.clips == null) return;
-            var clip = inst.clips[(int)id];
+            AudioClip clip = null;
+            var vars = inst.variants != null ? inst.variants[(int)id] : null;
+            if (vars != null && vars.Length > 0)
+            {
+                int k = vars.Length == 1 ? 0 : Random.Range(0, vars.Length);
+                if (vars.Length > 1 && k == inst.lastVariant[(int)id]) k = (k + 1) % vars.Length;
+                inst.lastVariant[(int)id] = k;
+                clip = vars[k];
+                volume *= trim[(int)id];
+            }
+            if (clip == null) clip = inst.clips[(int)id];
             if (clip == null) return;
             var v = inst.voices[inst.nextVoice];
             inst.nextVoice = (inst.nextVoice + 1) % inst.voices.Length;
-            v.pitch = pitch * (0.93f + 0.14f * Random01());
-            v.PlayOneShot(clip, volume * Save.Data.sfx);
+            v.pitch = pitch * (0.94f + 0.12f * Random01());
+            v.panStereo = Mathf.Clamp(pan, -0.8f, 0.8f);
+            v.PlayOneShot(clip, Mathf.Clamp01(volume) * Save.Data.sfx);
+        }
+
+        /// <summary>Positional helper: pans the sound by where it happens on screen and attenuates with distance.</summary>
+        public static void PlayAt(SfxId id, Vector3 world, float volume = 1f, float pitch = 1f)
+        {
+            float pan = 0f;
+            var cam = CameraRig.Inst != null ? CameraRig.Inst.Cam : null;
+            if (cam != null)
+            {
+                Vector3 vp = cam.WorldToViewportPoint(world);
+                pan = (vp.x - 0.5f) * 1.2f;
+                float d = (world - cam.transform.position).magnitude;
+                volume *= Mathf.Clamp(1.4f - d / 30f, 0.35f, 1f);
+            }
+            Play(id, volume, pitch, pan);
+        }
+
+        /// <summary>Hit sound whose sample, loudness and pitch follow the strength of the blow.</summary>
+        public static void Impact(float damage, bool heavy, Vector3 world)
+        {
+            float k = Mathf.Clamp01(damage / 40f);
+            if (heavy || damage >= 14f) PlayAt(SfxId.HeavyHit, world, 0.75f + 0.25f * k, 1.05f - 0.2f * k);
+            else PlayAt(SfxId.Hit, world, 0.6f + 0.35f * k, 1.08f - 0.15f * k);
+        }
+
+        /// <summary>Recorded track from Resources/Kagegan/Audio/Music, cross-faded; falls back to the synthesised theme.</summary>
+        public static void PlayTrack(string name, int fallbackTheme)
+        {
+            if (inst == null) return;
+            if (inst.currentTrack == name && (inst.music.isPlaying || inst.musicB.isPlaying)) return;
+            if (!inst.musicClips.TryGetValue(name, out var clip))
+            {
+                clip = Resources.Load<AudioClip>("Kagegan/Audio/Music/" + name);
+                inst.musicClips[name] = clip;
+            }
+            if (clip == null) { PlayMusic(fallbackTheme); return; }
+            inst.currentTrack = name;
+            inst.currentTheme = -1;
+            // swap sources and fade
+            var tmp = inst.music; inst.music = inst.musicB; inst.musicB = tmp;
+            inst.music.clip = clip;
+            inst.music.volume = 0f;
+            inst.music.Play();
+            inst.musicFade = 0f;
+        }
+
+        public static void SetAmbience(string name, float volume)
+        {
+            if (inst == null) return;
+            if (string.IsNullOrEmpty(name)) { inst.ambience.Stop(); return; }
+            var clip = Resources.Load<AudioClip>("Kagegan/Audio/Music/" + name);
+            if (clip == null) return;
+            inst.ambience.clip = clip;
+            inst.ambience.volume = volume * Save.Data.sfx;
+            inst.ambience.Play();
+        }
+
+        void Update()
+        {
+            if (musicFade < 1f)
+            {
+                musicFade = Mathf.Min(1f, musicFade + Time.unscaledDeltaTime / 1.2f);
+                float target = Save.Data.music * 0.6f;
+                music.volume = target * musicFade;
+                musicB.volume = target * (1f - musicFade);
+                if (musicFade >= 1f) musicB.Stop();
+            }
         }
 
         public static void PlayMusic(int theme)
@@ -182,6 +301,9 @@ namespace Kagegan
             if (inst.currentTheme == theme && inst.music.isPlaying) return;
             if (inst.themes[theme] == null) inst.themes[theme] = inst.BuildTheme(theme);
             inst.currentTheme = theme;
+            inst.currentTrack = "";
+            inst.musicB.Stop();
+            inst.musicFade = 1f;
             inst.music.clip = inst.themes[theme];
             inst.music.volume = Save.Data.music * 0.6f;
             inst.music.Play();
@@ -189,9 +311,9 @@ namespace Kagegan
 
         public static void RefreshVolume()
         {
-            if (inst != null) inst.music.volume = Save.Data.music * 0.6f;
+            if (inst != null) { inst.music.volume = Save.Data.music * 0.6f; inst.ambience.volume = Mathf.Min(inst.ambience.volume, Save.Data.sfx); }
         }
 
-        public static void StopMusic() { if (inst != null) inst.music.Stop(); }
+        public static void StopMusic() { if (inst != null) { inst.music.Stop(); inst.musicB.Stop(); inst.currentTrack = ""; } }
     }
 }

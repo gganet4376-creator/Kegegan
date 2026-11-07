@@ -213,6 +213,43 @@ namespace Kagegan
             .S(B.ThighL, -45, 0, -20).S(B.ShinL, 70).S(B.ThighR, -45, 0, 20).S(B.ShinR, 70);
         public static readonly Pose Roar = new Pose().H(0, -0.1f, 0).S(B.Spine, -25).S(B.Head, -30).S(B.UArmL, -40, 0, -70).S(B.LArmL, -30).S(B.UArmR, -40, 0, 70).S(B.LArmR, -30).S(B.ThighL, -25, 0, -18).S(B.ShinL, 40).S(B.ThighR, -25, 0, 18).S(B.ShinR, 40);
 
+        // ----- zone-specific hit reactions -----
+        public static readonly Pose HurtHead = new Pose().H(0, -0.03f, -0.06f).S(B.Spine, -10).S(B.Chest, -8).S(B.Neck, -15, 12).S(B.Head, -30, 18, 10)
+            .S(B.UArmL, -15, 0, -40).S(B.LArmL, -30).S(B.UArmR, -15, 0, 40).S(B.LArmR, -30).S(B.ThighL, -10).S(B.ShinL, 20).S(B.ThighR, 15).S(B.ShinR, 25);
+        public static readonly Pose HurtBody = new Pose().H(0, -0.12f, -0.08f).S(B.Spine, 32).S(B.Chest, 18).S(B.Head, 10)
+            .S(B.UArmL, -40, 0, 15).S(B.LArmL, -100).S(B.UArmR, -40, 0, -15).S(B.LArmR, -100).S(B.ThighL, -35).S(B.ShinL, 50).S(B.ThighR, -10).S(B.ShinR, 45);
+        public static readonly Pose HurtLow = new Pose().H(0, -0.22f, 0).S(B.Hips, 0, 0, 8).S(B.Spine, 10, 0, -10).S(B.Head, -5)
+            .S(B.UArmL, -20, 0, -55).S(B.LArmL, -30).S(B.UArmR, -20, 0, 45).S(B.LArmR, -30).S(B.ThighL, -60).S(B.ShinL, 95).S(B.ThighR, 10).S(B.ShinR, 60);
+        public static readonly Pose Stagger = new Pose().H(0, -0.05f, -0.12f).S(B.Spine, -22).S(B.Chest, -10).S(B.Head, -25)
+            .S(B.UArmL, -60, 0, -70).S(B.LArmL, -20).S(B.UArmR, -60, 0, 70).S(B.LArmR, -20).S(B.ThighL, -35).S(B.ShinL, 20).S(B.ThighR, 25).S(B.ShinR, 30);
+
+        // ----- get-up variants -----
+        public static readonly Pose KipTuck = new Pose().H(0, -0.65f, -0.1f).S(B.Hips, -120).S(B.Spine, 30).S(B.Head, 25)
+            .S(B.UArmL, -150, 0, -20).S(B.LArmL, -90).S(B.UArmR, -150, 0, 20).S(B.LArmR, -90).S(B.ThighL, -130).S(B.ShinL, 120).S(B.ThighR, -130).S(B.ShinR, 120);
+        public static readonly Pose RollBack = new Pose().H(0, -0.6f, -0.2f).S(B.Hips, -160).S(B.Spine, 50).S(B.Head, 40)
+            .S(B.UArmL, -150, 0, -10).S(B.LArmL, -120).S(B.UArmR, -150, 0, 10).S(B.LArmR, -120).S(B.ThighL, -140).S(B.ShinL, 140).S(B.ThighR, -140).S(B.ShinR, 140);
+        public static readonly Pose OneKnee = new Pose().H(0, -0.42f, 0).S(B.Spine, 20).S(B.Head, -10).S(B.UArmL, -30, 0, -20).S(B.LArmL, -40).S(B.UArmR, -70, 0, 10).S(B.LArmR, -80)
+            .S(B.ThighL, -90).S(B.ShinL, 90).S(B.ThighR, 20).S(B.ShinR, 110).S(B.FootR, 40);
+
+        // ----- mount (sitting on a downed opponent) -----
+        public static readonly Pose MountSit = new Pose().H(0, -0.5f, 0.05f).S(B.Spine, 18).S(B.Head, 20)
+            .S(B.UArmL, -40, 0, -20).S(B.LArmL, -110).S(B.UArmR, -40, 0, 20).S(B.LArmR, -110)
+            .S(B.ThighL, -60, 0, -35).S(B.ShinL, 140).S(B.FootL, 30).S(B.ThighR, -60, 0, 35).S(B.ShinR, 140).S(B.FootR, 30);
+        public static readonly Pose MountWindR = new Pose().H(0, -0.45f, 0.02f).S(B.Spine, 5, 25).S(B.Head, 25).S(B.UArmR, -150, 0, 30).S(B.LArmR, -120).S(B.UArmL, -50, 0, -20).S(B.LArmL, -100)
+            .S(B.ThighL, -60, 0, -35).S(B.ShinL, 140).S(B.ThighR, -60, 0, 35).S(B.ShinR, 140);
+        public static readonly Pose MountPunchR = new Pose().H(0, -0.55f, 0.1f).S(B.Spine, 38, -20).S(B.Head, 30).S(B.UArmR, -60, 0, 0).S(B.LArmR, -10).S(B.UArmL, -40, 0, -25).S(B.LArmL, -110)
+            .S(B.ThighL, -60, 0, -35).S(B.ShinL, 140).S(B.ThighR, -60, 0, 35).S(B.ShinR, 140);
+        public static readonly Pose MountWindL = MountWindR.Mirror();
+        public static readonly Pose MountPunchL = MountPunchR.Mirror();
+        public static readonly Pose MountHammerWind = new Pose().H(0, -0.38f, 0).S(B.Spine, -15).S(B.Head, 15).S(B.UArmL, -170, 0, 10).S(B.LArmL, -70).S(B.UArmR, -170, 0, -10).S(B.LArmR, -70)
+            .S(B.ThighL, -60, 0, -35).S(B.ShinL, 140).S(B.ThighR, -60, 0, 35).S(B.ShinR, 140);
+        public static readonly Pose MountHammer = new Pose().H(0, -0.58f, 0.12f).S(B.Spine, 45).S(B.Head, 35).S(B.UArmL, -70, 0, 15).S(B.LArmL, -10).S(B.UArmR, -70, 0, -15).S(B.LArmR, -10)
+            .S(B.ThighL, -60, 0, -35).S(B.ShinL, 140).S(B.ThighR, -60, 0, 35).S(B.ShinR, 140);
+
+        // ----- landing / jumping -----
+        public static readonly Pose LandSquash = new Pose().H(0, -0.2f, 0).S(B.Spine, 18).S(B.Head, -8).S(B.UArmL, -30, 0, -35).S(B.LArmL, -50).S(B.UArmR, -30, 0, 35).S(B.LArmR, -50)
+            .S(B.ThighL, -55).S(B.ShinL, 85).S(B.FootL, -25).S(B.ThighR, -45).S(B.ShinR, 80).S(B.FootR, -25);
+
         // ----- victory poses -----
         public static readonly Pose WinSwift = new Pose().S(B.Head, -10).S(B.UArmR, -150, 0, 10).S(B.LArmR, -70).S(B.HandR, -20).S(B.UArmL, -10, 0, -12).S(B.LArmL, -60).S(B.ThighL, -5, 0, -10).S(B.ThighR, 0, 0, 10);
         public static readonly Pose WinHeavy = new Pose().S(B.Head, -12).S(B.Chest, -6).S(B.UArmL, -60, 0, 40).S(B.LArmL, -100).S(B.UArmR, -60, 0, -40).S(B.LArmR, -100).S(B.ThighL, 0, 0, -12).S(B.ThighR, 0, 0, 12);

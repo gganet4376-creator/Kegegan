@@ -100,12 +100,45 @@ namespace Kagegan
             }
             Vector3 mid = Target != null ? Vector3.Lerp(a, b, 0.42f) : a;
             float d = Target != null ? Mathf.Clamp(5.2f + dist * 0.55f, 6f, 13f) : 7f;
-            float yLift = Mathf.Max(0f, Mathf.Max(a.y, Target != null ? b.y : 0f) * 0.5f);
+            // air combos: rise and pull back with the highest fighter so both stay in frame
+            float top = Mathf.Max(a.y, Target != null ? b.y : 0f);
+            float yLift = Mathf.Max(0f, top * 0.6f);
+            d += Mathf.Max(0f, top - 1f) * 0.6f;
             l = mid + Vector3.up * (1.15f + yLift);
             p = mid + side * d + Vector3.up * (2.0f + d * 0.13f + yLift);
             // keep camera inside the arena walls
             Vector3 flat = KMath.Flat(p);
-            if (flat.magnitude > 26f) { flat = flat.normalized * 26f; p = new Vector3(flat.x, p.y, flat.z); }
+            if (flat.magnitude > 24f) { flat = flat.normalized * 24f; p = new Vector3(flat.x, p.y, flat.z); }
+        }
+
+        static readonly RaycastHit[] occHits = new RaycastHit[12];
+        float occTimer;
+        public static float ShakeScale = 1f;
+
+        /// <summary>Fade breakable props (trees, walls, pillars) that sit between the camera and the fighters.</summary>
+        void FadeOccluders()
+        {
+            occTimer -= Time.unscaledDeltaTime;
+            if (occTimer > 0f) return;
+            occTimer = 0.08f;
+            CheckLine(Player);
+            CheckLine(Target);
+        }
+
+        void CheckLine(Transform t)
+        {
+            if (t == null) return;
+            Vector3 from = transform.position;
+            Vector3 to = t.position + Vector3.up * 1.1f;
+            Vector3 d = to - from;
+            float len = d.magnitude;
+            if (len < 0.5f) return;
+            int n = Physics.SphereCastNonAlloc(from, 0.45f, d / len, occHits, len - 0.6f, ~0, QueryTriggerInteraction.Ignore);
+            for (int i = 0; i < n; i++)
+            {
+                var dz = occHits[i].collider.GetComponentInParent<Destructible>();
+                if (dz != null && !dz.Broken) dz.RequestFade(0.3f);
+            }
         }
 
         void LateUpdate()
@@ -118,9 +151,10 @@ namespace Kagegan
             transform.position = pos;
             transform.rotation = Quaternion.LookRotation(look - pos);
 
+            FadeOccluders();
             if (trauma > 0f)
             {
-                float s = trauma * trauma;
+                float s = trauma * trauma * ShakeScale;
                 float t = Time.unscaledTime * 32f;
                 transform.position += transform.right * (Mathf.PerlinNoise(t, 0.1f) - 0.5f) * 0.6f * s
                                     + transform.up * (Mathf.PerlinNoise(0.3f, t) - 0.5f) * 0.6f * s;

@@ -5,7 +5,7 @@ namespace Kagegan
     public enum Team { Player, Enemy, Neutral }
     public enum Difficulty { Novice = 0, Warrior = 1, Legend = 2 }
     public enum CharacterId { Kaito = 0, Genryu = 1, Mugen = 2 }
-    public enum GraphicsPreset { Low = 0, Medium = 1, High = 2 }
+    public enum GraphicsPreset { Low = 0, Medium = 1, High = 2, Ultra = 3 }
     public enum ArenaId { Dojo, Forest, City, MoonTemple }
 
     public static class Names
@@ -26,7 +26,8 @@ namespace Kagegan
             {
                 case GraphicsPreset.Low: return "Низкая";
                 case GraphicsPreset.Medium: return "Средняя";
-                default: return "Высокая";
+                case GraphicsPreset.High: return "Высокая";
+                default: return "Ультра";
             }
         }
     }

@@ -18,6 +18,7 @@ namespace Kagegan
         public RunStyle RunStyle;
         public Pose VictoryPose = PoseLib.WinSwift;
         public Pose CustomPose;
+        public Pose HurtPose;          // zone-specific hit-stun pose chosen by the Fighter
         public AnimMode Mode;
         public float MoveSpeed;      // m/s horizontal
         public float VerticalSpeed;
@@ -33,6 +34,9 @@ namespace Kagegan
         float actionTime, actionSpeed = 1f;
         float runPhase, lastStepHalf;
         float flinch, flinchDir = 1f;
+        int flinchZone;               // 0 body, 1 head, 2 legs
+        float flinchSide = 1f;
+        float recoil;
         float idleT, idleVariantTimer = 5f;
         int idleVariant;
         float blinkTimer = 2f, blinkT = -1f;
@@ -67,12 +71,20 @@ namespace Kagegan
 
         public void StopAction() { action = null; }
 
-        public void Flinch(float strength, bool fromBehind)
+        public void Flinch(float strength, bool fromBehind) => Flinch(strength, fromBehind, 0, 1f);
+
+        /// <summary>Additive hit reaction; zone 0 = body (folds forward), 1 = head (snaps back and twists), 2 = legs (knee buckles).</summary>
+        public void Flinch(float strength, bool fromBehind, int zone, float side)
         {
             flinch = Mathf.Max(flinch, strength);
             flinchDir = fromBehind ? -1f : 1f;
+            flinchZone = zone;
+            flinchSide = side >= 0f ? 1f : -1f;
             Squint = 1f;
         }
+
+        /// <summary>Attacker-side recoil when a blow connects: the body absorbs the impact, sells the weight of the hit.</summary>
+        public void Recoil(float strength) { recoil = Mathf.Max(recoil, strength); }
 
         public void LookAt(Vector3 worldPos) { lookTarget = worldPos; hasLook = true; }
         public void ClearLook() { hasLook = false; }
@@ -125,14 +137,49 @@ namespace Kagegan
             add[(int)B.Head].x -= breath * 0.8f;
             hips.y += breath * 0.004f;
 
-            if (Mode == AnimMode.Locomotion && actWeight == 0f && MoveSpeed < 0.3f) IdleVariants(dt, ref hips);
+            if (Mode == AnimMode.Locomotion && actWeight == 0f && MoveSpeed < 0.3f)
+            {
+                IdleVariants(dt, ref hips);
+                // slow weight shift between the feet and shoulder sway
+                float shift = Mathf.Sin(idleT * 0.55f);
+                hips.x += shift * 0.018f;
+                add[(int)B.Hips].z += shift * 1.5f;
+                add[(int)B.Spine].z -= shift * 2.2f;
+                add[(int)B.UArmL].x += Mathf.Sin(idleT * 0.9f + 1f) * 2.5f;
+                add[(int)B.UArmR].x += Mathf.Sin(idleT * 0.8f) * 2.5f;
+            }
 
             flinch *= Mathf.Exp(-7f * dt);
             if (flinch > 0.01f)
             {
-                add[(int)B.Spine].x -= 18f * flinch * flinchDir;
-                add[(int)B.Chest].x -= 14f * flinch * flinchDir;
-                add[(int)B.Head].x -= 25f * flinch * flinchDir;
+                switch (flinchZone)
+                {
+                    case 1: // head: snaps back and turns away from the blow
+                        add[(int)B.Neck].x -= 14f * flinch * flinchDir;
+                        add[(int)B.Head].x -= 32f * flinch * flinchDir;
+                        add[(int)B.Head].y += 22f * flinch * flinchSide;
+                        add[(int)B.Chest].x -= 6f * flinch * flinchDir;
+                        break;
+                    case 2: // legs: knee buckles, body dips
+                        add[(int)B.ThighL].x -= 20f * flinch;
+                        add[(int)B.ShinL].x += 35f * flinch;
+                        add[(int)B.Spine].z += 8f * flinch * flinchSide;
+                        hips.y -= 0.08f * flinch;
+                        break;
+                    default: // body: folds around the impact
+                        add[(int)B.Spine].x += 20f * flinch * flinchDir;
+                        add[(int)B.Chest].x += 12f * flinch * flinchDir;
+                        add[(int)B.Head].x += 10f * flinch * flinchDir;
+                        hips.z -= 0.05f * flinch * flinchDir;
+                        break;
+                }
+            }
+            recoil *= Mathf.Exp(-12f * dt);
+            if (recoil > 0.01f)
+            {
+                add[(int)B.Chest].x -= 8f * recoil;
+                add[(int)B.Spine].x -= 4f * recoil;
+                hips.z -= 0.04f * recoil;
             }
             if (Mode == AnimMode.Locomotion && MoveSpeed > 1f)
                 add[(int)B.Spine].z += Mathf.Clamp(-yawRate * 0.04f, -14f, 14f);
@@ -188,7 +235,7 @@ namespace Kagegan
             switch (m)
             {
                 case AnimMode.Block: return PoseLib.Block;
-                case AnimMode.Hurt: return PoseLib.Hurt;
+                case AnimMode.Hurt: return HurtPose ?? PoseLib.Hurt;
                 case AnimMode.HurtBack: return PoseLib.HurtBack;
                 case AnimMode.Dizzy: return PoseLib.Dizzy;
                 case AnimMode.Down: case AnimMode.Dead: return PoseLib.Down;
@@ -217,12 +264,16 @@ namespace Kagegan
 
         void BuildRun(float dt)
         {
-            float stride = RunStyle == RunStyle.Heavy ? 1.5f : RunStyle == RunStyle.Glide ? 2.2f : 1.75f;
+            // stride length is derived from leg length and swing angle, so feet travel exactly as far as the body (no sliding)
+            float maxAmp = RunStyle == RunStyle.Glide ? 14f : RunStyle == RunStyle.Heavy ? 38f : 46f;
+            float speedK = Mathf.Clamp(MoveSpeed / 6f, 0.3f, 1.1f);
+            float legAmp = maxAmp * speedK;
+            float legLen = 0.84f * Rig.Look.height * Rig.transform.localScale.y;
+            float stride = RunStyle == RunStyle.Glide ? 2.2f : Mathf.Max(0.35f, 2f * legLen * Mathf.Sin(legAmp * Mathf.Deg2Rad) * 1.1f);
             runPhase += dt * MoveSpeed / stride * Mathf.PI;
             float s = Mathf.Sin(runPhase), c = Mathf.Cos(runPhase);
             var p = runPose;
-            float legAmp = RunStyle == RunStyle.Glide ? 14f : RunStyle == RunStyle.Heavy ? 38f : 46f;
-            float kneeAmp = RunStyle == RunStyle.Glide ? 20f : 75f;
+            float kneeAmp = (RunStyle == RunStyle.Glide ? 20f : 75f) * Mathf.Lerp(0.6f, 1f, speedK);
             p.S(B.ThighL, -legAmp * s - 12f, 0, -3).S(B.ThighR, legAmp * s - 12f, 0, 3);
             p.S(B.ShinL, 18f + kneeAmp * Mathf.Max(0f, c)).S(B.ShinR, 18f + kneeAmp * Mathf.Max(0f, -c));
             p.S(B.FootL, -10f * s).S(B.FootR, 10f * s);
@@ -339,8 +390,10 @@ namespace Kagegan
             while (k < c.Times.Length - 2 && t >= c.Times[k + 1]) k++;
             float t0 = c.Times[k], t1 = c.Times[k + 1];
             float u = t1 > t0 ? Mathf.Clamp01((t - t0) / (t1 - t0)) : 1f;
-            u = u * u * (3f - 2f * u);
             Pose a = c.Poses[k], b = c.Poses[k + 1];
+            if (b == null) { float v = 1f - u; u = 1f - v * v * v; }            // settle back into stance: ease-out
+            else if (a != null && a != b) u = u * u * (2.2f - 1.2f * u);       // strike: accelerates into contact
+            else u = u * u * (3f - 2f * u);                                    // anticipation / holds: smooth
             Quaternion[] qa = a != null ? a.Q : null, qb = b != null ? b.Q : null;
             for (int i = 0; i < actQ.Length; i++)
                 actQ[i] = Quaternion.Slerp(qa != null ? qa[i] : baseQ[i], qb != null ? qb[i] : baseQ[i], u);

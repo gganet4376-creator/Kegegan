@@ -29,6 +29,7 @@ namespace Kagegan
         }
 #endif
 
+        public static void Tick() => Pulse(10, 45);
         public static void Light() => Pulse(18, 70);
         public static void Medium() => Pulse(30, 140);
         public static void Heavy() => Pulse(55, 255);
