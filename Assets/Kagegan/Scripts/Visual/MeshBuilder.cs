@@ -120,6 +120,37 @@ namespace Kagegan
             }
         }
 
+        /// <summary>One curved, tapering grass blade (uv.y = 0 at the root, 1 at the tip for the wind shader).</summary>
+        public void Blade(Vector3 root, float height, float width, float yaw, float lean, Color32 rootCol, Color32 tipCol)
+        {
+            Vector3 fwd = new Vector3(Mathf.Sin(yaw), 0f, Mathf.Cos(yaw));
+            Vector3 side = new Vector3(fwd.z, 0f, -fwd.x);
+            Vector3 n = (Vector3.up + fwd * 0.45f).normalized; // soft, mostly-up normal so tufts shade like a lawn
+            var keep = Col;
+            const int S = 3;
+            int start = V.Count;
+            for (int i = 0; i < S; i++)
+            {
+                float t = (float)i / S;
+                Vector3 c = root + Vector3.up * height * t + fwd * lean * height * t * t;
+                float w = width * (1f - t * 0.75f) * 0.5f;
+                Col = Color32.Lerp(rootCol, tipCol, t);
+                AddVert(c - side * w, n, new Vector2(0f, t));
+                AddVert(c + side * w, n, new Vector2(1f, t));
+            }
+            Col = tipCol;
+            int tip = AddVert(root + Vector3.up * height + fwd * lean * height, n, new Vector2(0.5f, 1f));
+            for (int i = 0; i < S - 1; i++)
+            {
+                int a = start + i * 2;
+                T.Add(a); T.Add(a + 2); T.Add(a + 1);
+                T.Add(a + 1); T.Add(a + 2); T.Add(a + 3);
+            }
+            int l = start + (S - 1) * 2;
+            T.Add(l); T.Add(tip); T.Add(l + 1);
+            Col = keep;
+        }
+
         public void Cone(Vector3 baseCenter, Vector3 tip, float r, int seg = 6, bool capBase = true)
         {
             Vector3 dir = (tip - baseCenter).normalized;

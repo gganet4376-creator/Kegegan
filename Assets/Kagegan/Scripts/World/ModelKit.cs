@@ -16,20 +16,21 @@ namespace Kagegan
         static readonly Dictionary<string, float> heights = new Dictionary<string, float>();
 
         // material name in the model -> texture, alpha-cut foliage?, wind amount
-        struct MatInfo { public string Tex; public bool Cut; public float Wind; public Color Tint; }
+        // WindH = plant height (m) that gets the full bend; Flutter = leaf shiver
+        struct MatInfo { public string Tex; public bool Cut; public float Wind; public float WindH; public float Flutter; public Color Tint; }
         static readonly KeyValuePair<string, MatInfo>[] Table =
         {
-            new KeyValuePair<string, MatInfo>("Leaves_NormalTree", new MatInfo { Tex = "Nature/Textures/Leaves_NormalTree_C", Cut = true, Wind = 0.6f }),
-            new KeyValuePair<string, MatInfo>("Leaves_TwistedTree", new MatInfo { Tex = "Nature/Textures/Leaves_TwistedTree_C", Cut = true, Wind = 0.6f }),
-            new KeyValuePair<string, MatInfo>("Leaves_Pine", new MatInfo { Tex = "Nature/Textures/Leaf_Pine_C", Cut = true, Wind = 0.4f }),
-            new KeyValuePair<string, MatInfo>("Bark_NormalTree", new MatInfo { Tex = "Nature/Textures/Bark_NormalTree" }),
-            new KeyValuePair<string, MatInfo>("Bark_TwistedTree", new MatInfo { Tex = "Nature/Textures/Bark_TwistedTree" }),
-            new KeyValuePair<string, MatInfo>("Bark_DeadTree", new MatInfo { Tex = "Nature/Textures/Bark_DeadTree" }),
+            new KeyValuePair<string, MatInfo>("Leaves_NormalTree", new MatInfo { Tex = "Nature/Textures/Leaves_NormalTree_C", Cut = true, Wind = 0.6f, WindH = 9f, Flutter = 1f }),
+            new KeyValuePair<string, MatInfo>("Leaves_TwistedTree", new MatInfo { Tex = "Nature/Textures/Leaves_TwistedTree_C", Cut = true, Wind = 0.6f, WindH = 9f, Flutter = 1f }),
+            new KeyValuePair<string, MatInfo>("Leaves_Pine", new MatInfo { Tex = "Nature/Textures/Leaf_Pine_C", Cut = true, Wind = 0.6f, WindH = 9f, Flutter = 0.5f }),
+            new KeyValuePair<string, MatInfo>("Bark_NormalTree", new MatInfo { Tex = "Nature/Textures/Bark_NormalTree", Wind = 0.6f, WindH = 9f }),
+            new KeyValuePair<string, MatInfo>("Bark_TwistedTree", new MatInfo { Tex = "Nature/Textures/Bark_TwistedTree", Wind = 0.6f, WindH = 9f }),
+            new KeyValuePair<string, MatInfo>("Bark_DeadTree", new MatInfo { Tex = "Nature/Textures/Bark_DeadTree", Wind = 0.6f, WindH = 9f }),
             new KeyValuePair<string, MatInfo>("Rocks", new MatInfo { Tex = "Nature/Textures/Rocks_Diffuse" }),
             new KeyValuePair<string, MatInfo>("Mushrooms", new MatInfo { Tex = "Nature/Textures/Mushrooms" }),
-            new KeyValuePair<string, MatInfo>("Flowers", new MatInfo { Tex = "Nature/Textures/Flowers", Cut = true, Wind = 1f }),
-            new KeyValuePair<string, MatInfo>("Grass", new MatInfo { Tex = "Nature/Textures/Grass", Cut = true, Wind = 1f }),
-            new KeyValuePair<string, MatInfo>("Leaves", new MatInfo { Tex = "Nature/Textures/Leaves", Cut = true, Wind = 0.8f }),
+            new KeyValuePair<string, MatInfo>("Flowers", new MatInfo { Tex = "Nature/Textures/Flowers", Cut = true, Wind = 1f, WindH = 0.6f, Flutter = 0.6f }),
+            new KeyValuePair<string, MatInfo>("Grass", new MatInfo { Tex = "Nature/Textures/Grass", Cut = true, Wind = 1f, WindH = 0.6f, Flutter = 0.4f }),
+            new KeyValuePair<string, MatInfo>("Leaves", new MatInfo { Tex = "Nature/Textures/Leaves", Cut = true, Wind = 0.8f, WindH = 2f, Flutter = 1f }),
             // city / props (first match wins, so specific names come before general ones)
             new KeyValuePair<string, MatInfo>("MI_Trim_MetalConcrete", new MatInfo { Tex = "City/Textures/T_MetalConcrete_BaseColor" }),
             new KeyValuePair<string, MatInfo>("MI_RedBrick", new MatInfo { Tex = "City/Textures/T_RedBrick_BaseColor" }),
@@ -102,7 +103,7 @@ namespace Kagegan
                 if (info.Tint.a > 0f || info.Tint.r > 0f) m.SetColor("_Color", info.Tint);
                 else if (src != null && src.HasProperty("_MainTex") && src.mainTexture != null) m.SetTexture("_MainTex", src.mainTexture);
                 if (info.Cut) { m.SetFloat("_Cutoff", 0.5f); m.SetFloat("_Cull", 0f); }
-                if (info.Wind > 0f) { m.SetFloat("_Wind", info.Wind); m.SetFloat("_WindObj", 1f); }
+                if (info.Wind > 0f) { m.SetFloat("_Wind", info.Wind); m.SetFloat("_WindObj", 1f); m.SetFloat("_WindHeight", info.WindH); m.SetFloat("_Flutter", info.Flutter); }
             }
             else if (src != null)
             {

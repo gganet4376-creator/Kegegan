@@ -6,6 +6,7 @@ namespace Kagegan
     public static class Mat
     {
         public static Material ToonWind;
+        public static Material ToonTree;
         public static Material Toon, Outline, FxAdd, FxAlpha, FxAddSolid, FxAlphaSolid, Sky, Ghost, Decal;
         public static Texture2D SoftDot, Ring, Crack, Streak, White;
         static bool built;
@@ -29,6 +30,14 @@ namespace Kagegan
             Outline = new Material(outline) { name = "KageOutline", enableInstancing = true };
             ToonWind = new Material(toon) { name = "KageToonWind" };
             ToonWind.SetFloat("_Wind", 1f);
+            ToonWind.SetFloat("_Flutter", 0.25f);
+            ToonWind.SetFloat("_Cull", 0f); // grass blades are single quads, seen from both sides
+            ToonTree = new Material(toon) { name = "KageToonTree" };
+            ToonTree.SetFloat("_Wind", 1f);
+            ToonTree.SetFloat("_WindObj", 1f);
+            ToonTree.SetFloat("_WindHeight", 11f);
+            ToonTree.SetFloat("_Flutter", 0.5f);
+            SetWind(new Vector2(0.9f, 0.45f), 1f);
 
             FxAdd = MakeFx(fx, SoftDot, true, "FxAdd");
             FxAlpha = MakeFx(fx, SoftDot, false, "FxAlpha");
@@ -153,5 +162,12 @@ namespace Kagegan
             new Color32((byte)(Mathf.Clamp01(r) * 255), (byte)(Mathf.Clamp01(g) * 255), (byte)(Mathf.Clamp01(b) * 255), (byte)(Mathf.Clamp01(emit) * 255));
 
         public static Color32 C(Color c, float emit = 0f) => C(c.r, c.g, c.b, emit);
+
+        /// <summary>Global wind for grass and trees: direction on the ground, strength (1 = breeze, 2 = storm).</summary>
+        public static void SetWind(Vector2 dir, float strength, float speed = 1f)
+        {
+            dir = dir.sqrMagnitude > 0.0001f ? dir.normalized : Vector2.right;
+            Shader.SetGlobalVector("_KageWind", new Vector4(dir.x, dir.y, strength, speed));
+        }
     }
 }

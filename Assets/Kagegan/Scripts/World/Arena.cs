@@ -204,7 +204,7 @@ namespace Kagegan
         }
 
         /// <summary>Mid-ground band behind the lane so the side view has depth (static, merged).</summary>
-        static void BackdropBand(MeshBuilder mb, ArenaId id)
+        static void BackdropBand(MeshBuilder mb, MeshBuilder trees, ArenaId id)
         {
             var rnd = new System.Random(31 + (int)id);
             for (float x = -34f; x <= 34f; x += 3.2f + (float)rnd.NextDouble() * 2.5f)
@@ -215,8 +215,8 @@ namespace Kagegan
                 {
                     case ArenaId.Forest:
                         if (ModelKit.Available) break; // hand-made models are placed by NatureBackdrop instead
-                        if (rnd.NextDouble() < 0.55) Pine(mb, p, 8f + (float)rnd.NextDouble() * 6f, new Color(0.2f, 0.42f, 0.24f) * (0.85f + (float)rnd.NextDouble() * 0.3f));
-                        else LeafTree(mb, p, 7f + (float)rnd.NextDouble() * 5f, new Color(0.3f, 0.5f, 0.22f) * (0.85f + (float)rnd.NextDouble() * 0.3f));
+                        if (rnd.NextDouble() < 0.55) Pine(trees, p, 8f + (float)rnd.NextDouble() * 6f, new Color(0.2f, 0.42f, 0.24f) * (0.85f + (float)rnd.NextDouble() * 0.3f));
+                        else LeafTree(trees, p, 7f + (float)rnd.NextDouble() * 5f, new Color(0.3f, 0.5f, 0.22f) * (0.85f + (float)rnd.NextDouble() * 0.3f));
                         if (rnd.NextDouble() < 0.4) Rock(mb, p + new Vector3(1.5f, 0, -2f), 0.6f + (float)rnd.NextDouble(), new Color(0.48f, 0.48f, 0.46f));
                         break;
                     case ArenaId.City:
@@ -229,7 +229,7 @@ namespace Kagegan
                         else Rock(mb, p, 0.8f + (float)rnd.NextDouble(), new Color(0.42f, 0.4f, 0.41f));
                         break;
                     case ArenaId.Dojo:
-                        if (rnd.NextDouble() < 0.35) Pine(mb, p + Vector3.forward * 6f, 7f + (float)rnd.NextDouble() * 4f, new Color(0.32f, 0.56f, 0.3f));
+                        if (rnd.NextDouble() < 0.35) Pine(trees, p + Vector3.forward * 6f, 7f + (float)rnd.NextDouble() * 4f, new Color(0.32f, 0.56f, 0.3f));
                         break;
                 }
             }
@@ -253,10 +253,18 @@ namespace Kagegan
                 case ArenaId.City: a.BuildCity(stat); break;
                 default: a.BuildMoon(stat); break;
             }
-            BackdropBand(stat, id);
+            BackdropBand(stat, a.treeMb, id);
             if (id == ArenaId.Forest && ModelKit.Available) a.NatureBackdrop();
             a.AddStaticMesh(stat, "Static");
             if (a.grassMb != null) a.AddStaticMesh(a.grassMb, "Grass", Mat.ToonWind);
+            a.AddStaticMesh(a.treeMb, "Trees", Mat.ToonTree);
+            switch (id)
+            {
+                case ArenaId.Forest: Mat.SetWind(new Vector2(0.9f, 0.4f), 1.1f); break;
+                case ArenaId.City: Mat.SetWind(new Vector2(1f, 0.2f), 1.8f, 1.3f); break; // storm
+                case ArenaId.MoonTemple: Mat.SetWind(new Vector2(0.7f, 0.7f), 0.6f, 0.8f); break;
+                default: Mat.SetWind(new Vector2(0.85f, 0.5f), 0.9f); break;
+            }
             a.BuildClouds();
             LaneHalf = 17f;
             a.LayoutPropsForLane();
@@ -269,6 +277,7 @@ namespace Kagegan
 
         // ================= shared helpers =================
         MeshBuilder grassMb;
+        MeshBuilder treeMb = new MeshBuilder(); // background trees, swayed by the wind shader
 
         void AddStaticMesh(MeshBuilder mb, string name) => AddStaticMesh(mb, name, Mat.Toon);
 
@@ -574,17 +583,22 @@ namespace Kagegan
         {
             if (!GraphicsQuality.GroundDetail) count /= 3;
             if (GraphicsQuality.Current == GraphicsPreset.Ultra) count = count * 3 / 2;
+            int blades = GraphicsQuality.GroundDetail ? 7 : 4;
             var rnd = new System.Random(seed);
             for (int i = 0; i < count; i++)
             {
                 float ang = (float)rnd.NextDouble() * Mathf.PI * 2f, rr = Mathf.Lerp(rMin, rMax, Mathf.Sqrt((float)rnd.NextDouble()));
                 Vector3 p = new Vector3(Mathf.Cos(ang) * rr, 0, Mathf.Sin(ang) * rr);
-                mb.SetColor(Mat.C(c * (0.8f + 0.4f * (float)rnd.NextDouble())));
-                for (int k = 0; k < 3; k++)
+                Color tint = c * (0.8f + 0.4f * (float)rnd.NextDouble());
+                float tall = 0.35f + 0.3f * (float)rnd.NextDouble();
+                for (int k = 0; k < blades; k++)
                 {
-                    Vector3 off = new Vector3((float)rnd.NextDouble() - 0.5f, 0, (float)rnd.NextDouble() - 0.5f) * 0.25f;
-                    Vector3 tip = p + off * 2f + Vector3.up * (0.25f + 0.25f * (float)rnd.NextDouble());
-                    mb.Cone(p + off, tip, 0.05f, 3, false);
+                    // blades fan out from the clump centre and arc outwards
+                    float yaw = (float)rnd.NextDouble() * Mathf.PI * 2f;
+                    Vector3 off = new Vector3(Mathf.Sin(yaw), 0, Mathf.Cos(yaw)) * 0.07f * (float)rnd.NextDouble();
+                    float h = tall * (0.6f + 0.5f * (float)rnd.NextDouble());
+                    Color tip = Color.Lerp(tint * 1.25f, new Color(0.85f, 0.85f, 0.45f), 0.12f + 0.15f * (float)rnd.NextDouble());
+                    mb.Blade(p + off, h, 0.045f + 0.025f * (float)rnd.NextDouble(), yaw, 0.15f + 0.35f * (float)rnd.NextDouble(), Mat.C(tint * 0.5f), Mat.C(tip));
                 }
             }
         }
@@ -711,9 +725,9 @@ namespace Kagegan
             for (int i = 0; i < 9; i++)
             {
                 float a = 0.15f + i * 0.33f;
-                Pine(mb, new Vector3(Mathf.Cos(a) * 30f, 0, Mathf.Sin(a) * 30f + 4f), 8f + (i % 3) * 2f, new Color(0.32f, 0.56f, 0.3f));
+                Pine(treeMb, new Vector3(Mathf.Cos(a) * 30f, 0, Mathf.Sin(a) * 30f + 4f), 8f + (i % 3) * 2f, new Color(0.32f, 0.56f, 0.3f));
             }
-            for (int i = 0; i < 6; i++) Pine(mb, new Vector3(-30f + i * 4f, 0, -30f - (i % 2) * 4f), 7f + i % 3, new Color(0.3f, 0.52f, 0.3f));
+            for (int i = 0; i < 6; i++) Pine(treeMb, new Vector3(-30f + i * 4f, 0, -30f - (i % 2) * 4f), 7f + i % 3, new Color(0.3f, 0.52f, 0.3f));
             Mountains(mb, 75f, new Color(0.62f, 0.7f, 0.8f), 12, 24f, 5);
             bool kit = ModelKit.Has("Dummy");
             if (kit) DojoProps();
@@ -778,8 +792,8 @@ namespace Kagegan
                 float a = (float)i / 46f * Mathf.PI * 2f;
                 float rr = 26f + (float)rnd.NextDouble() * 14f;
                 Vector3 p = new Vector3(Mathf.Cos(a) * rr, 0, Mathf.Sin(a) * rr);
-                if (i % 2 == 0) Pine(mb, p, 9f + (float)rnd.NextDouble() * 6f, new Color(0.2f, 0.42f, 0.24f));
-                else LeafTree(mb, p, 8f + (float)rnd.NextDouble() * 5f, new Color(0.3f, 0.5f, 0.22f));
+                if (i % 2 == 0) Pine(treeMb, p, 9f + (float)rnd.NextDouble() * 6f, new Color(0.2f, 0.42f, 0.24f));
+                else LeafTree(treeMb, p, 8f + (float)rnd.NextDouble() * 5f, new Color(0.3f, 0.5f, 0.22f));
             }
             for (int i = 0; i < 10; i++) Rock(mb, new Vector3((float)rnd.NextDouble() * 50f - 25f, 0, (float)rnd.NextDouble() * 50f - 25f) * (i < 5 ? 1.2f : 1f), 0.6f + (float)rnd.NextDouble(), new Color(0.5f, 0.5f, 0.48f));
             Mountains(mb, 70f, new Color(0.35f, 0.5f, 0.42f), 14, 22f, 9);

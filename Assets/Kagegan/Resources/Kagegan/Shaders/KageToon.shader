@@ -17,6 +17,8 @@ Shader "Kagegan/Toon"
         _Fade ("Camera Fade (dither)", Range(0,1)) = 1
         _Wind ("Wind sway (grass)", Range(0,1)) = 0
         _WindObj ("Wind by object height (trees)", Range(0,1)) = 0
+        _WindHeight ("Wind: plant height for full bend (m)", Float) = 8
+        _Flutter ("Wind: leaf flutter", Range(0,1)) = 0
         _MainTex ("Albedo (imported models)", 2D) = "white" {}
         _VColor ("Use vertex colour (procedural meshes)", Range(0,1)) = 1
         _Cutoff ("Alpha cutoff (foliage)", Range(0,1)) = 0
@@ -37,7 +39,8 @@ Shader "Kagegan/Toon"
             #include "UnityCG.cginc"
 
             fixed4 _Color, _ShadowTint, _RimColor, _FlashColor, _EmitColor;
-            half _Flash, _CharFx, _Emit, _Fade, _Wind, _WindObj, _VColor, _Cutoff;
+            half _Flash, _CharFx, _Emit, _Fade, _Wind, _WindObj, _VColor, _Cutoff, _WindHeight, _Flutter;
+            float4 _KageWind;         // xy = wind direction on the ground, z = strength, w = speed
             sampler2D _MainTex;
             float4 _MainTex_ST;
 
@@ -76,16 +79,40 @@ Shader "Kagegan/Toon"
                 UNITY_SETUP_INSTANCE_ID(v);
                 UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(o);
                 o.wpos = mul(unity_ObjectToWorld, v.vertex).xyz;
+                half3 wn = UnityObjectToWorldNormal(v.normal);
                 if (_Wind > 0)
                 {
-                    // grass blades: tips (uv.y = 1) bend with a travelling gust
-                    float gust = sin(_Time.y * 1.7 + o.wpos.x * 0.35 + o.wpos.z * 0.22) * 0.6 + sin(_Time.y * 3.1 + o.wpos.z * 0.9) * 0.25;
-                    // grass: bend by blade uv; trees/bushes: bend by height above the model's base
-                    float h = lerp(v.uv.y, saturate(v.vertex.y / 4.0) * 2.0, _WindObj);
-                    o.wpos.xz += float2(0.08, 0.05) * gust * h * _Wind;
+                    float3 origin = unity_ObjectToWorld._m03_m13_m23;
+                    float2 dir = _KageWind.xy;
+                    float str = _KageWind.z * _Wind;
+                    float t = _Time.y * _KageWind.w;
+                    // grass: bend by blade uv (root 0, tip 1); trees/bushes: by height above the model's base
+                    float objB = saturate((o.wpos.y - origin.y) / _WindHeight);
+                    float bend = lerp(v.uv.y * v.uv.y, objB * objB, _WindObj);
+                    float amp = lerp(0.22, 0.04 * _WindHeight + 0.12, _WindObj);
+                    float tall = lerp(0.45, _WindHeight, _WindObj);
+                    // big gusts roll across the field as visible waves
+                    float along = dot(o.wpos.xz, dir);
+                    float g1 = sin(along * 0.16 - t * 1.4) * 0.5 + 0.5;
+                    float g2 = sin(along * 0.05 + o.wpos.x * 0.02 - t * 0.55) * 0.5 + 0.5;
+                    float gust = g1 * g1 * (0.4 + 0.6 * g2);
+                    // every clump / tree also rocks on its own rhythm
+                    float2 anchor = lerp(o.wpos.xz, origin.xz + o.wpos.xz * 0.1, _WindObj);
+                    float ph = dot(anchor, float2(0.73, 1.21));
+                    float sway = sin(t * 1.9 + ph) * 0.6 + sin(t * 3.3 + ph * 1.7) * 0.4;
+                    float2 side = float2(-dir.y, dir.x);
+                    float2 off = (dir * ((0.25 + gust) + sway * 0.2) + side * sway * 0.12) * amp * bend * str;
+                    float3 d = float3(off.x, 0, off.y);
+                    d.y = -dot(off, off) / (2.0 * tall); // bend instead of stretching
+                    // leaves shiver
+                    float f = sin(t * 11.0 + dot(o.wpos, float3(3.7, 5.3, 4.1))) * (0.3 + gust) * _Flutter * str;
+                    d += wn * f * 0.035 * saturate(bend * 4.0);
+                    o.wpos += d;
+                    // the passing gust catches the light on grass tips
+                    v.color.rgb *= 1.0 + gust * str * 0.14 * v.uv.y * (1.0 - _WindObj);
                 }
                 o.pos = UnityWorldToClipPos(o.wpos);
-                o.wnormal = UnityObjectToWorldNormal(v.normal);
+                o.wnormal = wn;
                 o.color = lerp(fixed4(1, 1, 1, 0), v.color, _VColor);
                 o.uv = TRANSFORM_TEX(v.uv, _MainTex);
                 o.spos = ComputeScreenPos(o.pos);
