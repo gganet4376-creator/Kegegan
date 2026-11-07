@@ -286,7 +286,8 @@ namespace Kagegan
             {
                 Velocity.y = JumpPower; Grounded = false; airJumpUsed = false;
                 Sfx.Play(SfxId.Whoosh, 0.4f, 1.3f); Fx.Dust(transform.position, 0.6f, 4);
-                Anim.Play(Clip.Seq(0f, PoseLib.LandSquash, 0.07f, PoseLib.AirUp, 0.22f, null)); // push-off then tuck
+                if (!Anim.PlayMocap("Jump_Start", 1.7f, 0.3f, false, 0.3f))
+                    Anim.Play(Clip.Seq(0f, PoseLib.LandSquash, 0.07f, PoseLib.AirUp, 0.22f, null)); // push-off then tuck
             }
             else if (!airJumpUsed) { airJumpUsed = true; Velocity.y = JumpPower * 0.85f; Fx.Smoke(transform.position, 0.4f, new Color(1, 1, 1, 0.4f), 4); }
         }
@@ -356,7 +357,16 @@ namespace Kagegan
             chainOpenUntil = 0f;
             SetState(FState.Attack);
             float speed = Kit != null ? Kit.SpeedMul : 1f;
-            Anim.Play(m.Clip, m.AnimSpeed * speed);
+            bool mocapPlayed = false;
+            if (m.Mocap != null && Anim.HasMocap && Grounded)
+            {
+                // time-scale the captured strike so the limb is fully extended exactly on the first active frame
+                float startup = Mathf.Max(0.05f, m.Startup / Mathf.Max(0.1f, m.AnimSpeed * speed));
+                float clipSpeed = Mathf.Clamp(m.MocapContact / startup, 0.8f, 2.6f);
+                float start = Mathf.Max(0f, m.MocapContact - startup * clipSpeed);
+                mocapPlayed = Anim.PlayMocap(m.Mocap, clipSpeed, start, false, m.Total / Mathf.Max(0.1f, m.AnimSpeed * speed) + 0.05f, 0.06f);
+            }
+            if (!mocapPlayed) Anim.Play(m.Clip, m.AnimSpeed * speed);
             if (m.Airborne && Grounded) { Velocity.y = 6f; Grounded = false; }
             m.OnStart?.Invoke(this);
         }
@@ -658,6 +668,10 @@ namespace Kagegan
                 knock = h.Dir * kb;
                 stateTimer = h.Hitstun * (IsBoss ? 0.6f : 1f);
                 SetState(FState.Hitstun);
+                // captured hit reaction, timed to the stun so the fighter is back in stance as control returns
+                string react = zone == 1 ? "Hit_Head" : "Hit_Chest";
+                var rc = MocapLibrary.Get(react);
+                if (rc != null) Anim.PlayMocap(react, Mathf.Clamp(rc.length / Mathf.Max(0.15f, stateTimer), 0.7f, 1.6f), 0f, false, -1f, 0.05f);
             }
             return HitResult.Hit;
         }
@@ -773,9 +787,18 @@ namespace Kagegan
         {
             CancelMove();
             SetState(FState.Dead);
-            Velocity.y = Grounded ? 5f : Mathf.Max(Velocity.y, 2f);
-            knock = h.Dir * Mathf.Max(5f, h.Knockback * 1.5f);
-            Grounded = false;
+            if (Grounded && Anim.PlayMocap("Death01", 1.15f, 0f, true, -1f, 0.08f))
+            {
+                // captured collapse on the spot, with a short shove from the final blow
+                Anim.DeathMocap = true;
+                knock = h.Dir * Mathf.Clamp(h.Knockback, 2f, 5f);
+            }
+            else
+            {
+                Velocity.y = Grounded ? 5f : Mathf.Max(Velocity.y, 2f);
+                knock = h.Dir * Mathf.Max(5f, h.Knockback * 1.5f);
+                Grounded = false;
+            }
             if (killer != null) { killer.Stats.kills++; if (killer.IsClone && killer.Owner != null) killer.Owner.Stats.kills++; }
             Kit?.OnDeath();
             if (IsBoss || IsPlayer)
@@ -857,6 +880,7 @@ namespace Kagegan
         public void Revive(float hpFrac)
         {
             State = FState.Idle;
+            if (Anim != null) { Anim.DeathMocap = false; Anim.StopAction(); }
             Hp = MaxHp * hpFrac;
             Velocity = Vector3.zero; knock = Vector3.zero;
             ComboTaken = 0; juggleHits = 0;
@@ -1111,7 +1135,8 @@ namespace Kagegan
                 Fx.Dust(transform.position, 0.5f, 3);
                 if (State == FState.Idle)
                 {
-                    Anim.Play(Clip.Seq(0f, null, 0.05f, PoseLib.LandSquash, 0.22f, null)); // absorb the landing
+                    if (!Anim.PlayMocap("Jump_Land", 1.8f, 0.12f, false, 0.32f))
+                        Anim.Play(Clip.Seq(0f, null, 0.05f, PoseLib.LandSquash, 0.22f, null)); // absorb the landing
                     Sfx.PlayAt(SfxId.Land, transform.position, 0.35f, 1.2f);
                 }
             }

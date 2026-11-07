@@ -53,12 +53,42 @@ namespace Kagegan
         readonly Vector3[] add = new Vector3[(int)B.Count];
         Vector3 hipsBase, hipsAct;
 
+        // ---- motion capture layer ----
+        public MocapPlayer Mocap;
+        public bool HasMocap => Mocap != null && Mocap.Ready;
+        public float StanceBlend = 0.5f;   // how much of the fighter's own stance is layered over the shared mocap idle
+        public bool DeathMocap;
+        readonly Quaternion[] mocapQ = new Quaternion[(int)B.Count];
+        readonly Quaternion[] procCur = new Quaternion[(int)B.Count];
+        Vector3 procHips;
+        bool procInit;
+        float procW = 1f;
+
         public bool ActionPlaying => action != null && actionTime < action.Length;
+        public bool AnyActionPlaying => ActionPlaying || (HasMocap && Mocap.ActionPlaying);
+
+        /// <summary>Plays a motion-captured clip (punch, hit reaction, jump, death). Returns false if mocap is unavailable.</summary>
+        public bool PlayMocap(string clip, float speed, float start = 0f, bool hold = false, float maxDuration = -1f, float fade = 0.08f)
+        {
+            if (!HasMocap) return false;
+            if (!Mocap.PlayAction(clip, speed, start, fade, hold, maxDuration)) return false;
+            action = null;
+            return true;
+        }
         public float ActionTime => actionTime;
 
         public void Init(HumanoidRig rig, StanceKind stance, RunStyle run)
         {
             Rig = rig; Stance = stance; RunStyle = run;
+            if (MocapLibrary.Available)
+            {
+                var avatar = rig.BuildAvatar();
+                if (avatar != null)
+                {
+                    Mocap = rig.gameObject.AddComponent<MocapPlayer>();
+                    if (!Mocap.Init(avatar)) { Destroy(Mocap); Mocap = null; }
+                }
+            }
             prevYaw = transform.eulerAngles.y;
             blinkTimer = Random.Range(1f, 4f);
             idleT = Random.value * 10f;
@@ -67,9 +97,14 @@ namespace Kagegan
         public void Play(Clip c, float speed = 1f)
         {
             action = c; actionTime = 0f; actionSpeed = speed;
+            if (HasMocap) Mocap.StopAction(0.08f);
         }
 
-        public void StopAction() { action = null; }
+        public void StopAction()
+        {
+            action = null;
+            if (HasMocap) Mocap.StopAction(0.08f);
+        }
 
         public void Flinch(float strength, bool fromBehind) => Flinch(strength, fromBehind, 0, 1f);
 
@@ -93,6 +128,7 @@ namespace Kagegan
         {
             if (Rig == null) return;
             float dt = Time.deltaTime * TimeScale;
+            if (HasMocap) { MocapLateUpdate(dt); return; }
             accumulatedDt += dt;
             // off-screen characters animate at 1/3 rate
             if (Rig.Smr != null && !Rig.Smr.isVisible)
@@ -199,6 +235,104 @@ namespace Kagegan
             Vector3 hipsTarget = Rig.HipsRestPos + hips * Rig.Look.height;
             bones[(int)B.Hips].localPosition = Vector3.Lerp(bones[(int)B.Hips].localPosition, hipsTarget, k);
 
+            Eyes(dt);
+        }
+
+        /// <summary>
+        /// Composition with motion capture: the Animator has already written the mocap pose (locomotion blend or a mocap action).
+        /// Procedural poses (kicks, blocks, knockdowns, special moves, mount) are blended over it with a smoothed weight,
+        /// and reactive additives (flinch, recoil, lean, head look) plus eyes go on top.
+        /// </summary>
+        void MocapLateUpdate(float dt)
+        {
+            if (dt <= 0f) return;
+            var bones = Rig.Bones;
+            Mocap.Speed = MoveSpeed;
+            Mocap.Grounded = Mode != AnimMode.Air && Mode != AnimMode.Juggled;
+            Mocap.TimeScale = TimeScale;
+            int n = (int)B.EyeL;
+            for (int i = 0; i < n; i++) mocapQ[i] = bones[i].localRotation;
+            Vector3 mocapHips = bones[(int)B.Hips].localPosition;
+            float h = Rig.Look.height;
+            if (!procInit)
+            {
+                for (int i = 0; i < n; i++) procCur[i] = mocapQ[i];
+                procHips = mocapHips;
+                procInit = true;
+            }
+
+            float yaw = transform.eulerAngles.y;
+            yawRate = Mathf.Lerp(yawRate, Mathf.DeltaAngle(prevYaw, yaw) / dt, 1f - Mathf.Exp(-10f * dt));
+            prevYaw = yaw;
+
+            // procedural base: live mocap pose for locomotion/air, authored poses for everything else
+            if (Mode == AnimMode.Locomotion || Mode == AnimMode.Air)
+            {
+                Pose stance = PoseLib.ForStance(Stance);
+                float idle = Mode == AnimMode.Locomotion ? Mathf.Clamp01(1f - MoveSpeed / 0.8f) : 0f;
+                var sq = stance.Q;
+                for (int i = 0; i < baseQ.Length; i++) baseQ[i] = i < n ? Quaternion.Slerp(mocapQ[i], sq[i], idle) : sq[i];
+                hipsBase = Vector3.Lerp((mocapHips - Rig.HipsRestPos) / h, stance.HipsOffset, idle);
+            }
+            else BuildBase(dt);
+
+            bool procAction = false;
+            if (action != null)
+            {
+                actionTime += dt * actionSpeed;
+                if (actionTime >= action.Length) action = null;
+                else { SampleClip(action, actionTime); procAction = true; }
+            }
+
+            float wT;
+            if (procAction) wT = 1f;
+            else if (Mocap.ActionPlaying) wT = 0f;
+            else switch (Mode)
+            {
+                case AnimMode.Locomotion: wT = MoveSpeed < 0.6f ? StanceBlend : 0f; break;
+                case AnimMode.Air: wT = 0f; break;
+                case AnimMode.Dead: wT = DeathMocap ? 0f : 1f; break;
+                case AnimMode.Hurt: wT = 0.6f; break;
+                default: wT = 1f; break;
+            }
+            procW = Mathf.MoveTowards(procW, wT, dt * 7f);
+
+            float rate = procAction ? 44f : (Mode == AnimMode.Down || Mode == AnimMode.Dead ? 11f : 15f);
+            float k = 1f - Mathf.Exp(-rate * dt);
+            for (int i = 0; i < n; i++)
+            {
+                Quaternion tgt = Rig.RestRot[i] * (procAction ? actQ[i] : baseQ[i]);
+                procCur[i] = Quaternion.Slerp(procCur[i], tgt, k);
+            }
+            Vector3 hipsOff = procAction ? hipsAct : hipsBase;
+            procHips = Vector3.Lerp(procHips, Rig.HipsRestPos + hipsOff * h, k);
+
+            // reactive additives (the mocap clips already breathe and shift weight)
+            System.Array.Clear(add, 0, add.Length);
+            idleT += dt;
+            Vector3 hipsAdd = Vector3.zero;
+            flinch *= Mathf.Exp(-7f * dt);
+            if (flinch > 0.01f)
+            {
+                switch (flinchZone)
+                {
+                    case 1: add[(int)B.Head].x -= 26f * flinch * flinchDir; add[(int)B.Head].y += 18f * flinch * flinchSide; add[(int)B.Neck].x -= 10f * flinch * flinchDir; break;
+                    case 2: add[(int)B.ThighL].x -= 16f * flinch; add[(int)B.ShinL].x += 28f * flinch; hipsAdd.y -= 0.06f * flinch; break;
+                    default: add[(int)B.Spine].x += 16f * flinch * flinchDir; add[(int)B.Chest].x += 10f * flinch * flinchDir; break;
+                }
+            }
+            recoil *= Mathf.Exp(-12f * dt);
+            if (recoil > 0.01f) { add[(int)B.Chest].x -= 7f * recoil; add[(int)B.Spine].x -= 3f * recoil; }
+            if (Mode == AnimMode.Locomotion && MoveSpeed > 1f) add[(int)B.Spine].z += Mathf.Clamp(-yawRate * 0.04f, -12f, 12f);
+            HeadLook();
+
+            for (int i = 0; i < n; i++)
+            {
+                Quaternion q = Quaternion.Slerp(mocapQ[i], procCur[i], procW);
+                if (add[i] != Vector3.zero) q = q * Quaternion.Euler(add[i]);
+                bones[i].localRotation = q;
+            }
+            bones[(int)B.Hips].localPosition = Vector3.Lerp(mocapHips, procHips, procW) + hipsAdd * h;
             Eyes(dt);
         }
 

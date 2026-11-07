@@ -326,6 +326,63 @@ namespace Kagegan
             }
         }
 
+        /// <summary>
+        /// Runtime Humanoid avatar for this procedural skeleton so Unity can retarget motion-captured clips onto it.
+        /// The reference pose handed to Unity is a T-pose (upper arms raised sideways); everything else is the rest pose.
+        /// Returns null if Unity rejects the description (the fighter then keeps its procedural animation).
+        /// </summary>
+        public Avatar BuildAvatar()
+        {
+            try
+            {
+                var map = new (B bone, string human)[]
+                {
+                    (B.Hips, "Hips"), (B.Spine, "Spine"), (B.Chest, "Chest"), (B.Neck, "Neck"), (B.Head, "Head"),
+                    (B.UArmL, "LeftUpperArm"), (B.LArmL, "LeftLowerArm"), (B.HandL, "LeftHand"),
+                    (B.UArmR, "RightUpperArm"), (B.LArmR, "RightLowerArm"), (B.HandR, "RightHand"),
+                    (B.ThighL, "LeftUpperLeg"), (B.ShinL, "LeftLowerLeg"), (B.FootL, "LeftFoot"),
+                    (B.ThighR, "RightUpperLeg"), (B.ShinR, "RightLowerLeg"), (B.FootR, "RightFoot"),
+                };
+                var human = new HumanBone[map.Length];
+                for (int i = 0; i < map.Length; i++)
+                {
+                    human[i] = new HumanBone { boneName = Bones[(int)map[i].bone].name, humanName = map[i].human };
+                    human[i].limit.useDefaultValues = true;
+                }
+                var skel = new System.Collections.Generic.List<SkeletonBone>();
+                skel.Add(new SkeletonBone { name = gameObject.name, position = Vector3.zero, rotation = Quaternion.identity, scale = Vector3.one });
+                for (int i = 0; i < Bones.Length; i++)
+                {
+                    var t = Bones[i];
+                    Quaternion r = RestRot[i];
+                    if (i == (int)B.UArmL) r = Quaternion.Euler(0f, 0f, -90f);
+                    if (i == (int)B.UArmR) r = Quaternion.Euler(0f, 0f, 90f);
+                    Vector3 pos = i == (int)B.Hips ? HipsRestPos : t.localPosition;
+                    skel.Add(new SkeletonBone { name = t.name, position = pos, rotation = r, scale = Vector3.one });
+                }
+                var hd = new HumanDescription
+                {
+                    human = human,
+                    skeleton = skel.ToArray(),
+                    upperArmTwist = 0.5f, lowerArmTwist = 0.5f, upperLegTwist = 0.5f, lowerLegTwist = 0.5f,
+                    armStretch = 0.05f, legStretch = 0.05f, feetSpacing = 0f, hasTranslationDoF = false
+                };
+                var avatar = AvatarBuilder.BuildHumanAvatar(gameObject, hd);
+                if (avatar == null || !avatar.isValid || !avatar.isHuman)
+                {
+                    Debug.LogWarning("Kagegan: humanoid avatar invalid for " + name + ", using procedural animation.");
+                    return null;
+                }
+                avatar.name = name + "_Avatar";
+                return avatar;
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning("Kagegan: avatar build failed (" + e.Message + "), using procedural animation.");
+                return null;
+            }
+        }
+
         public void ApplyOutline()
         {
             if (Smr != null) Smr.sharedMaterials = GraphicsQuality.Outlines ? withOutline : noOutline;

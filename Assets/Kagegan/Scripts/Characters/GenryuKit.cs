@@ -39,7 +39,8 @@ namespace Kagegan
             Launcher.OnActive += GuardianSwing;
             Heavy = MoveLib.Palm(true, 22f);
             Heavy.Name = "heavypalm"; Heavy.Kind = HitKind.Heavy; Heavy.Knockback = 11f; Heavy.Knockdown = true; Heavy.Armor = true;
-            Heavy.Startup = 0.24f; Heavy.Recovery = 0.32f; Heavy.Shake = 0.35f; Heavy.HitStop = 0.1f; Heavy.SlashFx = true; Heavy.StaminaCost = 10f; Heavy.StaminaDamage = 30f;
+            Heavy.Startup = 0.24f; Heavy.Recovery = 0.32f;
+            Heavy.Mocap = "Sword_Attack"; Heavy.MocapContact = MocapLibrary.SwordContact; Heavy.Bone = HitBone.HandR; Heavy.Shake = 0.35f; Heavy.HitStop = 0.1f; Heavy.SlashFx = true; Heavy.StaminaCost = 10f; Heavy.StaminaDamage = 30f;
             Heavy.OnActive += GuardianSwing;
             DashAttack = MoveLib.Elbow(18f);
             DashAttack.Lunge = 7f; DashAttack.Armor = true;

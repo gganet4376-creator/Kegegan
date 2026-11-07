@@ -24,6 +24,9 @@ namespace Kagegan
         public int Hits = 1;
         public float AnimSpeed = 1f;
         public Pose Windup, Strike;
+        /// <summary>Optional motion-captured clip and the clip time where the strike connects (aligned to the active frame).</summary>
+        public string Mocap;
+        public float MocapContact;
         public SfxId Sfx = SfxId.Whoosh, HitSfx = SfxId.Hit;
         public float Shake = 0.12f, HitStop = 0.045f;
         public Color FxColor = new Color(1f, 0.9f, 0.6f);

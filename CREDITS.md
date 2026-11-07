@@ -2,6 +2,10 @@
 
 Код, процедурные модели и анимации — проект Kagegan Mobile.
 
+## Анимации (CC0)
+- "Universal Animation Library" (Standard) — Quaternius — https://quaternius.itch.io/universal-animation-library
+  Захват движения: стойка, ходьба, бег, спринт, прыжок, джеб, кросс, размашистый удар, реакции на удар, падение, заклинание.
+
 ## Звуки (CC0, OpenGameArt.org)
 - "Punch" и "Impact" — qubodup — https://opengameart.org/content/punch , https://opengameart.org/content/impact
 - "37 hits/punches" — Independent.nu — https://opengameart.org/content/37-hitspunches

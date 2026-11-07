@@ -9,7 +9,8 @@ namespace Kagegan
         {
             Name = right ? "jabR" : "jabL", Windup = right ? PoseLib.JabRWind : PoseLib.JabLWind, Strike = right ? PoseLib.JabR : PoseLib.JabL,
             Startup = 0.09f / speed, Active = 0.07f, Recovery = 0.16f / speed, Damage = dmg, Bone = right ? HitBone.HandR : HitBone.HandL,
-            Knockback = 1.6f, Hitstun = 0.32f, Lunge = 2.4f, SlashEuler = new Vector3(0, 0, right ? 20 : -20), Range = 1.5f
+            Knockback = 1.6f, Hitstun = 0.32f, Lunge = 2.4f, SlashEuler = new Vector3(0, 0, right ? 20 : -20), Range = 1.5f,
+            Mocap = right ? "Punch_Cross" : "Punch_Jab", MocapContact = right ? MocapLibrary.CrossContact : MocapLibrary.JabContact
         };
 
         public static Move Hook(bool right, float dmg = 8f) => new Move
@@ -64,7 +65,8 @@ namespace Kagegan
         {
             Name = "palm", Windup = right ? PoseLib.PalmRWind : PoseLib.PalmLWind, Strike = right ? PoseLib.PalmR : PoseLib.PalmL,
             Startup = 0.1f, Active = 0.08f, Recovery = 0.18f, Damage = dmg, Bone = right ? HitBone.HandR : HitBone.HandL,
-            Knockback = 2.2f, Hitstun = 0.35f, Lunge = 2.2f, Radius = 0.42f, Range = 1.5f, SlashFx = false
+            Knockback = 2.2f, Hitstun = 0.35f, Lunge = 2.2f, Radius = 0.42f, Range = 1.5f, SlashFx = false,
+            Mocap = right ? "Punch_Cross" : "Punch_Jab", MocapContact = right ? MocapLibrary.CrossContact : MocapLibrary.JabContact
         };
 
         public static Move AirKick(float dmg = 7f) => new Move
@@ -113,7 +115,8 @@ namespace Kagegan
         public static Move Cast(string name, Pose windup, Pose strike, float startup, float recovery, System.Action<Fighter> spawn) => new Move
         {
             Name = name, Windup = windup, Strike = strike, Startup = startup, Active = 0.05f, Recovery = recovery, Damage = 0f, Lunge = 0f,
-            SlashFx = false, Kind = HitKind.Technique, OnActive = spawn, Sfx = SfxId.Count
+            SlashFx = false, Kind = HitKind.Technique, OnActive = spawn, Sfx = SfxId.Count,
+            Mocap = "Spell_Simple_Shoot", MocapContact = 0.1f
         };
 
         public static Vector3 AimDir(Fighter f)
