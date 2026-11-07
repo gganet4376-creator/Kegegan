@@ -47,6 +47,7 @@
 - "85 Short Music Jingles" — Kenney — https://opengameart.org/content/85-short-music-jingles — заставки победы
 
 - "City Kit (Commercial)" и "City Kit (Roads)" — Kenney — https://kenney.nl — небоскрёбы, фонари, мусорные баки, ограждения
+
 ## Небо (CC0, Poly Haven)
 - kloofendal_48d_partly_cloudy_puresky, industrial_sunset_puresky, qwantani_dusk_2_puresky, qwantani_moonrise_puresky — https://polyhaven.com/hdris
 
