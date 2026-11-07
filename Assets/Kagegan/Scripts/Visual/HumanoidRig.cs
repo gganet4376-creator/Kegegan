@@ -259,6 +259,7 @@ namespace Kagegan
             mpb = new MaterialPropertyBlock();
             mpb.SetColor(IdOutlineColor, L.outline);
             mpb.SetColor(IdFlashColor, Color.white);
+            mpb.SetFloat("_CharFx", 1f); // back-light edge + toon highlight, fighters only
             Smr.SetPropertyBlock(mpb);
             SetLids(0.1f);
         }

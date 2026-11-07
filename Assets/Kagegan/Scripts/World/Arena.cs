@@ -107,6 +107,31 @@ namespace Kagegan
             }
             for (float bx = -24f; bx <= 24f; bx += 4f)
                 ModelKit.Spawn("Prop_Bollard", root, new Vector3(bx, 0, LaneDepth + 5f), 0.9f, 0f);
+            // Kenney City Kit: a skyline of towers far behind the street, street lights and poles
+            if (ModelKit.Has("KC_building-skyscraper-a"))
+            {
+                for (float sx = -60f; sx <= 60f; sx += low ? 16f : 9f)
+                {
+                    string t = ModelKit.Pick(ModelKit.Skyscrapers, rnd);
+                    float th = t.Contains("skyscraper") ? 34f + (float)rnd.NextDouble() * 22f : 16f + (float)rnd.NextDouble() * 8f;
+                    ModelKit.Spawn(t, root, new Vector3(sx + (float)rnd.NextDouble() * 4f, 0, 42f + (float)rnd.NextDouble() * 14f), th, rnd.Next(4) * 90f);
+                }
+                for (float lx = -22f; lx <= 22f; lx += 11f)
+                    ModelKit.Spawn("KR_light-curved", root, new Vector3(lx, 0, LaneDepth + 6.5f), 5.5f, 180f);
+                ModelKit.Spawn("KR_traffic-light", root, new Vector3(16f, 0, LaneDepth + 6f), 4.2f, 180f);
+                ModelKit.Spawn("KR_road-sign-stop", root, new Vector3(-17f, 0, LaneDepth + 6f), 2.4f, 180f);
+                if (!low)
+                    for (float px = -40f; px <= 40f; px += 20f)
+                        ModelKit.Spawn("KR_electricity-pole", root, new Vector3(px, 0, 30f), 8f, 0f);
+                // breakable street clutter
+                string[] clutter = { "KR_dumpster", "KR_construction-barrier", "KR_construction-cone", "KR_dumpster", "KR_construction-barrier" };
+                float[] ch = { 1.3f, 1.0f, 0.75f, 1.3f, 1.0f };
+                for (int i = 0; i < clutter.Length; i++)
+                {
+                    float a = i * 1.25f + 1.0f;
+                    Destructible.CreateFromModel(transform, DestructKind.Crate, new Vector3(Mathf.Cos(a) * 14f, 0, Mathf.Sin(a) * 14f), clutter[i], ch[i], clutter[i] == "KR_dumpster" ? 80f : 30f, new Color(0.45f, 0.5f, 0.45f), (float)rnd.NextDouble() * 360f);
+                }
+            }
             if (!low)
                 for (int i = 0; i < 4; i++)
                     ModelKit.Spawn("Prop_ACUnit", root, new Vector3(-20f + i * 13f, 0, 19f), 0.6f, (float)rnd.NextDouble() * 360f);

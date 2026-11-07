@@ -10,6 +10,7 @@ Shader "Kagegan/Toon"
         _ShadowTint ("Shadow Tint", Color) = (0.62,0.56,0.72,1)
         _RimColor ("Rim", Color) = (1,0.97,0.9,0.35)
         _Flash ("Hit Flash", Range(0,1)) = 0
+        _CharFx ("Character polish (spec + back rim)", Range(0,1)) = 0
         _FlashColor ("Flash Color", Color) = (1,1,1,1)
         _Emit ("Extra Emission", Range(0,2)) = 0
         _EmitColor ("Extra Emission Color", Color) = (1,0.6,0.2,1)
@@ -36,7 +37,7 @@ Shader "Kagegan/Toon"
             #include "UnityCG.cginc"
 
             fixed4 _Color, _ShadowTint, _RimColor, _FlashColor, _EmitColor;
-            half _Flash, _Emit, _Fade, _Wind, _WindObj, _VColor, _Cutoff;
+            half _Flash, _CharFx, _Emit, _Fade, _Wind, _WindObj, _VColor, _Cutoff;
             sampler2D _MainTex;
             float4 _MainTex_ST;
 
@@ -112,8 +113,20 @@ Shader "Kagegan/Toon"
                 half3 albedo = i.color.rgb * tex.rgb * _Color.rgb;
                 half3 lit = albedo * lerp(_ShadowTint.rgb, half3(1,1,1), band1) * (_KageLightColor.rgb + band2) + albedo * _KageAmbient.rgb;
 
-                half rim = pow(1.0 - saturate(dot(n, vdir)), 4.0) * _RimColor.a * (0.35 + band1);
+                half fres = 1.0 - saturate(dot(n, vdir));
+                half rim = pow(fres, 4.0) * _RimColor.a * (0.35 + band1);
                 lit += rim * _RimColor.rgb;
+                if (_CharFx > 0)
+                {
+                    // anime back-light: a crisp sun-coloured edge on the side away from the camera's light
+                    half back = saturate(dot(l, -vdir) * 0.6 + 0.4);
+                    half edge = smoothstep(0.62, 0.72, fres) * back * saturate(ndl * 0.8 + 0.5);
+                    lit += edge * _KageLightColor.rgb * albedo * 0.9 * _CharFx;
+                    // hard-edged toon highlight (hair, cloth folds, skin)
+                    half3 hv = normalize(l + vdir);
+                    half spec = smoothstep(0.93, 0.96, dot(n, hv)) * band1;
+                    lit += spec * _KageLightColor.rgb * 0.22 * _CharFx;
+                }
 
                 // cheap point lights from explosions, fire and chakra
                 for (int k = 0; k < 4; k++)

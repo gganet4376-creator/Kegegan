@@ -50,6 +50,8 @@ namespace Kagegan
             new KeyValuePair<string, MatInfo>("MI_Trim_Props", new MatInfo { Tex = "Props/Textures/T_Trim_Props_BaseColor" }),
             new KeyValuePair<string, MatInfo>("MI_WoodTrim", new MatInfo { Tex = "Props/Textures/T_WoodTrim_BaseColor" }),
             new KeyValuePair<string, MatInfo>("MI_Trim", new MatInfo { Tex = "City/Textures/T_Trim_BaseColor" }),
+            new KeyValuePair<string, MatInfo>("KC_colormap", new MatInfo { Tex = "City/Textures/KC_colormap" }),
+            new KeyValuePair<string, MatInfo>("KR_colormap", new MatInfo { Tex = "City/Textures/KR_colormap" }),
             new KeyValuePair<string, MatInfo>("MI_Glass", new MatInfo { Tint = new Color(0.16f, 0.2f, 0.26f) }),
         };
 
@@ -81,9 +83,11 @@ namespace Kagegan
             return go;
         }
 
-        static Material ToonFor(Material src)
+        static Material ToonFor(Material src, string model)
         {
             string n = src != null ? src.name.Replace(" (Instance)", "") : "";
+            // Kenney kits all call their single atlas "colormap"; tell the commercial and roads kits apart by prefix
+            if (n == "colormap" && model.Length > 3 && model[0] == 'K' && model[2] == '_') n = model.Substring(0, 3) + "colormap";
             if (mats.TryGetValue(n, out var m)) return m;
             MatInfo info = default;
             bool found = false;
@@ -118,7 +122,7 @@ namespace Kagegan
             foreach (var r in rs)
             {
                 var sm = r.sharedMaterials;
-                for (int i = 0; i < sm.Length; i++) sm[i] = ToonFor(sm[i]);
+                for (int i = 0; i < sm.Length; i++) sm[i] = ToonFor(sm[i], model);
                 r.sharedMaterials = sm;
                 r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                 r.receiveShadows = false;
@@ -153,6 +157,8 @@ namespace Kagegan
         public static readonly string[] Plants = { "Bush_Common", "Bush_Common_Flowers", "Fern_1", "Plant_1_Big", "Flower_3_Group", "Mushroom_Common", "Grass_Wispy_Tall", "Grass_Common_Tall" };
 
         public static readonly string[] Buildings = { "Building_Large_2", "Building_Medium_2_001", "Building_Small_1" };
+
+        public static readonly string[] Skyscrapers = { "KC_building-skyscraper-a", "KC_building-skyscraper-b", "KC_building-skyscraper-c", "KC_building-skyscraper-d", "KC_building-skyscraper-e", "KC_building-a", "KC_building-c", "KC_building-f", "KC_building-h" };
 
         public static string Pick(string[] set, System.Random rnd) => set[rnd.Next(set.Length)];
     }
