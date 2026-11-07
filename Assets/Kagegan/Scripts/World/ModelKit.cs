@@ -104,7 +104,14 @@ namespace Kagegan
                 if (info.Cut) { m.SetFloat("_Cutoff", 0.5f); m.SetFloat("_Cull", 0f); }
                 if (info.Wind > 0f) { m.SetFloat("_Wind", info.Wind); m.SetFloat("_WindObj", 1f); }
             }
-            else if (src != null && src.HasProperty("_Color")) m.SetColor("_Color", src.color);
+            else if (src != null)
+            {
+                // unknown name: keep the model's own texture and colour
+                if (src.HasProperty("_MainTex") && src.mainTexture != null) m.SetTexture("_MainTex", src.mainTexture);
+                else if (src.HasProperty("_BaseMap") && src.GetTexture("_BaseMap") != null) m.SetTexture("_MainTex", src.GetTexture("_BaseMap"));
+                if (src.HasProperty("_Color")) m.SetColor("_Color", src.color);
+                else if (src.HasProperty("_BaseColor")) m.SetColor("_Color", src.GetColor("_BaseColor"));
+            }
             mats[n] = m;
             return m;
         }

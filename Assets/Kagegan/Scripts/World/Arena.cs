@@ -102,8 +102,9 @@ namespace Kagegan
                 string b = ModelKit.Buildings[rnd.Next(ModelKit.Buildings.Length)];
                 float h = b == "Building_Large_2" ? 28f : b == "Building_Medium_2_001" ? 25f : 17f;
                 float w = b == "Building_Large_2" ? 20.6f : b == "Building_Medium_2_001" ? 15f : 12.5f;
-                ModelKit.Spawn(b, root, new Vector3(x + w * 0.5f, 0, 22f + (float)rnd.NextDouble() * 3f), h, rnd.NextDouble() < 0.5 ? 0f : 180f);
-                x += w + (low ? 6f : 1.5f);
+                // yaw 180 turns the windowed facade toward the side camera; gaps let the far skyline show through
+                ModelKit.Spawn(b, root, new Vector3(x + w * 0.5f, 0, 22f + (float)rnd.NextDouble() * 3f), h, 180f);
+                x += w + 5f + (float)rnd.NextDouble() * 4f;
             }
             for (float bx = -24f; bx <= 24f; bx += 4f)
                 ModelKit.Spawn("Prop_Bollard", root, new Vector3(bx, 0, LaneDepth + 5f), 0.9f, 0f);
@@ -122,7 +123,7 @@ namespace Kagegan
                 ModelKit.Spawn("KR_road-sign-stop", root, new Vector3(-17f, 0, LaneDepth + 6f), 2.4f, 180f);
                 if (!low)
                     for (float px = -40f; px <= 40f; px += 20f)
-                        ModelKit.Spawn("KR_electricity-pole", root, new Vector3(px, 0, 30f), 8f, 0f);
+                        ModelKit.Spawn("KR_electricity-pole", root, new Vector3(px, 0, LaneDepth + 10.5f), 6.5f, 0f);
                 // breakable street clutter
                 string[] clutter = { "KR_dumpster", "KR_construction-barrier", "KR_construction-cone", "KR_dumpster", "KR_construction-barrier" };
                 float[] ch = { 1.3f, 1.0f, 0.75f, 1.3f, 1.0f };
@@ -134,7 +135,7 @@ namespace Kagegan
             }
             if (!low)
                 for (int i = 0; i < 4; i++)
-                    ModelKit.Spawn("Prop_ACUnit", root, new Vector3(-20f + i * 13f, 0, 19f), 0.6f, (float)rnd.NextDouble() * 360f);
+                    ModelKit.Spawn("Prop_ACUnit", root, new Vector3(-20f + i * 13f, 0, LaneDepth + 8.5f), 0.6f, 180f + (float)rnd.NextDouble() * 30f - 15f);
             // breakable crates, barrels and planters along the fight
             string[] brk = { "Crate_Wooden", "Barrel", "Prop_Planter_Single", "Crate_Metal", "Barrel" };
             for (int i = 0; i < brk.Length; i++)

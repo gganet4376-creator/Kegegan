@@ -7,7 +7,7 @@ namespace Kagegan.EditorTools
     public class KageganModelImport : AssetPostprocessor
     {
         static readonly string[] Folders = { "/Kagegan/Resources/Kagegan/Nature/", "/Kagegan/Resources/Kagegan/City/", "/Kagegan/Resources/Kagegan/Props/" };
-        public override uint GetVersion() => 2;
+        public override uint GetVersion() => 3;
 
         static bool InKit(string path)
         {
@@ -27,6 +27,8 @@ namespace Kagegan.EditorTools
             mi.importBlendShapes = false;
             mi.isReadable = false;
             mi.meshCompression = ModelImporterMeshCompression.Medium;
+            // the game maps materials by their FBX names (MI_Trim_Metal, Leaves_Pine...), not by texture file names
+            mi.materialName = ModelImporterMaterialName.BasedOnMaterialName;
         }
     }
 }
