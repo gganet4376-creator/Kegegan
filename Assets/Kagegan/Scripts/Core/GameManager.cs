@@ -88,7 +88,11 @@ namespace Kagegan
             PlayerCtl = gameObject.AddComponent<PlayerController>();
         }
 
-        void Start() { ShowMenu(); }
+        void Start()
+        {
+            ShowMenu();
+            if (AutoTest.Requested) gameObject.AddComponent<AutoTest>();
+        }
 
         // ===================== menu =====================
         public void ShowMenu()

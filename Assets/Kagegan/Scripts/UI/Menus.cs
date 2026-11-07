@@ -93,7 +93,7 @@ namespace Kagegan
             UIKit.Button(charSel, "Далее", new Vector2(1, 0), new Vector2(-220, 90), new Vector2(340, 120), CharNext, UIKit.Accent, 46);
         }
 
-        void ShowCharSelect()
+        public void ShowCharSelect()
         {
             Show(charSel);
             SelectChar((CharacterId)Save.Data.lastCharacter);
@@ -133,7 +133,7 @@ namespace Kagegan
             UIKit.Button(diffSel, "Назад", new Vector2(0.5f, 0), new Vector2(0, 110), new Vector2(300, 110), ShowCharSelect, new Color(0.15f, 0.12f, 0.14f, 0.9f));
         }
 
-        void ShowDifficulty()
+        public void ShowDifficulty()
         {
             Show(diffSel);
             string[] desc = { "Враги слабее и медленнее\nреагируют.", "Сбалансированный бой.\nВраги блокируют и парируют.", "Быстрые, точные враги,\nдополнительные противники." };
@@ -166,7 +166,7 @@ namespace Kagegan
             UIKit.Button(bossSel, "Назад", new Vector2(0.5f, 0), new Vector2(220, 110), new Vector2(300, 110), ShowCharSelect, new Color(0.15f, 0.12f, 0.14f, 0.9f));
         }
 
-        void ShowBossSelect()
+        public void ShowBossSelect()
         {
             Show(bossSel);
             bossDiff = (Difficulty)Mathf.Min(Save.Data.lastDifficulty, Save.Data.unlockedDifficulty);
@@ -255,7 +255,7 @@ namespace Kagegan
             }, UIKit.Accent, 34);
         }
 
-        void ShowLayout()
+        public void ShowLayout()
         {
             Show(layout);
             var t = GameManager.Inst.Touch;

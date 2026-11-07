@@ -82,7 +82,7 @@ namespace Kagegan
 
         void Update()
         {
-            if (F == null || !F.Alive) return;
+            if (F == null || !F.Alive || AutoTest.Active) return;
             if (TimeFx.Paused) { F.SetMove(Vector3.zero); return; }
 
             // ---- movement ----
