@@ -29,6 +29,8 @@ Shader "Kagegan/Fx"
             float4 _MainTex_ST;
             fixed4 _Color;
             half _Fog;
+            half _SrcBlend, _DstBlend;
+            half _KageGlow;   // > 1 on HDR presets so additive effects bloom
             fixed4 _KageFogColor;
             float4 _KageFogParams;
 
@@ -47,11 +49,12 @@ Shader "Kagegan/Fx"
                 return o;
             }
 
-            fixed4 frag (v2f i) : SV_Target
+            half4 frag (v2f i) : SV_Target
             {
-                fixed4 c = tex2D(_MainTex, i.uv) * i.color;
+                half4 c = tex2D(_MainTex, i.uv) * i.color;
                 c.rgb *= c.a; // premultiplied: works for additive (One One) and alpha (One OneMinusSrcAlpha)
                 c.rgb = lerp(c.rgb, _KageFogColor.rgb * c.a, i.fog);
+                if (_DstBlend == 1) c.rgb *= max(_KageGlow, 1.0); // additive glow
                 return c;
             }
             ENDCG

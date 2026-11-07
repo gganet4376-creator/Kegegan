@@ -40,10 +40,11 @@ namespace Kagegan
             var rig = go.AddComponent<CameraRig>();
             rig.Cam = cam;
             Inst = rig;
+            PostFx.Attach(cam);
             return rig;
         }
 
-        public static void Shake(float amount) { if (Inst != null) Inst.trauma = Mathf.Min(1f, Inst.trauma + amount); }
+        public static void Shake(float amount) { if (Inst != null) Inst.trauma = Mathf.Min(1f, Inst.trauma + amount); if (amount >= 0.25f) PostFx.Kick(amount); }
 
         public static void Cinematic(Vector3 focus, Vector3 viewDir, float distance, float height, float seconds)
         {

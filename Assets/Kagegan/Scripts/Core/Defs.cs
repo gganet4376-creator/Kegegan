@@ -27,7 +27,7 @@ namespace Kagegan
                 case GraphicsPreset.Low: return "Низкая";
                 case GraphicsPreset.Medium: return "Средняя";
                 case GraphicsPreset.High: return "Высокая";
-                default: return "Ультра";
+                default: return "Ультра (AAA)";
             }
         }
     }

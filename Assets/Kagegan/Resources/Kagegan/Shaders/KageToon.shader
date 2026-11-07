@@ -28,19 +28,12 @@ Shader "Kagegan/Toon"
     {
         Tags { "RenderType"="Opaque" "Queue"="Geometry" }
         LOD 100
-        Pass
-        {
-            Cull [_Cull]
-            CGPROGRAM
-            #pragma vertex vert
-            #pragma fragment frag
-            #pragma multi_compile_instancing
-            #pragma target 3.0
+        CGINCLUDE
             #include "UnityCG.cginc"
-
             fixed4 _Color, _ShadowTint, _RimColor, _FlashColor, _EmitColor;
             half _Flash, _CharFx, _Emit, _Fade, _Wind, _WindObj, _VColor, _Cutoff, _WindHeight, _Flutter;
             float4 _KageWind;         // xy = wind direction on the ground, z = strength, w = speed
+            half _KageGlow;           // emission multiplier (HDR presets)
             sampler2D _MainTex;
             float4 _MainTex_ST;
 
@@ -62,6 +55,46 @@ Shader "Kagegan/Toon"
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
+            // Wind for grass, bushes and trees (also used by the depth pass so depth matches the swaying mesh)
+            float3 KageWind(float3 wpos, float2 uv, half3 wn, out half gustOut)
+            {
+                float3 origin = unity_ObjectToWorld._m03_m13_m23;
+                float2 dir = _KageWind.xy;
+                float str = _KageWind.z * _Wind;
+                float t = _Time.y * _KageWind.w;
+                // grass: bend by blade uv (root 0, tip 1); trees/bushes: by height above the model's base
+                float objB = saturate((wpos.y - origin.y) / _WindHeight);
+                float bend = lerp(uv.y * uv.y, objB * objB, _WindObj);
+                float amp = lerp(0.22, 0.04 * _WindHeight + 0.12, _WindObj);
+                float tall = lerp(0.45, _WindHeight, _WindObj);
+                // big gusts roll across the field as visible waves
+                float along = dot(wpos.xz, dir);
+                float g1 = sin(along * 0.16 - t * 1.4) * 0.5 + 0.5;
+                float g2 = sin(along * 0.05 + wpos.x * 0.02 - t * 0.55) * 0.5 + 0.5;
+                float gust = g1 * g1 * (0.4 + 0.6 * g2);
+                // every clump / tree also rocks on its own rhythm
+                float2 anchor = lerp(wpos.xz, origin.xz + wpos.xz * 0.1, _WindObj);
+                float ph = dot(anchor, float2(0.73, 1.21));
+                float sway = sin(t * 1.9 + ph) * 0.6 + sin(t * 3.3 + ph * 1.7) * 0.4;
+                float2 side = float2(-dir.y, dir.x);
+                float2 off = (dir * ((0.25 + gust) + sway * 0.2) + side * sway * 0.12) * amp * bend * str;
+                float3 d = float3(off.x, 0, off.y);
+                d.y = -dot(off, off) / (2.0 * tall); // bend instead of stretching
+                // leaves shiver
+                float f = sin(t * 11.0 + dot(wpos, float3(3.7, 5.3, 4.1))) * (0.3 + gust) * _Flutter * str;
+                d += wn * f * 0.035 * saturate(bend * 4.0);
+                gustOut = gust * str;
+                return wpos + d;
+            }
+        ENDCG
+        Pass
+        {
+            Cull [_Cull]
+            CGPROGRAM
+            #pragma vertex vert
+            #pragma fragment frag
+            #pragma multi_compile_instancing
+            #pragma target 3.0
             struct v2f
             {
                 float4 pos : SV_POSITION;
@@ -82,34 +115,10 @@ Shader "Kagegan/Toon"
                 half3 wn = UnityObjectToWorldNormal(v.normal);
                 if (_Wind > 0)
                 {
-                    float3 origin = unity_ObjectToWorld._m03_m13_m23;
-                    float2 dir = _KageWind.xy;
-                    float str = _KageWind.z * _Wind;
-                    float t = _Time.y * _KageWind.w;
-                    // grass: bend by blade uv (root 0, tip 1); trees/bushes: by height above the model's base
-                    float objB = saturate((o.wpos.y - origin.y) / _WindHeight);
-                    float bend = lerp(v.uv.y * v.uv.y, objB * objB, _WindObj);
-                    float amp = lerp(0.22, 0.04 * _WindHeight + 0.12, _WindObj);
-                    float tall = lerp(0.45, _WindHeight, _WindObj);
-                    // big gusts roll across the field as visible waves
-                    float along = dot(o.wpos.xz, dir);
-                    float g1 = sin(along * 0.16 - t * 1.4) * 0.5 + 0.5;
-                    float g2 = sin(along * 0.05 + o.wpos.x * 0.02 - t * 0.55) * 0.5 + 0.5;
-                    float gust = g1 * g1 * (0.4 + 0.6 * g2);
-                    // every clump / tree also rocks on its own rhythm
-                    float2 anchor = lerp(o.wpos.xz, origin.xz + o.wpos.xz * 0.1, _WindObj);
-                    float ph = dot(anchor, float2(0.73, 1.21));
-                    float sway = sin(t * 1.9 + ph) * 0.6 + sin(t * 3.3 + ph * 1.7) * 0.4;
-                    float2 side = float2(-dir.y, dir.x);
-                    float2 off = (dir * ((0.25 + gust) + sway * 0.2) + side * sway * 0.12) * amp * bend * str;
-                    float3 d = float3(off.x, 0, off.y);
-                    d.y = -dot(off, off) / (2.0 * tall); // bend instead of stretching
-                    // leaves shiver
-                    float f = sin(t * 11.0 + dot(o.wpos, float3(3.7, 5.3, 4.1))) * (0.3 + gust) * _Flutter * str;
-                    d += wn * f * 0.035 * saturate(bend * 4.0);
-                    o.wpos += d;
+                    half gust;
+                    o.wpos = KageWind(o.wpos, v.uv, wn, gust);
                     // the passing gust catches the light on grass tips
-                    v.color.rgb *= 1.0 + gust * str * 0.14 * v.uv.y * (1.0 - _WindObj);
+                    v.color.rgb *= 1.0 + gust * 0.14 * v.uv.y * (1.0 - _WindObj);
                 }
                 o.pos = UnityWorldToClipPos(o.wpos);
                 o.wnormal = wn;
@@ -169,14 +178,52 @@ Shader "Kagegan/Toon"
                     }
                 }
 
-                half3 col = lerp(lit, albedo * 1.35, i.color.a);
-                col += _EmitColor.rgb * _Emit;
+                half glow = max(_KageGlow, 1.0); // > 1 when HDR + bloom are on, so glowing parts bloom
+                half3 col = lerp(lit, albedo * 1.35 * glow, i.color.a);
+                col += _EmitColor.rgb * _Emit * glow;
                 col = lerp(col, _FlashColor.rgb, _Flash);
 
                 float fogDist = length(i.wpos - _WorldSpaceCameraPos.xyz);
                 half fog = saturate((fogDist - _KageFogParams.x) / max(0.01, _KageFogParams.y - _KageFogParams.x)) * _KageFogParams.z;
                 col = lerp(col, _KageFogColor.rgb, fog);
                 return fixed4(col, 1);
+            }
+            ENDCG
+        }
+        // depth for URP's depth texture (background blur on High/Ultra)
+        Pass
+        {
+            Name "DepthOnly"
+            Tags { "LightMode"="DepthOnly" }
+            ZWrite On
+            ColorMask 0
+            Cull [_Cull]
+            CGPROGRAM
+            #pragma vertex vertD
+            #pragma fragment fragD
+            #pragma multi_compile_instancing
+            #pragma target 3.0
+            struct v2fD { float4 pos : SV_POSITION; float2 uv : TEXCOORD0; UNITY_VERTEX_OUTPUT_STEREO };
+            v2fD vertD (appdata v)
+            {
+                v2fD o;
+                UNITY_SETUP_INSTANCE_ID(v);
+                UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(o);
+                float3 wpos = mul(unity_ObjectToWorld, v.vertex).xyz;
+                if (_Wind > 0)
+                {
+                    half gust;
+                    wpos = KageWind(wpos, v.uv, UnityObjectToWorldNormal(v.normal), gust);
+                }
+                o.pos = UnityWorldToClipPos(wpos);
+                o.uv = TRANSFORM_TEX(v.uv, _MainTex);
+                return o;
+            }
+            fixed4 fragD (v2fD i) : SV_Target
+            {
+                if (_Cutoff > 0) clip(tex2D(_MainTex, i.uv).a - _Cutoff);
+                if (_Fade < 0.999) clip(-1);
+                return 0;
             }
             ENDCG
         }

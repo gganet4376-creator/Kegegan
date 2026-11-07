@@ -402,6 +402,7 @@ namespace Kagegan
             WorldLighting.SetSun(sunDir, sunCol, ambCol);
             WorldLighting.SetFog(fogCol, fogStart, fogEnd, fogMax);
             if (CameraRig.Inst != null) CameraRig.Inst.Cam.backgroundColor = skyHorizon;
+            PostFx.SetGrade(Id);
         }
 
         /// <summary>Temporarily shift into another "dimension" (Moon boss): recolors sky, sun and fog.</summary>
