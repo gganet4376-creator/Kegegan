@@ -28,6 +28,16 @@ namespace Kagegan
         float fogStart, fogEnd, fogMax;
         float dimensionUntil;
         public System.Action<int> PhaseChanged;
+
+        /// <summary>Lighting change a weather applies on top of the arena's own look.</summary>
+        public struct WeatherLook
+        {
+            public float Sun, Amb, FogLerp, FogNear, FogMax;
+            public Color SunTint, Fog, Sky;
+        }
+        WeatherLook? look;
+        public WeatherType WeatherKind { get; private set; }
+        public WeatherSystem WeatherFx { get; private set; }
         MoonTiles moonTiles;
 
         public static bool Inside(Vector3 p, float margin) =>
@@ -292,14 +302,17 @@ namespace Kagegan
             }
         }
 
-        public static Arena Build(ArenaId id, Transform parent)
+        public static Arena Build(ArenaId id, Transform parent, WeatherType weather = WeatherType.Clear)
         {
             if (Current != null) Destroy(Current.gameObject);
             Destructible.All.Clear();
+            WeatherSystem.ResetGlobals();
             var go = new GameObject("Arena_" + id);
             go.transform.SetParent(parent, false);
             var a = go.AddComponent<Arena>();
             a.Id = id;
+            a.WeatherKind = weather;
+            a.look = WeatherSystem.Look(weather, id);
             Current = a;
             Radius = 21f;
             var stat = new MeshBuilder();
@@ -324,7 +337,26 @@ namespace Kagegan
                 case ArenaId.MoonTemple: Mat.SetWind(new Vector2(0.7f, 0.7f), 0.6f, 0.8f); break;
                 default: Mat.SetWind(new Vector2(0.85f, 0.5f), 0.9f); break;
             }
+            // weather: stronger wind in rain and storms, a calm hush in snow and fog
+            Vector4 wind = Shader.GetGlobalVector("_KageWind");
+            switch (weather)
+            {
+                case WeatherType.Rain: Mat.SetWind(new Vector2(wind.x, wind.y), Mathf.Max(wind.z, 1.5f), Mathf.Max(wind.w, 1.15f)); break;
+                case WeatherType.Storm: Mat.SetWind(new Vector2(wind.x, wind.y), Mathf.Max(wind.z, 1.9f), Mathf.Max(wind.w, 1.3f)); break;
+                case WeatherType.Snow: Mat.SetWind(new Vector2(wind.x, wind.y), Mathf.Min(wind.z, 0.7f), 0.8f); break;
+                case WeatherType.Fog: Mat.SetWind(new Vector2(wind.x, wind.y), Mathf.Min(wind.z, 0.45f), 0.7f); break;
+            }
+            // the arena's own drifting dust / sparkles don't belong in a downpour (forest leaves still blow about)
+            if (a.weatherGo != null && WeatherSystem.Precipitation(weather) && !(id == ArenaId.Forest && weather != WeatherType.Snow) && !(id == ArenaId.MoonTemple && weather == WeatherType.Snow))
+                a.weatherGo.SetActive(false);
             a.BuildClouds();
+            if (weather != WeatherType.Clear)
+            {
+                var wgo = new GameObject("Weather_" + weather);
+                wgo.transform.SetParent(go.transform, false);
+                a.WeatherFx = wgo.AddComponent<WeatherSystem>();
+                a.WeatherFx.Begin(a, weather);
+            }
             LaneHalf = 17f;
             a.LayoutPropsForLane();
             a.PlayerSpawn = new Vector3(-5f, 0f, 0f);
@@ -465,11 +497,29 @@ namespace Kagegan
             sunDir = dirToSun; sunCol = sun; ambCol = amb; fogCol = fog; fogStart = fStart; fogEnd = fEnd; fogMax = fMax;
         }
 
+        Color SunNow => look.HasValue ? sunCol * look.Value.Sun * look.Value.SunTint : sunCol;
+        Color AmbNow => look.HasValue ? ambCol * look.Value.Amb : ambCol;
+
         public void ApplyLighting()
         {
-            WorldLighting.SetSun(sunDir, sunCol, ambCol);
-            WorldLighting.SetFog(fogCol, fogStart, fogEnd, fogMax);
-            if (CameraRig.Inst != null) CameraRig.Inst.Cam.backgroundColor = skyHorizon;
+            WorldLighting.SetSun(sunDir, SunNow, AmbNow);
+            if (look.HasValue)
+            {
+                var l = look.Value;
+                WorldLighting.SetFog(Color.Lerp(fogCol, l.Fog, l.FogLerp), fogStart * l.FogNear, fogEnd * Mathf.Lerp(1f, l.FogNear, 0.6f), Mathf.Max(fogMax, l.FogMax));
+            }
+            else WorldLighting.SetFog(fogCol, fogStart, fogEnd, fogMax);
+            if (skyRenderer != null && dimensionUntil <= 0f)
+            {
+                if (look.HasValue)
+                {
+                    var mpb = new MaterialPropertyBlock();
+                    mpb.SetColor("_Color", look.Value.Sky);
+                    skyRenderer.SetPropertyBlock(mpb);
+                }
+                else skyRenderer.SetPropertyBlock(new MaterialPropertyBlock());
+            }
+            if (CameraRig.Inst != null) CameraRig.Inst.Cam.backgroundColor = look.HasValue ? skyHorizon * look.Value.Sky : skyHorizon;
             PostFx.SetGrade(Id);
         }
 
@@ -501,6 +551,14 @@ namespace Kagegan
                 case ArenaId.MoonTemple: c = new Color(0.45f, 0.38f, 0.7f, 0.35f); count = 14; break;
                 case ArenaId.Forest: c = new Color(0.95f, 0.95f, 0.92f, 0.7f); count = 16; break;
                 default: c = new Color(1f, 1f, 1f, 0.8f); count = 14; break;
+            }
+            // overcast: heavier, darker cloud cover
+            switch (WeatherKind)
+            {
+                case WeatherType.Rain: if (Id != ArenaId.City) { c = new Color(c.r * 0.6f, c.g * 0.62f, c.b * 0.7f, 0.9f); count += 8; } break;
+                case WeatherType.Storm: if (Id != ArenaId.City) { c = new Color(c.r * 0.42f, c.g * 0.43f, c.b * 0.52f, 0.92f); count += 10; } break;
+                case WeatherType.Snow: c = new Color(Mathf.Lerp(c.r, 0.85f, 0.5f), Mathf.Lerp(c.g, 0.87f, 0.5f), Mathf.Lerp(c.b, 0.92f, 0.5f), 0.88f); count += 6; break;
+                case WeatherType.Fog: c.a = Mathf.Min(1f, c.a + 0.1f); count += 4; break;
             }
             count = Mathf.RoundToInt(count * Mathf.Max(0.5f, GraphicsQuality.WeatherMul));
             var go = new GameObject("Clouds");
@@ -542,26 +600,37 @@ namespace Kagegan
             stormTimer = Random.Range(6f, 13f);
             Vector3 p = new Vector3(Random.Range(-45f, 45f), 0f, Random.Range(25f, 60f)) * (Random.value < 0.5f ? 1f : -1f);
             Fx.Lightning(p + Vector3.up * 70f, p, new Color(0.8f, 0.85f, 1f), 0.6f, 0.35f);
-            WorldLighting.SetSun(sunDir, sunCol * 2.4f, ambCol * 2f);
+            // brighter flash on a dark night, so it always reads
+            Color sun = SunNow;
+            WorldLighting.SetSun(sunDir, sun * 2.4f + new Color(0.25f, 0.27f, 0.32f), AmbNow * 2f + new Color(0.1f, 0.1f, 0.13f));
             Invoke(nameof(ApplyLighting), 0.12f);
-            StartCoroutine(Thunder(Random.Range(0.4f, 1.4f)));
+            if (Random.value < 0.35f) Invoke(nameof(Reflash), 0.2f); // lightning often strikes twice
+            // sound travels ~340 m/s: near strikes crack almost at once and loudly, far ones rumble later
+            float dist = new Vector2(p.x, p.z).magnitude;
+            StartCoroutine(Thunder(Mathf.Lerp(0.25f, 1.6f, Mathf.InverseLerp(30f, 75f, dist)), Mathf.Lerp(0.9f, 0.55f, Mathf.InverseLerp(30f, 75f, dist))));
         }
 
-        System.Collections.IEnumerator Thunder(float delay)
+        void Reflash()
+        {
+            WorldLighting.SetSun(sunDir, SunNow * 1.8f, AmbNow * 1.6f);
+            Invoke(nameof(ApplyLighting), 0.08f);
+        }
+
+        System.Collections.IEnumerator Thunder(float delay, float volume)
         {
             yield return new WaitForSeconds(delay);
-            Sfx.Play(SfxId.Thunder, 0.55f, 0.7f);
-            CameraRig.Shake(0.08f);
+            // recorded thunder (CC-BY, see credits); falls back to the synthesised one
+            if (!Sfx.WeatherSound("thunder", 6, volume)) Sfx.Play(SfxId.Thunder, 0.55f, 0.7f);
+            CameraRig.Shake(0.06f + volume * 0.06f);
         }
 
         void Update()
         {
-            if (Id == ArenaId.City && dimensionUntil <= 0f) Storm();
+            if (WeatherKind == WeatherType.Storm && dimensionUntil <= 0f) Storm();
             if (dimensionUntil > 0f && Time.time > dimensionUntil)
             {
                 dimensionUntil = 0f;
-                ApplyLighting();
-                if (skyRenderer != null) skyRenderer.SetPropertyBlock(new MaterialPropertyBlock());
+                ApplyLighting(); // also restores the weather's sky tint
                 Fx.Ring(Vector3.up * 0.2f, Color.white, 1f, 30f, 0.6f, Quaternion.identity);
             }
         }
@@ -967,7 +1036,6 @@ namespace Kagegan
                 var m = SingleMesh(b => { b.SetColor(Mat.C(0.3f, 0.3f, 0.32f)); b.Limb(Vector3.zero, Vector3.up * 4f, 0.08f, 0.07f, 6, false); b.SetColor(Mat.C(1f, 0.85f, 0.55f, 1f)); b.Sphere(Vector3.up * 4.1f, 0.2f, 4, 6); });
                 Destructible.Create(transform, DestructKind.Lantern, new Vector3(Mathf.Cos(a) * 9f, 0, Mathf.Sin(a) * 9f), m, 25f, new Color(0.3f, 0.3f, 0.32f), 1f);
             }
-            Weather(new Color(0.7f, 0.75f, 0.9f, 0.6f), 160f, 0.03f, new Vector3(1f, -16f, 0.5f), 34f, true, 1.2f, Mat.FxAlpha);
             PlayerSpawn = new Vector3(0, 0, -7f); EnemySpawn = new Vector3(0, 0, 7f);
         }
 

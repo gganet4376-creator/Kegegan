@@ -30,6 +30,21 @@ namespace Kagegan
                 default: return "Ультра (AAA)";
             }
         }
+
+        public static string Weather(WeatherType w)
+        {
+            switch (w)
+            {
+                case WeatherType.Rain: return "Дождь";
+                case WeatherType.Storm: return "Гроза";
+                case WeatherType.Snow: return "Снег";
+                case WeatherType.Fog: return "Туман";
+                default: return "Ясно";
+            }
+        }
+
+        /// <summary>Settings value: 0 = auto, 1 = random, 2.. = a fixed weather.</summary>
+        public static string WeatherSetting(int s) => s <= 0 ? "Авто" : s == 1 ? "Случайная" : Weather((WeatherType)(s - 2));
     }
 
     /// <summary>Per-difficulty tuning for enemies.</summary>

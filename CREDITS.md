@@ -56,6 +56,12 @@
 - Земля: sandy_gravel_02 (додзё), forrest_ground_01 (лес), asphalt_02 (город), monastery_stone_floor (лунный храм) — https://polyhaven.com/textures
 - Модели: rock_07, rock_09, tree_stump_01, stone_fire_pit, moon_rock_01, moon_rock_03, moon_rock_05 — https://polyhaven.com/models
 
+## Погода: звуки дождя и грома
+- Гром (раскаты) — jerimee, «Thunder», CC BY 3.0 — https://opengameart.org/content/thunder (нарезано на thunder_0..4, громкость выровнена)
+- Гром рядом — InspectorJ (www.jshaven.com), «Thunder, Very Close, Rain, 01», CC BY 3.0 — https://opengameart.org/content/thunder-very-close-rain-01 (thunder_5)
+- Дождь — kresiek-the-furry, «AMB Rain Loop 1» и «AMB Rain Loop 2», CC0 — https://opengameart.org/content/amb-rain-loop-1 , https://opengameart.org/content/amb-rain-loop-2 (обрезано до бесшовных петель amb_rain / amb_rain_heavy)
+Лицензия CC BY 3.0: https://creativecommons.org/licenses/by/3.0/
+
 ## Шрифт (SIL Open Font License 1.1)
 - Russo One — Jovanny Lemonad — https://fonts.google.com/specimen/Russo+One (лицензия: Resources/Kagegan/Fonts/OFL.txt)
 

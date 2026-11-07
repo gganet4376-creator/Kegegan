@@ -320,15 +320,26 @@ namespace Kagegan
         /// <summary>Short music stinger from Resources/Kagegan/Audio/Jingles.</summary>
         public static void Jingle(string name, float volume = 0.8f) => PlayFile("Kagegan/Audio/Jingles/" + name, volume * Mathf.Max(0.3f, Save.Data.music / Mathf.Max(0.01f, Save.Data.sfx)));
 
-        static void PlayFile(string path, float volume)
+        /// <summary>Random variant name_0..name_(variants-1) from Resources/Kagegan/Audio/Weather. False if none loaded.</summary>
+        public static bool WeatherSound(string name, int variants, float volume)
         {
-            if (inst == null) return;
+            if (inst == null) return false;
+            int k = Random.Range(0, variants);
+            if (variants > 1 && k == inst.lastWeather) k = (k + 1) % variants;
+            inst.lastWeather = k;
+            return PlayFile("Kagegan/Audio/Weather/" + name + "_" + k, volume);
+        }
+        int lastWeather = -1;
+
+        static bool PlayFile(string path, float volume)
+        {
+            if (inst == null) return false;
             if (!inst.fileClips.TryGetValue(path, out var clip))
             {
                 clip = Resources.Load<AudioClip>(path);
                 inst.fileClips[path] = clip;
             }
-            if (clip == null) return;
+            if (clip == null) return false;
             if (inst.announcer == null)
             {
                 inst.announcer = inst.gameObject.AddComponent<AudioSource>();
@@ -336,6 +347,7 @@ namespace Kagegan
                 inst.announcer.spatialBlend = 0f;
             }
             inst.announcer.PlayOneShot(clip, Mathf.Clamp01(volume * Save.Data.sfx));
+            return true;
         }
 
         AudioSource announcer;

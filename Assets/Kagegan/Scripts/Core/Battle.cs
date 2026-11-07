@@ -191,10 +191,11 @@ namespace Kagegan
                 yield return new WaitForSecondsRealtime(0.6f);
             }
             Projectile.ClearAll(); Beam.ClearAll(); Hazard.ClearAll(); Fx.ClearAll();
-            var arena = Arena.Build(ArenaFor(w), GameManager.Inst.WorldRoot);
+            var arenaId = ArenaFor(w);
+            var arena = Arena.Build(arenaId, GameManager.Inst.WorldRoot, WeatherSystem.Choose(arenaId, true));
             SpawnPlayer(arena.PlayerSpawn);
             Sfx.PlayTrack(w == 0 ? "forest" : w == 1 ? "city" : "moon", 1);
-            Sfx.SetAmbience(w == 1 ? null : "amb_wind", w == 0 ? 0.35f : 0.25f);
+            SetWeatherAmbience(arena);
             Hud.Inst.SetBoss(null);
             Hud.Inst.SetWave("Волна " + (w + 1) + "/3 — " + WaveName(w) + "   •   " + Names.Difficulty(Diff));
             CameraRig.Orbit(arena.PlayerSpawn + Vector3.up * 1.5f, 9f, 3f, 2.2f);
@@ -400,9 +401,21 @@ namespace Kagegan
         }
 
         // ===================== Training =====================
+        static void SetWeatherAmbience(Arena arena)
+        {
+            if (arena.WeatherFx != null) { var (n, v) = arena.WeatherFx.Ambience(); Sfx.SetAmbience(n, v); return; }
+            switch (arena.Id)
+            {
+                case ArenaId.Forest: Sfx.SetAmbience("amb_wind", 0.35f); break;
+                case ArenaId.MoonTemple: Sfx.SetAmbience("amb_wind", 0.25f); break;
+                default: Sfx.SetAmbience(null, 0f); break;
+            }
+        }
+
         IEnumerator TrainingFlow()
         {
-            var arena = Arena.Build(ArenaId.Dojo, GameManager.Inst.WorldRoot);
+            var arena = Arena.Build(ArenaId.Dojo, GameManager.Inst.WorldRoot, WeatherSystem.Choose(ArenaId.Dojo, false));
+            SetWeatherAmbience(arena);
             SpawnPlayer(arena.PlayerSpawn);
             Player.InfiniteChakra = true;
             Player.NoCooldowns = true;

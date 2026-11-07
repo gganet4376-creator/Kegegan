@@ -59,6 +59,8 @@ Shader "Kagegan/Surface"
             half _KageGlow;
             sampler2D _KageSkyTex;     // the arena's sky panorama (top 55% of an equirect image)
             fixed4 _KageSkyTint;
+            half _KageWet;             // weather: rain soaks every photo surface (0..1)
+            half _KageSnow;            // weather: snow settles on upward faces (0..1)
 
             struct v2f
             {
@@ -158,12 +160,13 @@ Shader "Kagegan/Surface"
 
                 // wet asphalt: a damp sheen everywhere, puddles where the noise dips, rain rings inside them
                 half puddle = 0, wet = 0;
-                if (_Wet > 0)
+                half wetAmt = max(_Wet, _KageWet * saturate(gn.y * 1.5 + 0.35)); // walls dry faster than floors
+                if (wetAmt > 0)
                 {
                     float2 p = i.wpos.xz;
                     float pn = Noise(p * 0.17) * 0.65 + Noise(p * 0.61 + 7.3) * 0.35;
-                    puddle = smoothstep(0.5, 0.58, pn) * _Wet;
-                    wet = max(puddle, 0.4 * _Wet);
+                    puddle = smoothstep(0.5, 0.58, pn) * wetAmt * saturate(gn.y * 2.0 - 1.0);
+                    wet = max(puddle, 0.4 * wetAmt);
                     albedo *= lerp(1.0, 0.5, wet);
                     // rain ripples: one ring per cell, each on its own clock
                     float2 cell = floor(p * 1.4);
@@ -176,6 +179,15 @@ Shader "Kagegan/Surface"
                     float ring = sin((d - t * 0.45) * 55.0) * smoothstep(0.45, 0.0, d) * (1.0 - t) * smoothstep(t * 0.45 + 0.08, t * 0.45, d);
                     half3 calm = normalize(lerp(n, gn, 0.85));
                     n = normalize(lerp(n, calm, puddle) + half3(dv.x, 0, dv.y) / max(d, 0.01) * ring * 0.12 * puddle);
+                }
+
+                // settled snow: fills the up-facing parts first (normal map gives it drifts), hides puddles
+                if (_KageSnow > 0)
+                {
+                    half cover = smoothstep(0.45, 0.9, n.y + (Noise(i.wpos.xz * 0.9) - 0.5) * 0.35) * _KageSnow * (1.0 - i.color.a);
+                    albedo = lerp(albedo, half3(0.86, 0.89, 0.95), cover);
+                    wet *= 1.0 - cover; puddle *= 1.0 - cover;
+                    n = normalize(lerp(n, gn, cover * 0.6));
                 }
 
                 half ndl = dot(n, l);
@@ -201,7 +213,7 @@ Shader "Kagegan/Surface"
                     }
                 }
 
-                if (_Wet > 0)
+                if (wetAmt > 0)
                 {
                     half fres = 0.04 + 0.96 * pow(1.0 - saturate(dot(n, vdir)), 5.0);
                     half3 refl = SkyLookup(reflect(-vdir, n));

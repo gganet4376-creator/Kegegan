@@ -29,6 +29,7 @@ namespace Kagegan
         public float music = 0.55f, sfx = 0.9f;
         public bool showFps;
         public float shake = 1f;
+        public int weather;                 // 0 = auto (per arena), 1 = random, 2.. = fixed WeatherType - 2
         public bool safeAreaPadding = true;
         public float buttonScale = 1f;
         public float buttonAlpha = 0.85f;

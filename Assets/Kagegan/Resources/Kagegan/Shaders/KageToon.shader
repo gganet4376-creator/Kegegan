@@ -45,6 +45,8 @@ Shader "Kagegan/Toon"
             float _KageDynLightCount;
             float4 _KageDynPos[4];    // xyz = position, w = range
             float4 _KageDynCol[4];
+            half _KageWet;            // weather: rain darkens and glosses the scenery (0..1)
+            half _KageSnow;           // weather: snow settles on upward faces of the scenery (0..1)
 
             struct appdata
             {
@@ -147,11 +149,31 @@ Shader "Kagegan/Toon"
                 half band1 = smoothstep(-0.02, 0.05, ndl);
                 half band2 = smoothstep(0.55, 0.62, ndl) * 0.12;
                 half3 albedo = i.color.rgb * tex.rgb * _Color.rgb;
+                // weather on scenery only (fighters have _CharFx > 0; glowing parts stay as they are)
+                half scenery = (1.0 - saturate(_CharFx * 10.0)) * (1.0 - i.color.a);
+                half wetHere = 0;
+                if (_KageSnow > 0)
+                {
+                    half cover = smoothstep(0.5, 0.85, n.y + frac(sin(dot(floor(i.wpos.xz * 3.0), float2(12.99, 78.23))) * 437.58) * 0.12) * _KageSnow * scenery;
+                    albedo = lerp(albedo, half3(0.88, 0.9, 0.96), cover);
+                }
+                if (_KageWet > 0)
+                {
+                    wetHere = _KageWet * scenery * saturate(n.y * 0.6 + 0.6);
+                    albedo *= 1.0 - 0.28 * wetHere;
+                }
                 half3 lit = albedo * lerp(_ShadowTint.rgb, half3(1,1,1), band1) * (_KageLightColor.rgb + band2) + albedo * _KageAmbient.rgb;
 
                 half fres = 1.0 - saturate(dot(n, vdir));
                 half rim = pow(fres, 4.0) * _RimColor.a * (0.35 + band1);
                 lit += rim * _RimColor.rgb;
+                if (wetHere > 0)
+                {
+                    // wet sheen: a tight sun glint plus the grey sky on grazing angles
+                    half3 hw = normalize(l + vdir);
+                    lit += _KageLightColor.rgb * pow(saturate(dot(n, hw)), 70.0) * 0.6 * wetHere * band1;
+                    lit += _KageFogColor.rgb * pow(fres, 3.0) * 0.18 * wetHere;
+                }
                 if (_CharFx > 0)
                 {
                     // anime back-light: a crisp sun-coloured edge on the side away from the camera's light
