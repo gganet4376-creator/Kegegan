@@ -20,7 +20,15 @@ namespace Kagegan
     public class AutoTest : MonoBehaviour
     {
         public static bool Active { get; private set; }
-        public static bool Requested => HasArg("-kagetest") || HasArg("-kagetestquick");
+        public static bool Requested => HasArg("-kagetest") || HasArg("-kagetestquick") || UrlHas("kagetest");
+        static bool Web => Application.platform == RuntimePlatform.WebGLPlayer;
+
+        // WebGL: no command line, so the test is switched on by the page URL (index.html?kagetest or ?kagetestquick)
+        static bool UrlHas(string key)
+        {
+            try { return !string.IsNullOrEmpty(Application.absoluteURL) && Application.absoluteURL.IndexOf(key, StringComparison.OrdinalIgnoreCase) >= 0; }
+            catch (Exception) { return false; }
+        }
 
         string outDir;
         bool quick;
@@ -51,11 +59,14 @@ namespace Kagegan
         void Awake()
         {
             Active = true;
-            quick = HasArg("-kagetestquick");
+            quick = HasArg("-kagetestquick") || UrlHas("kagetestquick");
             outDir = ArgValue("-kagetestout");
             if (string.IsNullOrEmpty(outDir)) outDir = Path.Combine(Application.persistentDataPath, "kagetest");
-            Directory.CreateDirectory(outDir);
-            Directory.CreateDirectory(Path.Combine(outDir, "shots"));
+            if (!Web)
+            {
+                Directory.CreateDirectory(outDir);
+                Directory.CreateDirectory(Path.Combine(outDir, "shots"));
+            }
             Application.runInBackground = true;
             Application.logMessageReceivedThreaded += OnLog;
             saveBackup = JsonUtility.ToJson(Save.Data);
@@ -116,6 +127,13 @@ namespace Kagegan
         IEnumerator Shot(string name)
         {
             yield return new WaitForEndOfFrame();
+            if (Web)
+            {
+                // the browser harness grabs the canvas when it sees this line in the console
+                Debug.Log("[kagetest] SHOT " + (++shots).ToString("000") + "_" + name);
+                yield return Wait(0.8f);
+                yield break;
+            }
             string file = Path.Combine(outDir, "shots", (++shots).ToString("000") + "_" + name + ".png");
             try { ScreenCapture.CaptureScreenshot(file); } catch (Exception e) { Debug.LogError("screenshot failed: " + e.Message); }
             yield return null;
@@ -286,6 +304,8 @@ namespace Kagegan
             Line("== summary ==");
             Line("total time " + (Time.realtimeSinceStartup - startTime).ToString("0") + "s, screenshots " + shots + ", unique errors " + errors.Count);
             foreach (var kv in errorCounts) Line("  x" + kv.Value + "  " + kv.Key.Split('\n')[0]);
+            lock (errors) foreach (var e in errors) Debug.Log("[kagetest] ERROR " + e.Replace("\n", "\n[kagetest]   "));
+            if (Web) { JsonUtility.FromJsonOverwrite(saveBackup, Save.Data); Save.Write(); Debug.Log("[kagetest] DONE"); return; }
             try
             {
                 File.WriteAllText(Path.Combine(outDir, "report.txt"), report.ToString());

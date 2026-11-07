@@ -153,6 +153,10 @@ namespace Kagegan.EditorTools
             PlayerSettings.fullScreenMode = FullScreenMode.Windowed;
             PlayerSettings.defaultScreenWidth = 1920;
             PlayerSettings.defaultScreenHeight = 1080;
+            // WebGL test build (runs in a headless browser for the auto-test): no compression so any static server works
+            PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Disabled;
+            PlayerSettings.WebGL.decompressionFallback = false;
+            PlayerSettings.WebGL.exceptionSupport = WebGLExceptionSupport.FullWithStacktrace;
             PlayerSettings.colorSpace = ColorSpace.Gamma;
             PlayerSettings.stripEngineCode = true;
             PlayerSettings.Android.preferredInstallLocation = AndroidPreferredInstallLocation.Auto;
