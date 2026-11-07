@@ -16,6 +16,7 @@ namespace Kagegan
 
         // contact times (seconds into the clip) measured from the source data: when the striking limb is fully extended
         public const float JabContact = 0.18f, CrossContact = 0.27f, SwordContact = 0.42f;
+        public const float HookContact = 0.24f, ThrowContact = 0.35f, DashContact = 0.27f; // library part 2
         // root speeds of the locomotion loops (m/s), measured from the root-motion version of the library
         public const float WalkSpeed = 0.97f, JogSpeed = 5.36f, SprintSpeed = 8.25f;
 
@@ -31,12 +32,13 @@ namespace Kagegan
             clips = new Dictionary<string, AnimationClip>();
             try
             {
-                foreach (var c in Resources.LoadAll<AnimationClip>("Kagegan/Anim/UAL1_Standard"))
-                {
-                    if (c == null || c.name.StartsWith("__preview__")) continue;
-                    if (!c.humanMotion) continue; // only humanoid clips can be retargeted
-                    clips[c.name] = c;
-                }
+                foreach (var file in new[] { "Kagegan/Anim/UAL1_Standard", "Kagegan/Anim/UAL2_Standard" })
+                    foreach (var c in Resources.LoadAll<AnimationClip>(file))
+                    {
+                        if (c == null || c.name.StartsWith("__preview__")) continue;
+                        if (!c.humanMotion) continue; // only humanoid clips can be retargeted
+                        if (!clips.ContainsKey(c.name)) clips[c.name] = c;
+                    }
             }
             catch (System.Exception e) { Debug.LogWarning("Kagegan: mocap library unavailable: " + e.Message); }
             Debug.Log("Kagegan: mocap clips loaded: " + clips.Count);
@@ -78,7 +80,7 @@ namespace Kagegan
         public bool ActionPlaying => actTarget > 0.5f;
         public float ActionWeight => actWeight;
 
-        static readonly string[] LocoNames = { "Idle_Loop", "Walk_Loop", "Jog_Fwd_Loop", "Sprint_Loop", "Jump_Loop" };
+        static readonly string[] LocoNames = { "Idle_Loop", "Walk_Loop", "Jog_Fwd_Loop", "Sprint_Loop", "NinjaJump_Idle_Loop" };
 
         public bool Init(Avatar avatar)
         {
@@ -97,7 +99,7 @@ namespace Kagegan
             loco = AnimationMixerPlayable.Create(graph, LocoNames.Length);
             for (int i = 0; i < LocoNames.Length; i++)
             {
-                var clip = MocapLibrary.Get(LocoNames[i]) ?? MocapLibrary.Get("Idle_Loop");
+                var clip = MocapLibrary.Get(LocoNames[i]) ?? (i == 4 ? MocapLibrary.Get("Jump_Loop") : null) ?? MocapLibrary.Get("Idle_Loop");
                 if (clip == null) { graph.Destroy(); return false; }
                 locoClips[i] = AnimationClipPlayable.Create(graph, clip);
                 locoClips[i].SetApplyFootIK(true);

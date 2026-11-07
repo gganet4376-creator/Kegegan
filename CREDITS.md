@@ -34,6 +34,13 @@
 - "Weapon Slash - Effect" — Cethiel — https://opengameart.org/content/weapon-slash-effect
 - "Animations - Blood, Hit and Both" — Sinestesia — https://opengameart.org/node/81933
 
+## Пакеты, загруженные автором проекта (CC0)
+- "Universal Animation Library 2" (Standard) — Quaternius — https://quaternius.com — анимации ударов, блока, подъёма, прыжков
+- "Stylized Nature MegaKit" (Standard) — Quaternius — https://quaternius.com — деревья, камни, кусты, трава, цветы
+- "Particle Pack" — Kenney — https://kenney.nl/assets/particle-pack — искры, огонь, электричество, земля
+- "Impact Sounds" — Kenney — https://kenney.nl/assets/impact-sounds — удары, блок, приземление, разрушение, шаги
+- "Interface Sounds" — Kenney — https://kenney.nl/assets/interface-sounds — звуки меню
+
 ## Иконки (CC BY 3.0)
 Иконки с https://game-icons.net — авторы Lorc, Delapouite, Felbrigg, Skoll, GUARD13007.
 Лицензия: https://creativecommons.org/licenses/by/3.0/

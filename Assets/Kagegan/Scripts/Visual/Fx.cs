@@ -13,7 +13,7 @@ namespace Kagegan
         static Fx inst;
         ParticleSystem sparks, smoke, fire, debris, glow, leaves;
         // flipbook / textured systems built from imported CC0 VFX textures (null when a texture is missing)
-        ParticleSystem slashFlip, hitStar, hitBurst;
+        ParticleSystem slashFlip, hitStar, hitBurst, electric, flames, dirtPs;
         ParticleSystem ringGold, ringEnergy, ringVoid, ringLightning, ringFire, fireBurst, explosionFlip, groundRing, puffWhite, puffBlack, puffFire, flashPs;
         readonly List<Anim> anims = new List<Anim>(64);
         Pool<MeshRenderer> ringPool, slashPool, crackPool, spherePool;
@@ -89,6 +89,15 @@ namespace Kagegan
             slashFlip = MakeFlip("Slash", "slash_sheet", 6, 5, 6, true, 24, false, true);
             hitStar = MakeFlip("HitStar", "hit_star", 4, 4, 16, true, 40, false);
             hitBurst = MakeFlip("HitBurst", "hit_burst", 4, 4, 16, true, 24, false);
+            // Kenney particle pack (CC0): electric arcs, wispy flames, flying dirt, star sparks, radial glow
+            electric = MakeFlip("Electric", "electric", 2, 2, 0, true, 60, false);
+            flames = MakeFlip("Flames", "flames", 2, 2, 0, true, 160, false);
+            dirtPs = MakeFlip("Dirt", "dirt", 2, 2, 0, false, 60, false);
+            if (dirtPs != null) { var dm = dirtPs.main; dm.gravityModifier = 1.4f; }
+            var sparkTex = Resources.Load<Texture2D>("Kagegan/Vfx/spark_star");
+            if (sparkTex != null) sparks.GetComponent<ParticleSystemRenderer>().sharedMaterial = Mat.FxTex(sparkTex, true, "Fx_spark_star");
+            var glowTex = Resources.Load<Texture2D>("Kagegan/Vfx/glow_light");
+            if (glowTex != null) glow.GetComponent<ParticleSystemRenderer>().sharedMaterial = Mat.FxTex(glowTex, true, "Fx_glow_light");
             ringMesh = BuildRingMesh();
             slashMesh = BuildSlashMesh();
             crackMesh = BuildQuadXZ();
@@ -314,6 +323,12 @@ namespace Kagegan
         public static void Dust(Vector3 pos, float size, int count = 8)
         {
             if (inst == null) return;
+            if (inst.dirtPs != null && size >= 0.8f)
+                for (int i = 0; i < Scaled(Mathf.Max(1, count / 4)); i++)
+                {
+                    Vector3 v = Random.onUnitSphere * 2.5f * size; v.y = Mathf.Abs(v.y) + 2.5f * size;
+                    EmitF(inst.dirtPs, pos + Vector3.up * 0.2f, v, new Color(0.75f, 0.65f, 0.5f, 0.9f), Random.Range(0.35f, 0.6f) * size, Random.Range(0.5f, 0.8f));
+                }
             int n = Scaled(Mathf.Max(2, count / 2));
             var ps = inst.puffWhite ?? inst.smoke;
             for (int i = 0; i < n; i++)
@@ -346,10 +361,20 @@ namespace Kagegan
             for (int i = 0; i < n; i++)
             {
                 Vector3 v = Random.onUnitSphere * size * 1.2f + Vector3.up * size * 1.4f;
-                if (inst.puffFire != null) EmitF(inst.puffFire, pos + Random.insideUnitSphere * size * 0.5f, v, Color.white, Random.Range(0.7f, 1.2f) * size, Random.Range(0.25f, 0.55f));
+                if (inst.flames != null && (i & 1) == 0) EmitF(inst.flames, pos + Random.insideUnitSphere * size * 0.4f, v * 0.8f, new Color(1f, 0.75f, 0.45f), Random.Range(0.8f, 1.3f) * size, Random.Range(0.3f, 0.6f), Random.Range(-25f, 25f));
+                else if (inst.puffFire != null) EmitF(inst.puffFire, pos + Random.insideUnitSphere * size * 0.5f, v, Color.white, Random.Range(0.7f, 1.2f) * size, Random.Range(0.25f, 0.55f));
                 else Emit(inst.fire, pos + Random.insideUnitSphere * size * 0.5f, v, new Color(1f, 0.6f, 0.2f), Random.Range(0.5f, 1f) * size, Random.Range(0.25f, 0.6f));
             }
             if (count >= 8 && inst.fireBurst != null) EmitF(inst.fireBurst, pos, Vector3.zero, Color.white, size * 2.2f, 0.45f);
+        }
+
+        /// <summary>Crackling electric arcs (Kenney sprites) around a point — lightning techniques and charges.</summary>
+        public static void Electric(Vector3 pos, Color c, float size, int count = 2)
+        {
+            if (inst == null || inst.electric == null) return;
+            int n = Scaled(count);
+            for (int i = 0; i < n; i++)
+                EmitF(inst.electric, pos + Random.insideUnitSphere * size * 0.3f, Vector3.zero, Color.Lerp(Color.white, c, 0.5f), size * Random.Range(0.7f, 1.2f), Random.Range(0.08f, 0.16f));
         }
 
         public static void Glow(Vector3 pos, Color c, float size, float life)
@@ -472,6 +497,7 @@ namespace Kagegan
             lr.widthMultiplier = width;
             inst.anims.Add(new Anim { kind = Kind.Bolt, c = lr, life = life, from = from, to = to, color = color });
             JaggedLine(lr, from, to);
+            Electric(to, color, width * 8f + 0.6f, 2);
             WorldLighting.Flash((from + to) * 0.5f, color * 2f, 6f, life);
         }
 

@@ -217,6 +217,7 @@ namespace Kagegan
             p.Teleport(Vector3.zero);
             p.FaceInstant(new Vector3(0, 0, 10f));
             p.Anim.Mode = AnimMode.Victory;
+            p.Anim.PlayMocap("Idle_FoldArms_Loop", 1f, 0f, false, 999f, 0.2f);
             // dawn breaks over the moon temple
             float t = 0f;
             CameraRig.Orbit(p.Center + Vector3.up * 0.3f, 6.5f, 1.4f, 14f);

@@ -58,6 +58,47 @@ namespace Kagegan
             }
         }
 
+        /// <summary>Forest backdrop from the hand-made nature models: a tree line behind the lane and undergrowth
+        /// between it and the fight. Nothing is placed on the camera side, so the view stays clear.</summary>
+        void NatureBackdrop()
+        {
+            var root = new GameObject("NatureBackdrop").transform;
+            root.SetParent(transform, false);
+            var rnd = new System.Random(57);
+            bool low = GraphicsQuality.Current == GraphicsPreset.Low;
+            float step = low ? 6.5f : 4f;
+            // tree line, two staggered rows
+            for (float x = -36f; x <= 36f; x += step + (float)rnd.NextDouble() * 2f)
+            {
+                float z = 11f + (float)rnd.NextDouble() * 4f;
+                string m = rnd.NextDouble() < 0.12 ? NatureKit.Pick(NatureKit.DeadTrees, rnd) : NatureKit.Pick(NatureKit.Trees, rnd);
+                NatureKit.Spawn(m, root, new Vector3(x, 0, z), 8f + (float)rnd.NextDouble() * 4f, (float)rnd.NextDouble() * 360f);
+                if (!low)
+                {
+                    m = NatureKit.Pick(NatureKit.Trees, rnd);
+                    NatureKit.Spawn(m, root, new Vector3(x + step * 0.5f, 0, z + 6f + (float)rnd.NextDouble() * 5f), 10f + (float)rnd.NextDouble() * 4f, (float)rnd.NextDouble() * 360f);
+                }
+            }
+            // a big twisted landmark tree far back
+            NatureKit.Spawn("TwistedTree_1", root, new Vector3(-6f, 0, 24f), 15f, 40f);
+            // rocks and undergrowth between the props and the tree line
+            int plants = low ? 14 : 34;
+            for (int i = 0; i < plants; i++)
+            {
+                float x = -30f + (float)rnd.NextDouble() * 60f;
+                float z = LaneDepth + 4.5f + (float)rnd.NextDouble() * 6f;
+                string m = NatureKit.Pick(NatureKit.Plants, rnd);
+                float h = m.StartsWith("Grass") || m.StartsWith("Flower") || m.StartsWith("Mushroom") ? 0.5f + (float)rnd.NextDouble() * 0.3f
+                        : m == "Fern_1" ? 0.9f : 1.1f + (float)rnd.NextDouble() * 0.5f;
+                NatureKit.Spawn(m, root, new Vector3(x, 0, z), h, (float)rnd.NextDouble() * 360f);
+            }
+            for (int i = 0; i < (low ? 4 : 9); i++)
+            {
+                float x = -32f + (float)rnd.NextDouble() * 64f;
+                NatureKit.Spawn(NatureKit.Pick(NatureKit.Rocks, rnd), root, new Vector3(x, 0, 9f + (float)rnd.NextDouble() * 3f), 1.2f + (float)rnd.NextDouble() * 1.4f, (float)rnd.NextDouble() * 360f);
+            }
+        }
+
         /// <summary>Mid-ground band behind the lane so the side view has depth (static, merged).</summary>
         static void BackdropBand(MeshBuilder mb, ArenaId id)
         {
@@ -69,6 +110,7 @@ namespace Kagegan
                 switch (id)
                 {
                     case ArenaId.Forest:
+                        if (NatureKit.Available) break; // hand-made models are placed by NatureBackdrop instead
                         if (rnd.NextDouble() < 0.55) Pine(mb, p, 8f + (float)rnd.NextDouble() * 6f, new Color(0.2f, 0.42f, 0.24f) * (0.85f + (float)rnd.NextDouble() * 0.3f));
                         else LeafTree(mb, p, 7f + (float)rnd.NextDouble() * 5f, new Color(0.3f, 0.5f, 0.22f) * (0.85f + (float)rnd.NextDouble() * 0.3f));
                         if (rnd.NextDouble() < 0.4) Rock(mb, p + new Vector3(1.5f, 0, -2f), 0.6f + (float)rnd.NextDouble(), new Color(0.48f, 0.48f, 0.46f));
@@ -108,6 +150,7 @@ namespace Kagegan
                 default: a.BuildMoon(stat); break;
             }
             BackdropBand(stat, id);
+            if (id == ArenaId.Forest && NatureKit.Available) a.NatureBackdrop();
             a.AddStaticMesh(stat, "Static");
             if (a.grassMb != null) a.AddStaticMesh(a.grassMb, "Grass", Mat.ToonWind);
             a.BuildClouds();
@@ -611,17 +654,26 @@ namespace Kagegan
             for (int i = 0; i < 10; i++) Rock(mb, new Vector3((float)rnd.NextDouble() * 50f - 25f, 0, (float)rnd.NextDouble() * 50f - 25f) * (i < 5 ? 1.2f : 1f), 0.6f + (float)rnd.NextDouble(), new Color(0.5f, 0.5f, 0.48f));
             Mountains(mb, 70f, new Color(0.35f, 0.5f, 0.42f), 14, 22f, 9);
             // breakable trees inside the arena
+            bool kit = NatureKit.Available;
             for (int i = 0; i < 11; i++)
             {
                 float a = (float)i / 11f * Mathf.PI * 2f + 0.3f;
                 float rr = 9f + (i % 3) * 3.5f;
+                Vector3 tp = new Vector3(Mathf.Cos(a) * rr, 0, Mathf.Sin(a) * rr);
+                if (kit)
+                {
+                    string model = i % 5 == 4 ? NatureKit.Pick(NatureKit.DeadTrees, rnd) : NatureKit.Trees[i % NatureKit.Trees.Length];
+                    if (Destructible.CreateFromModel(transform, DestructKind.Tree, tp, model, 6.5f + (i % 3) * 0.8f, 110f, new Color(0.45f, 0.3f, 0.2f), (float)rnd.NextDouble() * 360f) != null) continue;
+                }
                 TreeProp(new Vector3(Mathf.Cos(a) * rr, 0, Mathf.Sin(a) * rr), 6f + (i % 3), i % 2 == 0 ? new Color(0.24f, 0.46f, 0.26f) : new Color(0.32f, 0.52f, 0.22f), i % 2 == 0);
             }
             for (int i = 0; i < 5; i++)
             {
                 float a = i * 1.3f + 0.6f;
+                Vector3 rp = new Vector3(Mathf.Cos(a) * 16f, 0, Mathf.Sin(a) * 16f);
+                if (kit && Destructible.CreateFromModel(transform, DestructKind.Rock, rp, NatureKit.Rocks[i % NatureKit.Rocks.Length], 1.5f + (i % 2) * 0.4f, 90f, new Color(0.55f, 0.55f, 0.52f), (float)rnd.NextDouble() * 360f) != null) continue;
                 var m = SingleMesh(b => Rock(b, Vector3.zero, 1.1f, new Color(0.55f, 0.55f, 0.52f)));
-                Destructible.Create(transform, DestructKind.Rock, new Vector3(Mathf.Cos(a) * 16f, 0, Mathf.Sin(a) * 16f), m, 90f, new Color(0.55f, 0.55f, 0.52f), 1.2f);
+                Destructible.Create(transform, DestructKind.Rock, rp, m, 90f, new Color(0.55f, 0.55f, 0.52f), 1.2f);
             }
             Weather(new Color(0.55f, 0.7f, 0.3f, 0.9f), 10f, 0.12f, new Vector3(0.8f, -1.2f, 0.3f), 40f, false, 9f, Mat.FxAlpha);
             PlayerSpawn = new Vector3(0, 0, -7f); EnemySpawn = new Vector3(0, 0, 7f);

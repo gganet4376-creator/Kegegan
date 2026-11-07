@@ -17,7 +17,8 @@ namespace Kagegan
         {
             Name = "hook", Windup = right ? PoseLib.HookRWind : PoseLib.HookLWind, Strike = right ? PoseLib.HookR : PoseLib.HookL,
             Startup = 0.12f, Active = 0.08f, Recovery = 0.2f, Damage = dmg, Bone = right ? HitBone.HandR : HitBone.HandL,
-            Knockback = 2.4f, Hitstun = 0.38f, Lunge = 2f, Radius = 0.42f, SlashEuler = new Vector3(0, 0, right ? 70 : -70), Range = 1.5f
+            Knockback = 2.4f, Hitstun = 0.38f, Lunge = 2f, Radius = 0.42f, SlashEuler = new Vector3(0, 0, right ? 70 : -70), Range = 1.5f,
+            Mocap = right ? "Melee_Hook" : null, MocapContact = MocapLibrary.HookContact
         };
 
         public static Move Kick(float dmg = 11f, float knock = 4.5f) => new Move
@@ -116,7 +117,9 @@ namespace Kagegan
         {
             Name = name, Windup = windup, Strike = strike, Startup = startup, Active = 0.05f, Recovery = recovery, Damage = 0f, Lunge = 0f,
             SlashFx = false, Kind = HitKind.Technique, OnActive = spawn, Sfx = SfxId.Count,
-            Mocap = "Spell_Simple_Shoot", MocapContact = 0.1f
+            // throws (kunai, shuriken, rods, spears, bombs) use the captured overhand throw, everything else the spell push
+            Mocap = strike == PoseLib.Throw ? "OverhandThrow" : "Spell_Simple_Shoot",
+            MocapContact = strike == PoseLib.Throw ? MocapLibrary.ThrowContact : 0.1f
         };
 
         public static Vector3 AimDir(Fighter f)

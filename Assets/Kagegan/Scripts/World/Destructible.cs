@@ -18,6 +18,7 @@ namespace Kagegan
         public float Size = 1f;
         public bool Broken { get; private set; }
         MeshRenderer mr;
+        Renderer[] rends; // every renderer of the prop (imported models have several)
         Collider col;
         float wobble;
         Vector3 fallAxis;
@@ -37,6 +38,7 @@ namespace Kagegan
             d.mr.sharedMaterial = Mat.Toon;
             d.mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             d.mr.receiveShadows = false;
+            d.rends = new Renderer[] { d.mr };
             d.Kind = kind; d.MaxHp = d.Hp = hp; d.DebrisColor = debris; d.Size = size;
             switch (kind)
             {
@@ -66,6 +68,54 @@ namespace Kagegan
             All.Add(d);
             return d;
         }
+
+        /// <summary>Breakable prop built from an imported nature model. Returns null if the model is missing.</summary>
+        public static Destructible CreateFromModel(Transform parent, DestructKind kind, Vector3 pos, string model, float height, float hp, Color debris, float yaw)
+        {
+            var go = NatureKit.Spawn(model, parent, pos, height, yaw);
+            if (go == null) return null;
+            var d = go.AddComponent<Destructible>();
+            d.rends = go.GetComponentsInChildren<Renderer>();
+            if (d.rends.Length == 0) { Destroy(go); return null; }
+            d.mr = null;
+            float size = kind == DestructKind.Tree ? height / 6f : height / 1.6f;
+            d.Kind = kind; d.MaxHp = d.Hp = hp; d.DebrisColor = debris; d.Size = size;
+            Bounds b = d.WorldBounds();
+            if (kind == DestructKind.Tree)
+            {
+                var c = go.AddComponent<CapsuleCollider>();
+                float s = go.transform.lossyScale.y;
+                c.radius = 0.35f * size / Mathf.Max(0.001f, s);
+                c.height = height / Mathf.Max(0.001f, s);
+                c.center = go.transform.InverseTransformPoint(new Vector3(pos.x, b.center.y, pos.z));
+                c.direction = 1;
+                // the FBX root may be rotated (Z-up export): make the capsule follow world up
+                Vector3 up = go.transform.InverseTransformDirection(Vector3.up);
+                c.direction = Mathf.Abs(up.x) > 0.7f ? 0 : Mathf.Abs(up.z) > 0.7f ? 2 : 1;
+                d.col = c;
+            }
+            else
+            {
+                var bc = go.AddComponent<BoxCollider>();
+                bc.center = go.transform.InverseTransformPoint(b.center);
+                bc.size = go.transform.InverseTransformVector(b.size);
+                bc.size = new Vector3(Mathf.Abs(bc.size.x), Mathf.Abs(bc.size.y), Mathf.Abs(bc.size.z));
+                d.col = bc;
+            }
+            d.baseRot = go.transform.rotation;
+            d.basePos = go.transform.position;
+            All.Add(d);
+            return d;
+        }
+
+        Bounds WorldBounds()
+        {
+            var b = rends[0].bounds;
+            for (int i = 1; i < rends.Length; i++) b.Encapsulate(rends[i].bounds);
+            return b;
+        }
+
+        void SetVisible(bool on) { for (int i = 0; i < rends.Length; i++) rends[i].enabled = on; }
 
         void OnDestroy() { All.Remove(this); }
 
@@ -117,13 +167,13 @@ namespace Kagegan
 
         void Shatter()
         {
-            Vector3 c = mr.bounds.center;
+            Vector3 c = WorldBounds().center;
             Fx.Debris(c, DebrisColor, GraphicsQuality.DebrisPerBreak + 2, 6f);
             Fx.Dust(new Vector3(c.x, 0.2f, c.z), 1.4f * Size, 10);
             if (Kind == DestructKind.Lantern) { Fx.Fire(c, 0.5f, 8); WorldLighting.Flash(c, new Color(1f, 0.7f, 0.3f), 5f, 0.6f); }
             Sfx.Play(SfxId.Crumble, 0.9f);
             CameraRig.Shake(0.15f);
-            mr.enabled = false;
+            SetVisible(false);
             if (col != null) col.enabled = false;
         }
 
@@ -148,7 +198,7 @@ namespace Kagegan
                 if (sinkT > 8f)
                 {
                     transform.position = basePos + Vector3.down * (sinkT - 8f) * 0.6f;
-                    if (sinkT > 11f) { mr.enabled = false; sinkT = -1f; }
+                    if (sinkT > 11f) { SetVisible(false); sinkT = -1f; }
                 }
             }
         }
@@ -192,14 +242,18 @@ namespace Kagegan
             if (Mathf.Abs(fade - fadeTarget) < 0.01f) return;
             fade = Mathf.MoveTowards(fade, fadeTarget, Time.unscaledDeltaTime * 4f);
             if (fadeBlock == null) fadeBlock = new MaterialPropertyBlock();
-            mr.GetPropertyBlock(fadeBlock);
-            fadeBlock.SetFloat(IdFade, fade);
-            mr.SetPropertyBlock(fadeBlock);
+            for (int i = 0; i < rends.Length; i++)
+            {
+                rends[i].GetPropertyBlock(fadeBlock);
+                fadeBlock.SetFloat(IdFade, fade);
+                rends[i].SetPropertyBlock(fadeBlock);
+            }
         }
 
         /// <summary>Moves the prop (used to lay props out along the fighting lane).</summary>
         public void Relocate(Vector3 pos)
         {
+            pos.y = transform.position.y; // imported models are lifted to sit on the ground
             transform.position = pos;
             basePos = pos;
         }
@@ -208,7 +262,7 @@ namespace Kagegan
         {
             Broken = false; Hp = MaxHp; fallT = -1f; sinkT = -1f; wobble = 0f;
             transform.SetPositionAndRotation(basePos, baseRot);
-            mr.enabled = true;
+            SetVisible(true);
             if (col != null) col.enabled = true;
         }
     }

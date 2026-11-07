@@ -163,7 +163,7 @@ namespace Kagegan
                     break;
                 case FState.Block:
                     control = true;
-                    if (!blockHeld) SetState(FState.Idle);
+                    if (!blockHeld) { SetState(FState.Idle); Anim.StopAction(); }
                     else if (buffered == Cmd.Light && CounterReady) ConsumeBuffer();
                     else if (buffered == Cmd.Dodge || buffered == Cmd.Tech || buffered == Cmd.Ult || buffered == Cmd.Jump) { SetState(FState.Idle); ConsumeBuffer(); }
                     break;
@@ -286,7 +286,7 @@ namespace Kagegan
             {
                 Velocity.y = JumpPower; Grounded = false; airJumpUsed = false;
                 Sfx.Play(SfxId.Whoosh, 0.4f, 1.3f); Fx.Dust(transform.position, 0.6f, 4);
-                if (!Anim.PlayMocap("Jump_Start", 1.7f, 0.3f, false, 0.3f))
+                if (!Anim.PlayMocap("NinjaJump_Start", 1.8f, 0.25f, false, 0.3f) && !Anim.PlayMocap("Jump_Start", 1.7f, 0.3f, false, 0.3f))
                     Anim.Play(Clip.Seq(0f, PoseLib.LandSquash, 0.07f, PoseLib.AirUp, 0.22f, null)); // push-off then tuck
             }
             else if (!airJumpUsed) { airJumpUsed = true; Velocity.y = JumpPower * 0.85f; Fx.Smoke(transform.position, 0.4f, new Color(1, 1, 1, 0.4f), 4); }
@@ -316,6 +316,7 @@ namespace Kagegan
             dodgeStart = Time.time;
             SetState(FState.Dodge);
             stateTimer = 0.32f;
+            if (Vector3.Dot(dodgeDir, transform.forward) > 0.3f) Anim.PlayMocap("Slide_Start", 2.4f, 0.05f, false, 0.32f, 0.05f); // captured dash-slide
             Sfx.Play(SfxId.Whoosh, 0.6f, 1.5f);
             Fx.Dust(transform.position, 0.5f, 4);
         }
@@ -334,6 +335,7 @@ namespace Kagegan
         void EnterBlock()
         {
             SetState(FState.Block);
+            Anim.PlayMocap("Idle_Shield_Loop", 1f, 0.2f, false, 999f, 0.07f); // captured guard stance
         }
 
         // ================== moves ==================
@@ -669,7 +671,7 @@ namespace Kagegan
                 stateTimer = h.Hitstun * (IsBoss ? 0.6f : 1f);
                 SetState(FState.Hitstun);
                 // captured hit reaction, timed to the stun so the fighter is back in stance as control returns
-                string react = zone == 1 ? "Hit_Head" : "Hit_Chest";
+                string react = kb >= 6f ? "Hit_Knockback" : zone == 1 ? "Hit_Head" : "Hit_Chest";
                 var rc = MocapLibrary.Get(react);
                 if (rc != null) Anim.PlayMocap(react, Mathf.Clamp(rc.length / Mathf.Max(0.15f, stateTimer), 0.7f, 1.6f), 0f, false, -1f, 0.05f);
             }
@@ -872,6 +874,7 @@ namespace Kagegan
         public void SetState(FState s)
         {
             if (State == FState.Dead && s != FState.Dead) return;
+            if (State == FState.Block && s != FState.Block && Anim != null && Anim.HasMocap) Anim.Mocap.StopAction(0.08f); // leave the guard loop
             if (State == FState.Attack && s != FState.Attack) { CurMove = null; }
             State = s;
             if (s == FState.Idle) { slamming = false; }
@@ -894,6 +897,15 @@ namespace Kagegan
             if (Anim.Stance == StanceKind.Swift || Anim.Stance == StanceKind.Thunder) v = Random.value < 0.7f ? 1 : 2;
             else if (Anim.Stance == StanceKind.Heavy || IsBoss) v = Random.value < 0.75f ? 0 : 2;
             else v = Random.Range(0, 3);
+            if (v != 1 && Anim.HasMocap && MocapLibrary.Get("LayToIdle") != null)
+            {
+                // captured get-up from lying on the back (same orientation as the knockdown pose)
+                stateTimer = 0.72f;
+                Anim.PlayMocap("LayToIdle", 1.53f / stateTimer, 0f, false, stateTimer, 0.12f);
+                invulnUntil = Time.time + stateTimer + 0.15f;
+                Fx.Dust(transform.position, 0.6f, 4);
+                return;
+            }
             switch (v)
             {
                 case 1: // kip-up: spring back to the feet
@@ -1135,7 +1147,7 @@ namespace Kagegan
                 Fx.Dust(transform.position, 0.5f, 3);
                 if (State == FState.Idle)
                 {
-                    if (!Anim.PlayMocap("Jump_Land", 1.8f, 0.12f, false, 0.32f))
+                    if (!Anim.PlayMocap("NinjaJump_Land", 1.8f, 0.1f, false, 0.32f) && !Anim.PlayMocap("Jump_Land", 1.8f, 0.12f, false, 0.32f))
                         Anim.Play(Clip.Seq(0f, null, 0.05f, PoseLib.LandSquash, 0.22f, null)); // absorb the landing
                     Sfx.PlayAt(SfxId.Land, transform.position, 0.35f, 1.2f);
                 }

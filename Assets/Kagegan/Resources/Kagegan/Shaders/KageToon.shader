@@ -15,6 +15,11 @@ Shader "Kagegan/Toon"
         _EmitColor ("Extra Emission Color", Color) = (1,0.6,0.2,1)
         _Fade ("Camera Fade (dither)", Range(0,1)) = 1
         _Wind ("Wind sway (grass)", Range(0,1)) = 0
+        _WindObj ("Wind by object height (trees)", Range(0,1)) = 0
+        _MainTex ("Albedo (imported models)", 2D) = "white" {}
+        _VColor ("Use vertex colour (procedural meshes)", Range(0,1)) = 1
+        _Cutoff ("Alpha cutoff (foliage)", Range(0,1)) = 0
+        [Enum(UnityEngine.Rendering.CullMode)] _Cull ("Cull", Float) = 2
     }
     SubShader
     {
@@ -22,7 +27,7 @@ Shader "Kagegan/Toon"
         LOD 100
         Pass
         {
-            Cull Back
+            Cull [_Cull]
             CGPROGRAM
             #pragma vertex vert
             #pragma fragment frag
@@ -31,7 +36,9 @@ Shader "Kagegan/Toon"
             #include "UnityCG.cginc"
 
             fixed4 _Color, _ShadowTint, _RimColor, _FlashColor, _EmitColor;
-            half _Flash, _Emit, _Fade, _Wind;
+            half _Flash, _Emit, _Fade, _Wind, _WindObj, _VColor, _Cutoff;
+            sampler2D _MainTex;
+            float4 _MainTex_ST;
 
             float4 _KageLightDir;     // xyz = direction TO the sun
             fixed4 _KageLightColor;
@@ -58,6 +65,7 @@ Shader "Kagegan/Toon"
                 float3 wpos : TEXCOORD0;
                 half3 wnormal : TEXCOORD1;
                 float4 spos : TEXCOORD2;
+                float2 uv : TEXCOORD3;
                 UNITY_VERTEX_OUTPUT_STEREO
             };
 
@@ -71,11 +79,14 @@ Shader "Kagegan/Toon"
                 {
                     // grass blades: tips (uv.y = 1) bend with a travelling gust
                     float gust = sin(_Time.y * 1.7 + o.wpos.x * 0.35 + o.wpos.z * 0.22) * 0.6 + sin(_Time.y * 3.1 + o.wpos.z * 0.9) * 0.25;
-                    o.wpos.xz += float2(0.08, 0.05) * gust * v.uv.y * _Wind;
+                    // grass: bend by blade uv; trees/bushes: bend by height above the model's base
+                    float h = lerp(v.uv.y, saturate(v.vertex.y / 4.0) * 2.0, _WindObj);
+                    o.wpos.xz += float2(0.08, 0.05) * gust * h * _Wind;
                 }
                 o.pos = UnityWorldToClipPos(o.wpos);
                 o.wnormal = UnityObjectToWorldNormal(v.normal);
-                o.color = v.color;
+                o.color = lerp(fixed4(1, 1, 1, 0), v.color, _VColor);
+                o.uv = TRANSFORM_TEX(v.uv, _MainTex);
                 o.spos = ComputeScreenPos(o.pos);
                 return o;
             }
@@ -89,6 +100,8 @@ Shader "Kagegan/Toon"
                     float d = frac(52.9829189 * frac(dot(px, float2(0.06711056, 0.00583715)))); // interleaved gradient noise
                     clip(_Fade - d);
                 }
+                fixed4 tex = tex2D(_MainTex, i.uv);
+                if (_Cutoff > 0) clip(tex.a - _Cutoff);
                 half3 n = normalize(i.wnormal);
                 half3 l = normalize(_KageLightDir.xyz);
                 half3 vdir = normalize(_WorldSpaceCameraPos.xyz - i.wpos);
@@ -96,7 +109,7 @@ Shader "Kagegan/Toon"
                 // two-band anime ramp
                 half band1 = smoothstep(-0.02, 0.05, ndl);
                 half band2 = smoothstep(0.55, 0.62, ndl) * 0.12;
-                half3 albedo = i.color.rgb * _Color.rgb;
+                half3 albedo = i.color.rgb * tex.rgb * _Color.rgb;
                 half3 lit = albedo * lerp(_ShadowTint.rgb, half3(1,1,1), band1) * (_KageLightColor.rgb + band2) + albedo * _KageAmbient.rgb;
 
                 half rim = pow(1.0 - saturate(dot(n, vdir)), 4.0) * _RimColor.a * (0.35 + band1);

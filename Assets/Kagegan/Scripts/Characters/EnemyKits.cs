@@ -83,7 +83,8 @@ namespace Kagegan
                 {
                     Name = "dashslash", Windup = PoseLib.Crouch, Strike = PoseLib.Thrust, Startup = 0.35f, Active = 0.25f, Recovery = 0.4f,
                     Damage = dmg, Kind = HitKind.Technique, Lunge = 15f, Knockback = 6f, Radius = 0.5f, Reach = new Vector3(0, 0, 0.3f),
-                    FxColor = c, Shake = 0.25f, Range = 9f
+                    FxColor = c, Shake = 0.25f, Range = 9f,
+                    Mocap = "Sword_Dash", MocapContact = MocapLibrary.DashContact
                 };
                 m.OnTick = (ff, t) =>
                 {

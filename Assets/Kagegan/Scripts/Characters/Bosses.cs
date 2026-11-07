@@ -173,7 +173,8 @@ namespace Kagegan
             Heavy = new Move
             {
                 Name = "thrust", Windup = PoseLib.Crouch, Strike = PoseLib.Thrust, Startup = 0.22f, Active = 0.12f, Recovery = 0.32f,
-                Damage = 20f, Kind = HitKind.Heavy, Lunge = 8f, Reach = new Vector3(0, 0, 0.5f), Knockback = 9f, Knockdown = true, FxColor = Bolt, Range = 3f
+                Damage = 20f, Kind = HitKind.Heavy, Lunge = 8f, Reach = new Vector3(0, 0, 0.5f), Knockback = 9f, Knockdown = true, FxColor = Bolt, Range = 3f,
+                Mocap = "Sword_Dash", MocapContact = MocapLibrary.DashContact
             };
             Launcher = MoveLib.Uppercut(12f, 12.5f); Launcher.FxColor = Bolt;
             DashAttack = Heavy.Copy(); DashAttack.Lunge = 12f;

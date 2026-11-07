@@ -324,6 +324,7 @@ namespace Kagegan
             Haptics.Heavy();
             yield return new WaitForSecondsRealtime(1.5f);
             Player.Anim.Mode = AnimMode.Victory;
+            Player.Anim.PlayMocap("Idle_FoldArms_Loop", 1f, 0f, false, 2.5f, 0.2f);
             CameraRig.Cinematic(Player.Center, Player.transform.forward + Vector3.up * 0.1f, 4f, 0.6f, 2f);
             // clean up summons
             foreach (var s in summons) if (s != null && s.Alive) s.Kill(Player);

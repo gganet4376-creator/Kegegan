@@ -69,7 +69,7 @@ namespace Kagegan
             UIKit.Button(side, "Настройки", new Vector2(0.5f, 1), new Vector2(0, y - 375), new Vector2(600, 100), () => ShowSettings(ShowMain));
             UIKit.Button(side, "Выход", new Vector2(0.5f, 1), new Vector2(0, y - 495), new Vector2(600, 90), Application.Quit, new Color(0.15f, 0.12f, 0.14f, 0.9f), 34);
             UIKit.Label(UIKit.Box(side, "Ver", new Vector2(0.5f, 0), new Vector2(0, 74), new Vector2(700, 40)), "Офлайн • v" + Application.version, 24, new Color(1, 1, 1, 0.5f));
-            UIKit.Label(UIKit.Box(side, "Credits", new Vector2(0.5f, 0), new Vector2(0, 30), new Vector2(720, 50)), "Анимации: Quaternius (CC0). Звуки, музыка, эффекты: OpenGameArt (CC0). Иконки: game-icons.net — Lorc, Delapouite и др. (CC BY 3.0)", 17, new Color(1, 1, 1, 0.45f));
+            UIKit.Label(UIKit.Box(side, "Credits", new Vector2(0.5f, 0), new Vector2(0, 30), new Vector2(720, 50)), "Анимации и природа: Quaternius (CC0). Звуки, музыка, эффекты: OpenGameArt, Kenney (CC0). Иконки: game-icons.net — Lorc, Delapouite и др. (CC BY 3.0)", 17, new Color(1, 1, 1, 0.45f));
         }
 
         public void ShowMain() { Show(main); }
