@@ -28,7 +28,7 @@ namespace Kagegan
 
     /// <summary>
     /// Procedural humanoid: a 21-bone hierarchy plus ONE SkinnedMeshRenderer built from primitives
-    /// (1 bone per vertex). Characters therefore cost one draw call (+1 for the outline on Medium/High).
+    /// (up to 2 bones per vertex near elbows and knees). Characters therefore cost one draw call (+1 for the outline on Medium/High).
     /// </summary>
     public class HumanoidRig : MonoBehaviour
     {
@@ -240,7 +240,7 @@ namespace Kagegan
                 boneToRoot[i] = transform.worldToLocalMatrix * Bones[i].localToWorldMatrix;
                 bind[i] = Bones[i].worldToLocalMatrix * transform.localToWorldMatrix;
             }
-            var mesh = mb.ToSkinnedMesh("Fighter", boneToRoot, bind);
+            var mesh = mb.ToSkinnedMesh("Fighter", boneToRoot, bind, JointWeight);
 
             var meshGo = new GameObject("Body");
             meshGo.transform.SetParent(transform, false);
@@ -248,7 +248,7 @@ namespace Kagegan
             Smr.sharedMesh = mesh;
             Smr.bones = Bones;
             Smr.rootBone = Bones[(int)B.Hips];
-            Smr.quality = SkinQuality.Bone1;
+            Smr.quality = SkinQuality.Auto;
             Smr.updateWhenOffscreen = false;
             Smr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             Smr.receiveShadows = false;
@@ -262,6 +262,29 @@ namespace Kagegan
             mpb.SetFloat("_CharFx", 1f); // back-light edge + toon highlight, fighters only
             Smr.SetPropertyBlock(mpb);
             SetLids(0.1f);
+        }
+
+        BoneWeight JointWeight(int index, Vector3 local)
+        {
+            B bone = (B)index;
+            B neighbour;
+            switch (bone)
+            {
+                case B.UArmL: neighbour = B.LArmL; break;
+                case B.UArmR: neighbour = B.LArmR; break;
+                case B.ThighL: neighbour = B.ShinL; break;
+                case B.ThighR: neighbour = B.ShinR; break;
+                case B.LArmL: neighbour = B.UArmL; break;
+                case B.LArmR: neighbour = B.UArmR; break;
+                case B.ShinL: neighbour = B.ThighL; break;
+                case B.ShinR: neighbour = B.ThighR; break;
+                default: return new BoneWeight { boneIndex0 = index, weight0 = 1f };
+            }
+
+            float jointY = Bones[(int)neighbour].parent == Bones[index] ? Bones[(int)neighbour].localPosition.y : 0f;
+            float distance = Mathf.Abs(local.y - jointY);
+            float blend = 0.5f * (1f - Mathf.SmoothStep(0f, 1f, distance / (0.12f * Look.height)));
+            return new BoneWeight { boneIndex0 = index, weight0 = 1f - blend, boneIndex1 = (int)neighbour, weight1 = blend };
         }
 
         void BuildHair(MeshBuilder mb, Look L)

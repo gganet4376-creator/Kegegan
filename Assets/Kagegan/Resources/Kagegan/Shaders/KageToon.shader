@@ -16,6 +16,7 @@ Shader "Kagegan/Toon"
         _EmitColor ("Extra Emission Color", Color) = (1,0.6,0.2,1)
         _Fade ("Camera Fade (dither)", Range(0,1)) = 1
         _Wind ("Wind sway (grass)", Range(0,1)) = 0
+        _GrassContact ("Trample imported grass", Range(0,1)) = 0
         _WindObj ("Wind by object height (trees)", Range(0,1)) = 0
         _WindHeight ("Wind: plant height for full bend (m)", Float) = 8
         _Flutter ("Wind: leaf flutter", Range(0,1)) = 0
@@ -31,7 +32,7 @@ Shader "Kagegan/Toon"
         CGINCLUDE
             #include "UnityCG.cginc"
             fixed4 _Color, _ShadowTint, _RimColor, _FlashColor, _EmitColor;
-            half _Flash, _CharFx, _Emit, _Fade, _Wind, _WindObj, _VColor, _Cutoff, _WindHeight, _Flutter;
+            half _Flash, _CharFx, _Emit, _Fade, _Wind, _WindObj, _GrassContact, _VColor, _Cutoff, _WindHeight, _Flutter;
             float4 _KageWind;         // xy = wind direction on the ground, z = strength, w = speed
             half _KageGlow;           // emission multiplier (HDR presets)
             sampler2D _MainTex;
@@ -88,7 +89,8 @@ Shader "Kagegan/Toon"
                 float2 off = (dir * ((0.25 + gust) + sway * 0.35) + side * sway * 0.2) * amp * bend * str;
                 // trampling: blades lean away from every nearby contact point (grass only, not trees)
                 float grass = 1.0 - _WindObj;
-                if (grass > 0.5 && _KageBendCount > 0.5)
+                float press = 0.0;
+                if (max(grass, _GrassContact) > 0.5 && _KageBendCount > 0.5)
                 {
                     float2 push = 0;
                     for (int bi = 0; bi < 12; bi++)
@@ -100,13 +102,14 @@ Shader "Kagegan/Toon"
                         float k = saturate(1.0 - dist / max(b.w, 0.01));
                         k = k * k * (3.0 - 2.0 * k) * _KageBendK[bi] * saturate(1.6 - abs(wpos.y - b.y));
                         push += dv / max(dist, 0.04) * k;
+                        press = max(press, k);
                     }
                     float pl = length(push);
                     push *= min(pl, 1.0) / max(pl, 0.001);
                     off = off * (1.0 - min(pl, 1.0) * 0.6) + push * 0.42 * bend;
                 }
                 float3 d = float3(off.x, 0, off.y);
-                d.y = -dot(off, off) / (2.0 * tall); // bend instead of stretching
+                d.y = -dot(off, off) / (2.0 * tall) - press * lerp(uv.y, objB, _WindObj) * 0.18;
                 // distant grass sinks into the ground (saves fill rate, no popping at the draw distance)
                 if (grass > 0.5 && _KageGrassFade.y > 0)
                 {

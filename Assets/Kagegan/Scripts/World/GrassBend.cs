@@ -9,9 +9,10 @@ namespace Kagegan
     ///   - a short trail behind running / dashing fighters that springs back over ~1.2 s;
     ///   - one-shot impacts: landings, falls, slides (Fx.Dust), cracks, ground shockwaves and explosions,
     ///     whose radius grows outward while the strength fades.
-    /// Low: off. Medium: 6 points. High / Ultra: 12.
+    /// Low: 2 points. Medium: 6 points. High / Ultra: 12.
     /// Also sets the grass draw distance (_KageGrassFade) from the player's grass setting.
     /// </summary>
+    [DefaultExecutionOrder(100)]
     public class GrassBend : MonoBehaviour
     {
         struct Pt { public Vector3 p; public float r0, r1, k, life, max; }
@@ -22,7 +23,13 @@ namespace Kagegan
         readonly Vector4[] outP = new Vector4[MaxOut];
         readonly float[] outK = new float[MaxOut];
         readonly float[] outScore = new float[MaxOut];
-        readonly System.Collections.Generic.Dictionary<Fighter, Vector3> lastTrail = new System.Collections.Generic.Dictionary<Fighter, Vector3>();
+        struct Contacts
+        {
+            public Vector3? left, right, body;
+        }
+
+        readonly System.Collections.Generic.Dictionary<Fighter, Contacts> contacts =
+            new System.Collections.Generic.Dictionary<Fighter, Contacts>();
         int outN;
 
         static readonly int IdBend = Shader.PropertyToID("_KageBend");
@@ -41,7 +48,7 @@ namespace Kagegan
             {
                 switch (GraphicsQuality.Current)
                 {
-                    case GraphicsPreset.Low: return 0;
+                    case GraphicsPreset.Low: return 2;
                     case GraphicsPreset.Medium: return 6;
                     default: return MaxOut;
                 }
@@ -51,7 +58,7 @@ namespace Kagegan
         /// <summary>One-shot contact: the pressed patch grows from r0 to r1 metres while it fades over `life` seconds.</summary>
         public static void Impact(Vector3 p, float r0, float r1, float life, float strength = 1f)
         {
-            if (inst == null || Slots == 0 || life <= 0f) return;
+            if (inst == null || life <= 0f) return;
             if (p.y > 1.5f) return; // high in the air: nothing reaches the grass
             var a = inst.pts;
             int slot = 0; float worst = float.MaxValue;
@@ -95,11 +102,6 @@ namespace Kagegan
             int max = Slots;
             float dt = Time.deltaTime;
             outN = 0;
-            if (max == 0)
-            {
-                Shader.SetGlobalFloat(IdCount, 0f);
-                return;
-            }
             var cam = Camera.main;
             Vector3 cp = cam != null ? cam.transform.position : Vector3.zero;
 
@@ -110,16 +112,26 @@ namespace Kagegan
                 var f = all[i];
                 if (f == null || !f.isActiveAndEnabled) continue;
                 Vector3 p = f.transform.position;
-                bool lying = f.State == FState.Knockdown || f.State == FState.Dead || f.State == FState.Mount;
-                if (!f.Grounded && !lying) { lastTrail.Remove(f); continue; }
-                float r = lying ? f.Height * 0.55f : 0.55f;
-                Add(p, r, 1f, (p - cp).sqrMagnitude, max);
-                // the patch they just left recovers slowly instead of popping back up
-                if (!lastTrail.TryGetValue(f, out var last) || (p - last).sqrMagnitude > 0.45f * 0.45f)
+                bool lying = f.State == FState.Knockdown || f.State == FState.Dead;
+                contacts.TryGetValue(f, out var previous);
+                Contacts current = default;
+                float bodyRadius = f.Height * 0.55f;
+                if (f.Grounded && lying)
                 {
-                    if (lastTrail.ContainsKey(f)) Impact(p, 0.5f, 0.55f, 1.3f, 0.85f);
-                    lastTrail[f] = p;
+                    Vector3 body = f.Rig.BonePos(B.Hips);
+                    body.y = p.y;
+                    current.body = body;
+                    Add(body, bodyRadius, 1f, (body - cp).sqrMagnitude, max);
                 }
+                else if (f.Grounded && f.State != FState.Mount && f.State != FState.Grabbed)
+                {
+                    current.left = FootContact(f, B.FootL, p.y, cp, max);
+                    current.right = FootContact(f, B.FootR, p.y, cp, max);
+                }
+                current.left = LeavePrint(previous.left, current.left, 0.44f);
+                current.right = LeavePrint(previous.right, current.right, 0.44f);
+                current.body = LeavePrint(previous.body, current.body, bodyRadius);
+                contacts[f] = current;
             }
 
             // impacts and trails
@@ -139,9 +151,30 @@ namespace Kagegan
             Shader.SetGlobalVectorArray(IdBend, outP);
             Shader.SetGlobalFloatArray(IdK, outK);
             Shader.SetGlobalFloat(IdCount, outN);
+        }
 
-            // forget fighters that are gone
-            if (lastTrail.Count > all.Count + 4) lastTrail.Clear();
+        public static void Forget(Fighter fighter)
+        {
+            if (inst != null) inst.contacts.Remove(fighter);
+        }
+
+        Vector3? FootContact(Fighter fighter, B bone, float groundY, Vector3 camera, int max)
+        {
+            Transform foot = fighter.Rig[bone];
+            Vector3 p = foot.TransformPoint(new Vector3(0f, -0.035f, 0.06f));
+            if (Mathf.Abs(p.y - groundY) > 0.15f) return null;
+            p.y = groundY;
+            Add(p, 0.44f, 1f, (p - camera).sqrMagnitude, max);
+            return p;
+        }
+
+        static Vector3? LeavePrint(Vector3? previous, Vector3? current, float radius)
+        {
+            if (!previous.HasValue) return current;
+            if (current.HasValue && (current.Value - previous.Value).sqrMagnitude < 0.28f * 0.28f)
+                return previous;
+            Impact(previous.Value, radius, radius, 1.2f, 0.8f);
+            return current;
         }
 
         /// <summary>Keeps the strongest contacts closest to the camera.</summary>

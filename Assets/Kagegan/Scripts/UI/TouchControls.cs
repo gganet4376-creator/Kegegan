@@ -66,7 +66,13 @@ namespace Kagegan
             Base.anchoredPosition = restPos;
         }
 
-        void OnDisable() { pointer = -99; Value = Vector2.zero; if (Knob != null) Knob.anchoredPosition = Vector2.zero; }
+        void OnDisable()
+        {
+            pointer = -99;
+            Value = Vector2.zero;
+            if (Knob != null) Knob.anchoredPosition = Vector2.zero;
+            if (Base != null) Base.anchoredPosition = restPos;
+        }
     }
 
     /// <summary>Round touch button with press feedback, cooldown radial and drag support for the layout editor.</summary>
@@ -94,10 +100,10 @@ namespace Kagegan
 
         public void OnPointerDown(PointerEventData e)
         {
-            if (LayoutEditor.Editing) return;
+            if (LayoutEditor.Editing || Held) return;
             pointer = e.pointerId;
             Held = true;
-            transform.localScale = Vector3.one * 0.9f;
+            transform.localScale = Vector3.one * (Save.Data.buttonScale * 0.9f);
             Icon.color = baseColor * 1.35f;
             Down?.Invoke();
         }
@@ -114,7 +120,7 @@ namespace Kagegan
             if (!Held) return;
             Held = false;
             pointer = -99;
-            transform.localScale = Vector3.one;
+            transform.localScale = Vector3.one * Save.Data.buttonScale;
             Icon.color = baseColor;
             Up?.Invoke();
         }
@@ -150,20 +156,20 @@ namespace Kagegan
 
         static readonly Def[] Defs =
         {
-            // v2 layout: ~1.3x larger buttons, re-spaced so nothing overlaps on 18:9..21:9 phones
-            new Def { id = "light", label = "Атака", icon = "light", pos = new Vector2(-200, 200), size = 270, color = new Color(0.72f, 0.14f, 0.13f, 1f) },
-            new Def { id = "heavy", label = "Мощный", icon = "heavy", pos = new Vector2(-470, 140), size = 170, color = new Color(0.52f, 0.26f, 0.12f, 1f) },
-            new Def { id = "block", label = "Блок", icon = "block", pos = new Vector2(-445, 385), size = 165, color = new Color(0.18f, 0.3f, 0.58f, 1f) },
-            new Def { id = "dodge", label = "Рывок", icon = "dodge", pos = new Vector2(-175, 470), size = 150, color = new Color(0.16f, 0.42f, 0.42f, 1f) },
-            new Def { id = "jump", label = "Прыжок", icon = "jump", pos = new Vector2(-685, 115), size = 130, color = new Color(0.24f, 0.24f, 0.52f, 1f) },
-            new Def { id = "grab", label = "Захват", icon = "grab", pos = new Vector2(-695, 290), size = 125, color = new Color(0.42f, 0.22f, 0.42f, 1f) },
-            new Def { id = "tech0", label = "Т1", icon = null, pos = new Vector2(-640, 510), size = 150, color = new Color(0.3f, 0.2f, 0.45f, 1f) },
-            new Def { id = "tech1", label = "Т2", icon = null, pos = new Vector2(-405, 600), size = 150, color = new Color(0.3f, 0.2f, 0.45f, 1f) },
-            new Def { id = "swap", label = "Смена", icon = "swap", pos = new Vector2(-835, 455), size = 100, color = new Color(0.2f, 0.2f, 0.25f, 1f) },
-            new Def { id = "ult", label = "УЛЬТА", icon = "ult", pos = new Vector2(-175, 690), size = 160, color = new Color(0.82f, 0.52f, 0.1f, 1f) },
-            new Def { id = "auto", label = "АВТО", icon = null, pos = new Vector2(-640, 720), size = 130, color = new Color(0.3f, 0.75f, 0.95f, 1f) },
+            // Keep the action cluster on the right so the centre of the fight stays visible.
+            new Def { id = "light", label = "Атака", icon = "light", pos = new Vector2(-180, 180), size = 215, color = new Color(0.72f, 0.14f, 0.13f, 1f) },
+            new Def { id = "heavy", label = "Мощный", icon = "heavy", pos = new Vector2(-410, 155), size = 145, color = new Color(0.52f, 0.26f, 0.12f, 1f) },
+            new Def { id = "block", label = "Блок", icon = "block", pos = new Vector2(-410, 375), size = 145, color = new Color(0.18f, 0.3f, 0.58f, 1f) },
+            new Def { id = "dodge", label = "Рывок", icon = "dodge", pos = new Vector2(-180, 400), size = 133, color = new Color(0.16f, 0.42f, 0.42f, 1f) },
+            new Def { id = "jump", label = "Прыжок", icon = "jump", pos = new Vector2(-595, 135), size = 112, color = new Color(0.24f, 0.24f, 0.52f, 1f) },
+            new Def { id = "grab", label = "Захват", icon = "grab", pos = new Vector2(-595, 330), size = 112, color = new Color(0.42f, 0.22f, 0.42f, 1f) },
+            new Def { id = "tech0", label = "Т1", icon = null, pos = new Vector2(-595, 530), size = 135, color = new Color(0.3f, 0.2f, 0.45f, 1f) },
+            new Def { id = "tech1", label = "Т2", icon = null, pos = new Vector2(-410, 565), size = 135, color = new Color(0.3f, 0.2f, 0.45f, 1f) },
+            new Def { id = "swap", label = "Смена", icon = "swap", pos = new Vector2(-595, 715), size = 100, color = new Color(0.2f, 0.2f, 0.25f, 1f) },
+            new Def { id = "ult", label = "УЛЬТА", icon = "ult", pos = new Vector2(-180, 595), size = 145, color = new Color(0.82f, 0.52f, 0.1f, 1f) },
+            new Def { id = "auto", label = "АВТО", icon = null, pos = new Vector2(-180, 765), size = 100, color = new Color(0.3f, 0.75f, 0.95f, 1f) },
             // context action (trip from the ground / break a hold): hidden until the situation allows it
-            new Def { id = "ctx", label = "Подножка", icon = null, pos = new Vector2(-420, 850), size = 200, color = new Color(1f, 0.78f, 0.25f, 1f) },
+            new Def { id = "ctx", label = "Подножка", icon = null, pos = new Vector2(-410, 765), size = 160, color = new Color(1f, 0.78f, 0.25f, 1f) },
         };
 
         public void Build(Transform canvas)

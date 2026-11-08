@@ -894,10 +894,21 @@ namespace Kagegan
                 new Color(0.55f, 0.65f, 0.95f), new Color(0.86f, 0.84f, 0.76f), new Color(0.95f, 0.5f, 0.3f)
             };
             var rnd = new System.Random(seed);
+            int laneCount = forest ? Mathf.CeilToInt(count * 0.6f) : 0;
+            int columns = Mathf.Max(1, Mathf.CeilToInt(Mathf.Sqrt(laneCount * LaneHalf / LaneDepth)));
+            int rows = Mathf.Max(1, Mathf.CeilToInt((float)laneCount / columns));
             for (int i = 0; i < count; i++)
             {
-                float ang = (float)rnd.NextDouble() * Mathf.PI * 2f, rr = Mathf.Lerp(rMin, rMax, Mathf.Sqrt((float)rnd.NextDouble()));
-                Vector3 p = new Vector3(Mathf.Cos(ang) * rr, 0, Mathf.Sin(ang) * rr);
+                float u = (float)rnd.NextDouble(), v = (float)rnd.NextDouble();
+                float ang = u * Mathf.PI * 2f;
+                float rr = Mathf.Sqrt(Mathf.Lerp(rMin * rMin, rMax * rMax, v));
+                Vector3 p = new Vector3(Mathf.Cos(ang) * rr, 0f, Mathf.Sin(ang) * rr);
+                if (i < laneCount)
+                {
+                    // Put most forest grass where fights happen, with a jittered grid to avoid bare gaps.
+                    p.x = Mathf.Lerp(-LaneHalf, LaneHalf, (i % columns + u) / columns);
+                    p.z = Mathf.Lerp(-LaneDepth - 1f, LaneDepth + 1f, (i / columns + v) / rows);
+                }
                 float kind = (float)rnd.NextDouble();
                 float tall = (0.35f + 0.3f * (float)rnd.NextDouble()) * (GraphicsQuality.Current >= GraphicsPreset.High ? 1.3f : 1f);
                 if (Blocked(p, 0.12f)) continue;

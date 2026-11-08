@@ -12,12 +12,13 @@ namespace Kagegan
     {
         static readonly string[] Roots = { "Kagegan/Nature/", "Kagegan/Props/", "Kagegan/City/", "Kagegan/Photo/" };
         static readonly Dictionary<string, GameObject> prefabs = new Dictionary<string, GameObject>();
+        static readonly Dictionary<Material, Material> importedMats = new Dictionary<Material, Material>();
         static readonly Dictionary<string, Material> mats = new Dictionary<string, Material>();
         static readonly Dictionary<string, float> heights = new Dictionary<string, float>();
 
         // material name in the model -> texture, alpha-cut foliage?, wind amount
         // WindH = plant height (m) that gets the full bend; Flutter = leaf shiver
-        struct MatInfo { public string Tex; public bool Cut; public float Wind; public float WindH; public float Flutter; public Color Tint; }
+        struct MatInfo { public string Tex; public bool Cut, GrassContact; public float Wind; public float WindH; public float Flutter; public Color Tint; }
         static readonly KeyValuePair<string, MatInfo>[] Table =
         {
             new KeyValuePair<string, MatInfo>("Leaves_NormalTree", new MatInfo { Tex = "Nature/Textures/Leaves_NormalTree_C", Cut = true, Wind = 0.6f, WindH = 9f, Flutter = 1f }),
@@ -28,8 +29,8 @@ namespace Kagegan
             new KeyValuePair<string, MatInfo>("Bark_DeadTree", new MatInfo { Tex = "Nature/Textures/Bark_DeadTree", Wind = 0.6f, WindH = 9f }),
             new KeyValuePair<string, MatInfo>("Rocks", new MatInfo { Tex = "Nature/Textures/Rocks_Diffuse" }),
             new KeyValuePair<string, MatInfo>("Mushrooms", new MatInfo { Tex = "Nature/Textures/Mushrooms" }),
-            new KeyValuePair<string, MatInfo>("Flowers", new MatInfo { Tex = "Nature/Textures/Flowers", Cut = true, Wind = 1f, WindH = 0.6f, Flutter = 0.6f }),
-            new KeyValuePair<string, MatInfo>("Grass", new MatInfo { Tex = "Nature/Textures/Grass", Cut = true, Wind = 1f, WindH = 0.6f, Flutter = 0.4f }),
+            new KeyValuePair<string, MatInfo>("Flowers", new MatInfo { Tex = "Nature/Textures/Flowers", Cut = true, GrassContact = true, Wind = 1f, WindH = 0.6f, Flutter = 0.6f }),
+            new KeyValuePair<string, MatInfo>("Grass", new MatInfo { Tex = "Nature/Textures/Grass", Cut = true, GrassContact = true, Wind = 1f, WindH = 0.6f, Flutter = 0.4f }),
             new KeyValuePair<string, MatInfo>("Leaves", new MatInfo { Tex = "Nature/Textures/Leaves", Cut = true, Wind = 0.8f, WindH = 2f, Flutter = 1f }),
             // city / props (first match wins, so specific names come before general ones)
             new KeyValuePair<string, MatInfo>("MI_Trim_MetalConcrete", new MatInfo { Tex = "City/Textures/T_MetalConcrete_BaseColor" }),
@@ -89,31 +90,39 @@ namespace Kagegan
             string n = src != null ? src.name.Replace(" (Instance)", "") : "";
             // Kenney kits all call their single atlas "colormap"; tell the commercial and roads kits apart by prefix
             if (n == "colormap" && model.Length > 3 && model[0] == 'K' && model[2] == '_') n = model.Substring(0, 3) + "colormap";
-            if (mats.TryGetValue(n, out var m)) return m;
             MatInfo info = default;
             bool found = false;
             foreach (var kv in Table)
                 if (n.Contains(kv.Key)) { info = kv.Value; found = true; break; }
-            m = new Material(Mat.Toon) { name = "KageKit_" + n, enableInstancing = true };
+            // An unknown material name can appear in several kits with different textures.
+            if (found && mats.TryGetValue(n, out var mapped)) return mapped;
+            if (!found && src != null && importedMats.TryGetValue(src, out var imported)) return imported;
+            if (src == null && mats.TryGetValue("", out var missing)) return missing;
+
+            var m = new Material(Mat.Toon) { name = "KageKit_" + n, enableInstancing = true };
             m.SetFloat("_VColor", 0f);
+            var tex = found && !string.IsNullOrEmpty(info.Tex)
+                ? Resources.Load<Texture2D>("Kagegan/" + info.Tex) : null;
+            if (tex != null) m.SetTexture("_MainTex", tex);
+            else if (src != null)
+            {
+                Texture original = src.HasProperty("_BaseMap") ? src.GetTexture("_BaseMap") : null;
+                if (original == null && src.HasProperty("_MainTex")) original = src.mainTexture;
+                if (original != null) m.SetTexture("_MainTex", original);
+                if (src.HasProperty("_BaseColor")) m.SetColor("_Color", src.GetColor("_BaseColor"));
+                else if (src.HasProperty("_Color")) m.SetColor("_Color", src.color);
+            }
+
             if (found)
             {
-                var tex = string.IsNullOrEmpty(info.Tex) ? null : Resources.Load<Texture2D>("Kagegan/" + info.Tex);
-                if (tex != null) m.SetTexture("_MainTex", tex);
-                if (info.Tint.a > 0f || info.Tint.r > 0f) m.SetColor("_Color", info.Tint);
-                else if (src != null && src.HasProperty("_MainTex") && src.mainTexture != null) m.SetTexture("_MainTex", src.mainTexture);
+                if (info.Tint.a > 0f) m.SetColor("_Color", info.Tint);
+                if (info.GrassContact) m.SetFloat("_GrassContact", 1f);
                 if (info.Cut) { m.SetFloat("_Cutoff", 0.5f); m.SetFloat("_Cull", 0f); }
                 if (info.Wind > 0f) { m.SetFloat("_Wind", info.Wind); m.SetFloat("_WindObj", 1f); m.SetFloat("_WindHeight", info.WindH); m.SetFloat("_Flutter", info.Flutter); }
             }
-            else if (src != null)
-            {
-                // unknown name: keep the model's own texture and colour
-                if (src.HasProperty("_MainTex") && src.mainTexture != null) m.SetTexture("_MainTex", src.mainTexture);
-                else if (src.HasProperty("_BaseMap") && src.GetTexture("_BaseMap") != null) m.SetTexture("_MainTex", src.GetTexture("_BaseMap"));
-                if (src.HasProperty("_Color")) m.SetColor("_Color", src.color);
-                else if (src.HasProperty("_BaseColor")) m.SetColor("_Color", src.GetColor("_BaseColor"));
-            }
-            mats[n] = m;
+
+            if (found || src == null) mats[n] = m;
+            else importedMats[src] = m;
             return m;
         }
 
@@ -135,7 +144,7 @@ namespace Kagegan
         public static bool PhotoProps => GraphicsQuality.Current == GraphicsPreset.Ultra && Mat.PhotoSurfaces;
 
         /// <summary>Instantiates a model scaled to the given height (metres). Returns null when the kit is missing.</summary>
-        public static GameObject Spawn(string model, Transform parent, Vector3 pos, float height, float yaw)
+        public static GameObject Spawn(string model, Transform parent, Vector3 pos, float height, float yaw, bool cameraFade = true)
         {
             var prefab = Load(model);
             if (prefab == null) return null;
@@ -173,6 +182,8 @@ namespace Kagegan
                 var b = rs[0].bounds;
                 for (int i = 1; i < rs.Length; i++) b.Encapsulate(rs[i].bounds);
                 go.transform.position += Vector3.up * (pos.y - b.min.y);
+                if (cameraFade && b.size.y >= 0.85f)
+                    go.AddComponent<CameraOccluder>().Init(rs);
             }
             return go;
         }

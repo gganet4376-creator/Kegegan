@@ -18,6 +18,7 @@ namespace Kagegan
         public float Size = 1f;
         public bool Broken { get; private set; }
         MeshRenderer mr;
+        CameraOccluder cameraOccluder;
         Renderer[] rends; // every renderer of the prop (imported models have several)
         Collider col;
         float wobble;
@@ -39,6 +40,8 @@ namespace Kagegan
             d.mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             d.mr.receiveShadows = false;
             d.rends = new Renderer[] { d.mr };
+            d.cameraOccluder = go.AddComponent<CameraOccluder>();
+            d.cameraOccluder.Init(d.rends, d);
             d.Kind = kind; d.MaxHp = d.Hp = hp; d.DebrisColor = debris; d.Size = size;
             switch (kind)
             {
@@ -72,11 +75,13 @@ namespace Kagegan
         /// <summary>Breakable prop built from an imported nature model. Returns null if the model is missing.</summary>
         public static Destructible CreateFromModel(Transform parent, DestructKind kind, Vector3 pos, string model, float height, float hp, Color debris, float yaw)
         {
-            var go = ModelKit.Spawn(model, parent, pos, height, yaw);
+            var go = ModelKit.Spawn(model, parent, pos, height, yaw, cameraFade: false);
             if (go == null) return null;
             var d = go.AddComponent<Destructible>();
             d.rends = go.GetComponentsInChildren<Renderer>();
             if (d.rends.Length == 0) { Destroy(go); return null; }
+            d.cameraOccluder = go.AddComponent<CameraOccluder>();
+            d.cameraOccluder.Init(d.rends, d);
             d.mr = null;
             float size = kind == DestructKind.Tree ? height / 6f : height / 1.6f;
             d.Kind = kind; d.MaxHp = d.Hp = hp; d.DebrisColor = debris; d.Size = size;
@@ -229,28 +234,6 @@ namespace Kagegan
             sinkT = 0f;
         }
 
-        static MaterialPropertyBlock fadeBlock;
-        static readonly int IdFade = Shader.PropertyToID("_Fade");
-        float fade = 1f, fadeTarget = 1f;
-
-        /// <summary>Camera occlusion: request a temporary dithered fade (1 = opaque).</summary>
-        public void RequestFade(float target) { fadeTarget = Mathf.Min(fadeTarget, target); fadeHold = 0.25f; enabled = true; }
-        float fadeHold;
-
-        void LateUpdate()
-        {
-            if (fadeHold > 0f) fadeHold -= Time.unscaledDeltaTime; else fadeTarget = 1f;
-            if (Mathf.Abs(fade - fadeTarget) < 0.01f) return;
-            fade = Mathf.MoveTowards(fade, fadeTarget, Time.unscaledDeltaTime * 4f);
-            if (fadeBlock == null) fadeBlock = new MaterialPropertyBlock();
-            for (int i = 0; i < rends.Length; i++)
-            {
-                rends[i].GetPropertyBlock(fadeBlock);
-                fadeBlock.SetFloat(IdFade, fade);
-                rends[i].SetPropertyBlock(fadeBlock);
-            }
-        }
-
         /// <summary>Moves the prop (used to lay props out along the fighting lane).</summary>
         public void Relocate(Vector3 pos)
         {
@@ -261,6 +244,7 @@ namespace Kagegan
 
         public void Restore()
         {
+            cameraOccluder.ResetFade();
             Broken = false; Hp = MaxHp; fallT = -1f; sinkT = -1f; wobble = 0f;
             transform.SetPositionAndRotation(basePos, baseRot);
             SetVisible(true);

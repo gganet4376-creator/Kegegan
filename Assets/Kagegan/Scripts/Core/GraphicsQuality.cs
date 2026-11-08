@@ -143,7 +143,7 @@ namespace Kagegan
             QualitySettings.vSyncCount = 0;
             ApplyFps();
             QualitySettings.shadows = ShadowQuality.Disable; // characters use cheap blob shadows on every preset
-            QualitySettings.skinWeights = SkinWeights.OneBone;
+            QualitySettings.skinWeights = p == GraphicsPreset.Low ? SkinWeights.OneBone : SkinWeights.TwoBones;
             QualitySettings.anisotropicFiltering = p >= GraphicsPreset.High ? AnisotropicFiltering.ForceEnable : AnisotropicFiltering.Enable;
             QualitySettings.lodBias = p == GraphicsPreset.Low ? 0.6f : (p == GraphicsPreset.Medium ? 1f : 1.5f);
             Shader.SetGlobalFloat("_KageDynLightCount", DynamicLights);

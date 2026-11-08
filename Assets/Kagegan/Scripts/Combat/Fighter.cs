@@ -122,7 +122,7 @@ namespace Kagegan
         }
 
         void OnEnable() { if (!All.Contains(this)) All.Add(this); }
-        void OnDisable() { All.Remove(this); }
+        void OnDisable() { All.Remove(this); GrassBend.Forget(this); }
 
         // ================== commands ==================
         public void SetMove(Vector3 worldDir) { moveInput = Vector3.ClampMagnitude(KMath.Flat(worldDir), 1f); }
@@ -439,7 +439,7 @@ namespace Kagegan
         void EndMove()
         {
             var m = CurMove;
-            if (State == FState.Attack) SetState(Grounded ? FState.Idle : FState.Idle);
+            if (State == FState.Attack) SetState(FState.Idle); // Idle uses the airborne pose until physics reports a landing.
             if (chain != null) chainOpenUntil = Time.time + 0.35f;
             m?.OnEnd?.Invoke(this);
         }
@@ -471,6 +471,17 @@ namespace Kagegan
         {
             if (m.Damage <= 0f && m.Kind != HitKind.Grab) return;
             Vector3 a = Rig.BonePos(B.Chest);
+            if (m.Kind == HitKind.Light || m.Kind == HitKind.Heavy)
+            {
+                switch (m.Bone)
+                {
+                    case HitBone.HandL: a = Rig.BonePos(B.LArmL); break;
+                    case HitBone.HandR: a = Rig.BonePos(B.LArmR); break;
+                    case HitBone.FootL: a = Rig.BonePos(B.ShinL); break;
+                    case HitBone.FootR: a = Rig.BonePos(B.ShinR); break;
+                    case HitBone.Head: a = Rig.BonePos(B.Neck); break;
+                }
+            }
             Vector3 b = HitPoint(m);
             for (int i = 0; i < All.Count; i++)
             {

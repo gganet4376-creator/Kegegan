@@ -272,18 +272,18 @@ namespace Kagegan
         }
 
         /// <summary>Build a skinned mesh; vertices were authored in each bone's local space.</summary>
-        public Mesh ToSkinnedMesh(string name, Matrix4x4[] boneToRoot, Matrix4x4[] bindposes)
+        public Mesh ToSkinnedMesh(string name, Matrix4x4[] boneToRoot, Matrix4x4[] bindposes, System.Func<int, Vector3, BoneWeight> getWeight)
         {
+            var weights = new BoneWeight[V.Count];
             for (int i = 0; i < V.Count; i++)
             {
+                weights[i] = getWeight(Bone[i], V[i]);
                 var bm = boneToRoot[Bone[i]];
                 V[i] = bm.MultiplyPoint3x4(V[i]);
                 N[i] = bm.MultiplyVector(N[i]).normalized;
             }
             var m = ToMesh(name);
-            var bw = new BoneWeight[V.Count];
-            for (int i = 0; i < bw.Length; i++) bw[i] = new BoneWeight { boneIndex0 = Bone[i], weight0 = 1f };
-            m.boneWeights = bw;
+            m.boneWeights = weights;
             m.bindposes = bindposes;
             return m;
         }

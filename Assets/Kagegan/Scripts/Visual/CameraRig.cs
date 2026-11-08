@@ -116,34 +116,18 @@ namespace Kagegan
             if (flat.magnitude > 24f) { flat = flat.normalized * 24f; p = new Vector3(flat.x, p.y, flat.z); }
         }
 
-        static readonly RaycastHit[] occHits = new RaycastHit[12];
         float occTimer;
         public static float ShakeScale = 1f;
 
-        /// <summary>Fade breakable props (trees, walls, pillars) that sit between the camera and the fighters.</summary>
         void FadeOccluders()
         {
+            if (MenuMode || Player == null) return;
             occTimer -= Time.unscaledDeltaTime;
             if (occTimer > 0f) return;
             occTimer = 0.08f;
-            CheckLine(Player);
-            CheckLine(Target);
-        }
-
-        void CheckLine(Transform t)
-        {
-            if (t == null) return;
-            Vector3 from = transform.position;
-            Vector3 to = t.position + Vector3.up * 1.1f;
-            Vector3 d = to - from;
-            float len = d.magnitude;
-            if (len < 0.5f) return;
-            int n = Physics.SphereCastNonAlloc(from, 0.45f, d / len, occHits, len - 0.6f, ~0, QueryTriggerInteraction.Ignore);
-            for (int i = 0; i < n; i++)
-            {
-                var dz = occHits[i].collider.GetComponentInParent<Destructible>();
-                if (dz != null && !dz.Broken) dz.RequestFade(0.3f);
-            }
+            CameraOccluder.CheckLine(transform.position, Player.position + Vector3.up * 1.1f);
+            if (Target != null && Target != Player)
+                CameraOccluder.CheckLine(transform.position, Target.position + Vector3.up * 1.1f);
         }
 
         void LateUpdate()
