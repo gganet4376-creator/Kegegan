@@ -7,7 +7,7 @@ namespace Kagegan.EditorTools
     public class KageganModelImport : AssetPostprocessor
     {
         static readonly string[] Folders = { "/Kagegan/Resources/Kagegan/Nature/", "/Kagegan/Resources/Kagegan/City/", "/Kagegan/Resources/Kagegan/Props/", "/Kagegan/Resources/Kagegan/Photo/" };
-        public override uint GetVersion() => 4;
+        public override uint GetVersion() => 5;
 
         static bool InKit(string path)
         {
@@ -25,7 +25,8 @@ namespace Kagegan.EditorTools
             mi.importCameras = false;
             mi.importLights = false;
             mi.importBlendShapes = false;
-            mi.isReadable = false;
+            // readable: SceneryShadow projects the trees and buildings into the baked sun-shadow mask at runtime
+            mi.isReadable = !assetPath.Replace('\\', '/').Contains("/Resources/Kagegan/Photo/");
             mi.meshCompression = ModelImporterMeshCompression.Medium;
             // the game maps materials by their FBX names (MI_Trim_Metal, Leaves_Pine...), not by texture file names
             mi.materialName = ModelImporterMaterialName.BasedOnMaterialName;

@@ -165,6 +165,8 @@ Shader "Kagegan/Toon"
                 }
                 // fighters' sun shadows on the scenery (High / Ultra), and a sky-vs-ground ambient instead of a flat one
                 if (_KageCasterCount > 0 && scenery > 0) { half sh = KageCasterShadow(i.wpos, l); band1 *= sh; band2 *= sh; }
+                // trees / buildings shade the ground, the grass and the fighters walking under them
+                { half ss = KageSceneShadow(i.wpos, l); band1 *= ss; band2 *= ss; }
                 half hemi = lerp(0.82, 1.1, saturate(n.y * 0.5 + 0.5));
                 half3 lit = albedo * lerp(_ShadowTint.rgb, half3(1,1,1), band1) * (_KageLightColor.rgb + band2) + albedo * _KageAmbient.rgb * hemi;
 

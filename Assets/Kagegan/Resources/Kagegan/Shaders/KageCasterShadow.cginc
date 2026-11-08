@@ -38,4 +38,22 @@ half KageCasterShadow(float3 p, half3 l)
     }
     return lit;
 }
+
+// Baked sun shadows of the static scenery (trees, buildings, gates) on the ground, grass and fighters (High / Ultra).
+// SceneryShadow.cs projects every static triangle along the sun onto the ground plane once per arena:
+// R = soft coverage, G = height of the highest occluder / 32 m. A point is shadowed when an occluder sits on its
+// ray to the sun above it. One texture read, no shadow map pass.
+sampler2D _KageSceneShadow;
+float4 _KageSceneShadowRect;   // xy = world x/z of the texture's corner, z = 1 / size, w = strength (0 = off)
+
+half KageSceneShadow(float3 p, half3 l)
+{
+    if (_KageSceneShadowRect.w <= 0) return 1.0;
+    float2 q = p.xz - l.xz * (p.y / max(l.y, 0.15));
+    float2 uv = (q - _KageSceneShadowRect.xy) * _KageSceneShadowRect.z;
+    half4 s = tex2D(_KageSceneShadow, uv);
+    half inside = step(0.0, uv.x) * step(uv.x, 1.0) * step(0.0, uv.y) * step(uv.y, 1.0);
+    half occ = s.r * saturate((s.g * 32.0 - p.y - 0.3) * 2.0) * inside;
+    return 1.0 - occ * _KageSceneShadowRect.w;
+}
 #endif

@@ -306,6 +306,7 @@ namespace Kagegan
         {
             if (Current != null) Destroy(Current.gameObject);
             Destructible.All.Clear();
+            SceneryShadow.Clear();
             WeatherSystem.ResetGlobals();
             var go = new GameObject("Arena_" + id);
             go.transform.SetParent(parent, false);
@@ -355,6 +356,9 @@ namespace Kagegan
             a.EnemySpawn = new Vector3(5f, 0f, 0f);
             a.BuildWalls(Radius);
             a.ApplyLighting();
+            // trees, gates and buildings throw baked sun shadows (High / Ultra)
+            SceneryShadow.Bake(go.transform, a.sunDir);
+            GraphicsQuality.Changed += a.RefreshSceneryShadow;
             return a;
         }
 
@@ -755,7 +759,15 @@ namespace Kagegan
         void OnDestroy()
         {
             GraphicsQuality.Changed -= RefreshWeather;
-            if (Current == this) Current = null;
+            GraphicsQuality.Changed -= RefreshSceneryShadow;
+            if (Current == this) { Current = null; SceneryShadow.Clear(); }
+        }
+
+        // quality changed from the pause menu: drop or (re)bake the scenery shadows to match
+        void RefreshSceneryShadow()
+        {
+            if (GraphicsQuality.Current < GraphicsPreset.High) SceneryShadow.Clear();
+            else if (!SceneryShadow.Active) SceneryShadow.Bake(transform, sunDir);
         }
 
         // ---- ground ----
@@ -950,7 +962,7 @@ namespace Kagegan
         // ================= 0. Dojo / training ground (matches the original training scene) =================
         void BuildDojo(MeshBuilder mb)
         {
-            Lighting(new Vector3(-0.4f, 0.8f, -0.5f), new Color(1f, 0.96f, 0.86f), new Color(0.32f, 0.3f, 0.3f), new Color(0.93f, 0.9f, 0.82f), 25f, 110f, 0.55f);
+            Lighting(new Vector3(-0.72f, 0.62f, 0.22f), new Color(1f, 0.96f, 0.86f), new Color(0.32f, 0.3f, 0.3f), new Color(0.93f, 0.9f, 0.82f), 25f, 110f, 0.55f);
             Sky(new Color(0.55f, 0.75f, 0.95f), new Color(0.97f, 0.92f, 0.8f), new Color(0.9f, 0.85f, 0.7f), "sky_dojo");
             PhotoGround("dojo", new Color(0.895f, 0.75f, 0.5f), new Color(0.603f, 0.451f, 0.321f), 3.2f);
             Ground(mb, 70f, new Color(0.93f, 0.8f, 0.55f), new Color(0.86f, 0.7f, 0.45f), new Color(0.55f, 0.65f, 0.35f), 11);
@@ -1022,7 +1034,7 @@ namespace Kagegan
         // ================= 1. Forest of Destruction =================
         void BuildForest(MeshBuilder mb)
         {
-            Lighting(new Vector3(0.5f, 0.6f, -0.4f), new Color(1f, 0.88f, 0.7f), new Color(0.25f, 0.32f, 0.28f), new Color(0.55f, 0.68f, 0.55f), 14f, 70f, 0.75f);
+            Lighting(new Vector3(0.74f, 0.58f, 0.2f), new Color(1f, 0.88f, 0.7f), new Color(0.25f, 0.32f, 0.28f), new Color(0.55f, 0.68f, 0.55f), 14f, 70f, 0.75f);
             Sky(new Color(0.45f, 0.62f, 0.75f), new Color(0.85f, 0.83f, 0.68f), new Color(0.4f, 0.5f, 0.35f), "sky_forest");
             PhotoGround("forest", new Color(0.43f, 0.485f, 0.27f), new Color(0.568f, 0.529f, 0.366f), 3.6f, 0f, 0.6f);
             Ground(mb, 70f, new Color(0.38f, 0.55f, 0.27f), new Color(0.48f, 0.42f, 0.27f), new Color(0.2f, 0.32f, 0.18f), 21);

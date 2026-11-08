@@ -147,6 +147,7 @@ namespace Kagegan
         {
             if (Broken) return;
             Broken = true;
+            SceneryShadow.Remove(this);
             if (dir.sqrMagnitude < 0.01f) dir = Random.onUnitSphere;
             dir = KMath.Flat(dir).normalized;
             switch (Kind)

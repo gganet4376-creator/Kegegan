@@ -203,6 +203,7 @@ Shader "Kagegan/Surface"
                 half ndl = dot(n, l);
                 half band = smoothstep(-0.12, 0.35, ndl);
                 if (_KageCasterCount > 0) band *= KageCasterShadow(i.wpos, l);
+                band *= KageSceneShadow(i.wpos, l);
                 half3 lit = albedo * lerp(_ShadowTint.rgb, half3(1, 1, 1), band) * _KageLightColor.rgb + albedo * _KageAmbient.rgb;
                 half3 hv = normalize(l + vdir);
                 half gloss = lerp(_Gloss, 1.0, wet);
