@@ -12,6 +12,7 @@ namespace Kagegan
     {
         static Fx inst;
         ParticleSystem sparks, smoke, fire, debris, glow, leaves;
+        Material wireMat; // textured monowire (razor core, discharge filaments, energy packets); scrolls hand -> tip
         // flipbook / textured systems built from imported CC0 VFX textures (null when a texture is missing)
         ParticleSystem slashFlip, hitStar, hitBurst, electric, flames, dirtPs;
         ParticleSystem ringGold, ringEnergy, ringVoid, ringLightning, ringFire, fireBurst, explosionFlip, groundRing, puffWhite, puffBlack, puffFire, flashPs;
@@ -107,6 +108,12 @@ namespace Kagegan
             crackPool = new Pool<MeshRenderer>(() => MakeMeshObj("Crack", crackMesh, Mat.Decal), 6);
             spherePool = new Pool<MeshRenderer>(() => MakeMeshObj("Burst", sphereMesh, Mat.FxAddSolid), 4);
             boltPool = new Pool<LineRenderer>(MakeBolt, 4);
+            var wireTex = Resources.Load<Texture2D>("Kagegan/Vfx/monowire");
+            if (wireTex != null)
+            {
+                wireMat = Mat.FxTex(wireTex, true, "Fx_monowire");
+                wireMat.mainTextureScale = new Vector2(0.55f, 1f); // one texture repeat every ~1.8 m of wire
+            }
             wirePool = new Pool<LineRenderer>(MakeWire, 6);
         }
 
@@ -507,11 +514,23 @@ namespace Kagegan
             var go = new GameObject("Monowire");
             go.transform.SetParent(transform, false);
             var lr = go.AddComponent<LineRenderer>();
-            lr.sharedMaterial = Mat.FxAddSolid;
             lr.positionCount = WireSegs;
             lr.useWorldSpace = true;
-            lr.numCapVertices = 2;
-            lr.widthCurve = new AnimationCurve(new Keyframe(0, 0.045f), new Keyframe(0.85f, 0.03f), new Keyframe(1, 0.012f));
+            lr.alignment = LineAlignment.View;
+            if (wireMat != null)
+            {
+                // the texture carries its own glow halo, so the strip is wider than the visible filament
+                lr.sharedMaterial = wireMat;
+                lr.textureMode = LineTextureMode.Tile;
+                lr.numCapVertices = 0;
+                lr.widthCurve = new AnimationCurve(new Keyframe(0, 0.3f), new Keyframe(0.85f, 0.2f), new Keyframe(1, 0.1f));
+            }
+            else
+            {
+                lr.sharedMaterial = Mat.FxAddSolid;
+                lr.numCapVertices = 2;
+                lr.widthCurve = new AnimationCurve(new Keyframe(0, 0.045f), new Keyframe(0.85f, 0.03f), new Keyframe(1, 0.012f));
+            }
             lr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             lr.receiveShadows = false;
             go.SetActive(false);
@@ -567,6 +586,7 @@ namespace Kagegan
         void Update()
         {
             float dt = Time.deltaTime;
+            if (wireMat != null) wireMat.mainTextureOffset = new Vector2(-Time.time * 2.4f % 1f, 0f); // energy packets run from the hand to the tip
             for (int i = anims.Count - 1; i >= 0; i--)
             {
                 var a = anims[i];
@@ -603,9 +623,24 @@ namespace Kagegan
                         var lr = (LineRenderer)a.c;
                         Vector3 start = a.follow != null ? a.follow.position : a.from;
                         WireShape(lr, start, a.to, u, a.size0);
-                        Color cc = Color.Lerp(Color.white, c, 0.35f) * (u < 0.7f ? 1.6f : 1.6f * (1f - (u - 0.7f) / 0.3f));
+                        float flicker = 0.85f + 0.15f * Mathf.Sin(a.t * 90f) * Random.value;
+                        Color cc = Color.Lerp(Color.white, c, 0.35f) * (u < 0.7f ? 1.6f : 1.6f * (1f - (u - 0.7f) / 0.3f)) * flicker;
                         lr.startColor = cc * 0.7f; lr.endColor = cc;
-                        if (u < 0.4f && Random.value < 0.5f) Trail(lr.GetPosition(WireSegs - 1), c, 0.16f);
+                        Vector3 tip = lr.GetPosition(WireSegs - 1);
+                        if (u < 0.4f && Random.value < 0.5f) Trail(tip, c, 0.16f);
+                        // the moment the wire goes taut: crackle, sparks and a glow at the tip (once per wire)
+                        if (u >= 0.35f && a.size1 == 0f && a.life > 0.1f)
+                        {
+                            a.size1 = 1f;
+                            Electric(tip, c, 0.55f, 1);
+                            Glow(tip, Color.Lerp(Color.white, c, 0.5f), 0.9f, 0.12f);
+                            int n = Scaled(6);
+                            for (int k = 0; k < n; k++)
+                                Emit(sparks, tip, (Random.insideUnitSphere + (tip - start).normalized) * Random.Range(3f, 7f), Color.Lerp(Color.white, c, 0.4f), 0.05f, Random.Range(0.12f, 0.25f));
+                        }
+                        // sparks shed along the length while it lashes out
+                        if (u < 0.5f && Random.value < 0.35f * GraphicsQuality.ParticleMul)
+                            Emit(sparks, lr.GetPosition(Random.Range(2, WireSegs - 1)), Random.insideUnitSphere * 2f, c, 0.035f, 0.15f);
                         break;
                     }
                     case Kind.Bolt:

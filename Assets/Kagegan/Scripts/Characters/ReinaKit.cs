@@ -14,7 +14,10 @@ namespace Kagegan
         public static readonly Color Wire = new Color(0.35f, 1f, 0.55f);    // monowire glow (acid green)
         public static readonly Color Hack = new Color(0.55f, 1f, 0.35f);
         public static readonly Color Over = new Color(1f, 0.3f, 0.75f);     // overload (magenta)
-        int dodgeFlip;
+
+        // captured clips (KayKit Character Animations, CC0); every use falls back to the procedural pose if the clip is missing
+        const string KickClip = "KK_Melee_Unarmed_Attack_Kick";
+        const string ShootClip = "KK_Ranged_Magic_Shoot", ThrowClip = "KK_Throw";
 
         public override void Setup(Fighter f)
         {
@@ -30,7 +33,7 @@ namespace Kagegan
                 MoveLib.Jab(false, 5f, 1.2f),
                 MoveLib.Jab(true, 5f, 1.2f),
                 WireLash(9f, 1f),
-                MoveLib.Kick(9f, 3f),
+                WithKick(MoveLib.Kick(9f, 3f)),
                 SpinKick()
             };
             AirChain = new[] { MoveLib.AirKick(6f), MoveLib.AirPunch(true, 6f), MoveLib.AirKick(7f), WireLashAir() };
@@ -55,6 +58,19 @@ namespace Kagegan
 
         Transform Hand => F.Rig.Bones[(int)B.HandR];
 
+        static Move WithKick(Move m)
+        {
+            m.Mocap = KickClip; m.MocapContact = MocapLibrary.KickContact;
+            return m;
+        }
+
+        /// <summary>Plays a captured clip for scripted sequences, or the pose clip when mocap is unavailable.</summary>
+        void Act(string clip, float speed, float start, float duration, Clip fallback, float poseSpeed = 1f)
+        {
+            if (F.Grounded && F.Anim.PlayMocap(clip, speed, start, false, duration, 0.05f)) return;
+            F.Anim.Play(fallback, poseSpeed);
+        }
+
         // ---------- basic moves ----------
         Move WireLash(float dmg, float sweep)
         {
@@ -78,6 +94,7 @@ namespace Kagegan
             var m = MoveLib.Kick(12f, 7f);
             m.Name = "spinkick"; m.Strike = PoseLib.KickHigh.Mirror(); m.Bone = HitBone.FootL; m.Kind = HitKind.Heavy; m.Knockdown = true;
             m.Shake = 0.25f; m.SlashEuler = new Vector3(0, 0, -80); m.Radius = 0.6f; m.FxColor = Wire;
+            m.Mocap = null; // no captured left spin kick in the CC0 packs: the procedural mirrored high kick stays
             m.OnStart = ff => Fx.Slash(ff.transform, new Vector3(0, 0.9f, 0.5f), new Vector3(0, 0, -80), Wire, 1.6f, 0.2f);
             return m;
         }
@@ -85,7 +102,7 @@ namespace Kagegan
         /// <summary>Cyber Kick: charged cybernetic leg, heavy knockback, breaks guard stamina.</summary>
         Move CyberKick()
         {
-            var m = MoveLib.FrontKick(17f);
+            var m = WithKick(MoveLib.FrontKick(17f));
             m.Name = "cyberkick"; m.Knockback = 10f; m.StaminaDamage = 24f; m.FxColor = Wire; m.HitSfx = SfxId.HeavyHit;
             m.OnTick = (ff, t) => { if (ff.InStartup && Random.value < 0.5f) Fx.Electric(ff.Rig.BonePos(B.FootR), Wire, 0.45f, 1); };
             m.OnHit = (a, v) => { Fx.Electric(v.Center, Wire, 1.2f, 3); Fx.Ring(v.Center, Wire, 0.3f, 2f, 0.3f, Quaternion.LookRotation(a.transform.forward)); };
@@ -95,7 +112,7 @@ namespace Kagegan
         /// <summary>Cyber Kick (launcher variant): rising crescent kick that pops the target up for air combos.</summary>
         Move RisingKick()
         {
-            var m = MoveLib.Kick(10f, 1f);
+            var m = WithKick(MoveLib.Kick(10f, 1f));
             m.Name = "launcher"; m.Launch = 12f; m.Kind = HitKind.Heavy; m.Strike = PoseLib.KickHigh; m.SlashEuler = new Vector3(-90, 0, 0);
             m.Radius = 0.55f; m.FxColor = Wire; m.HitStop = 0.08f; m.StaminaCost = 6f;
             m.OnHit = (a, v) => Fx.Electric(v.Center, Wire, 0.9f, 2);
@@ -129,10 +146,12 @@ namespace Kagegan
         // ---------- acrobatics ----------
         public override void OnDodge(Vector3 dir)
         {
-            // alternate side flip / back handspring instead of the plain roll; afterimage streaks
-            bool back = Vector3.Dot(dir, F.transform.forward) < -0.3f;
-            F.Anim.Play(Clip.Hold(back ? PoseLib.RollBack : PoseLib.Dodge, 0.04f, 0.18f, 0.1f), 1.2f);
-            dodgeFlip++;
+            // captured directional dodge (forward keeps the shared dash-slide); afterimage streaks
+            float fwd = Vector3.Dot(dir, F.transform.forward), side = Vector3.Dot(dir, F.transform.right);
+            bool back = fwd < -0.3f;
+            string clip = back ? "KK_Dodge_Backward" : fwd > 0.3f ? null : side >= 0f ? "KK_Dodge_Right" : "KK_Dodge_Left";
+            bool played = clip == null ? F.Anim.AnyActionPlaying : F.Anim.PlayMocap(clip, 1.25f, 0f, false, 0.32f, 0.05f);
+            if (!played) F.Anim.Play(Clip.Hold(back ? PoseLib.RollBack : PoseLib.Dodge, 0.04f, 0.18f, 0.1f), 1.2f);
             for (int i = 0; i < 3; i++) Fx.Trail(F.Center + Random.insideUnitSphere * 0.3f, Wire, 0.35f);
         }
 
@@ -176,12 +195,13 @@ namespace Kagegan
             var f = F;
             f.EnterChannel();
             f.FaceInstant(t.transform.position);
-            f.Anim.Play(Clip.Hold(PoseLib.Throw, 0.06f, 0.2f, 0.1f));
+            Act(ThrowClip, 2f, 0.45f, 0.4f, Clip.Hold(PoseLib.Throw, 0.06f, 0.2f, 0.1f)); // arm fully out ~0.18 s in
             Sfx.Play(SfxId.Whoosh, 1f, 1.3f);
             yield return new WaitForSeconds(0.12f);
+            if (Interrupted(f, t)) yield break;
             Fx.Wire(Hand, t.Center, Wire, 0.5f, 0.4f);
             yield return new WaitForSeconds(0.14f);
-            if (!t.Alive || !f.Alive) { f.ExitChannel(); yield break; }
+            if (Interrupted(f, t)) yield break;
             bool heavy = t.IsBoss || t.Weight > 1.2f;
             Fx.Electric(t.Center, Wire, 1f, 2);
             t.Flash(Wire);
@@ -193,19 +213,28 @@ namespace Kagegan
             if (!heavy) t.Stun(0.6f);
             for (float k = 0f; k < 1f; k += Time.deltaTime / 0.18f)
             {
-                if (!mover.Alive) break;
+                if (Interrupted(f, t)) yield break;
                 mover.Teleport(Vector3.Lerp(from, to, k * k));
                 Fx.Wire(Hand, t.Center, Wire, 0.06f, 0f);
                 yield return null;
             }
+            if (Interrupted(f, t)) yield break;
             f.ExitChannel();
             f.FaceInstant(t.transform.position);
             // synced kick on arrival
-            var kick = MoveLib.Kick(18f, 9f);
-            kick.Name = "capturekick"; kick.Strike = PoseLib.KickHigh.Mirror(); kick.Bone = HitBone.FootL; kick.Kind = HitKind.Technique;
+            var kick = WithKick(MoveLib.Kick(18f, 9f));
+            kick.Name = "capturekick"; kick.Kind = HitKind.Technique;
             kick.Knockdown = !t.IsBoss; kick.Unblockable = true; kick.Startup = 0.08f; kick.Radius = 0.7f; kick.FxColor = Wire; kick.Shake = 0.35f;
             kick.OnHit = (a, v) => { Fx.Electric(v.Center, Wire, 1.2f, 3); Fx.Hit(v.Center, Wire, true); };
             f.StartMove(kick);
+        }
+
+        /// <summary>True when Reina was knocked out of the capture (hit, stunned, killed) or the target is gone; releases the channel if still held.</summary>
+        static bool Interrupted(Fighter f, Fighter t)
+        {
+            if (f == null || !f.Alive || f.State != FState.Channel) return true;
+            if (t == null || !t.Alive) { f.ExitChannel(); return true; }
+            return false;
         }
 
         bool UseShock(Fighter f)
@@ -227,6 +256,7 @@ namespace Kagegan
                     Hud.Popup("СИСТЕМНЫЙ ШОК", Hack);
                 }
             });
+            m.Mocap = ShootClip; m.MocapContact = 0.26f; // palm stays thrust out from 0.14 to 0.47 s of the clip
             m.OnTick = (ff, u) => { if (ff.InStartup && Random.value < 0.4f) Fx.Electric(ff.Rig.BonePos(B.HandR), Hack, 0.4f, 1); };
             f.StartMove(m);
             f.Shout("Рэйна: «Системный шок.»");
@@ -250,9 +280,16 @@ namespace Kagegan
                     if (v == null || !v.Alive || v.Team == ff.Team || v.Team == Team.Neutral) continue;
                     if (KMath.Flat(v.transform.position - ff.transform.position).magnitude > 13f) continue;
                     Fx.Lightning(ff.Center, v.Center, Over, 0.08f, 0.35f);
+                    // goes through the normal hit path: dodges, invulnerability, armor, stats and KO all apply
+                    var h = new HitInfo
+                    {
+                        Attacker = ff, Damage = 10f * ff.DamageMul, Stamina = 10f, Knockback = 0.3f, Hitstun = 0.25f, Kind = HitKind.Technique,
+                        Unblockable = true, Parryable = false, Point = v.Center, Dir = KMath.Flat(v.transform.position - ff.transform.position).normalized,
+                        FxColor = Over, Shake = 0.15f, HitStop = 0.03f
+                    };
+                    if (v.ReceiveHit(ref h) != HitResult.Hit) continue;
                     v.ApplyOverload(ff, 5f, 0.6f);
                     v.ApplyHack(3f);
-                    v.Hp = Mathf.Max(1f, v.Hp - 10f * ff.DamageMul);
                     v.Flash(Over);
                 }
                 Hud.Popup("НЕЙРОПЕРЕГРУЗКА", Over);
@@ -289,7 +326,8 @@ namespace Kagegan
                 Vector3 p = c + new Vector3(Mathf.Cos(a), 0, Mathf.Sin(a)) * 2.6f;
                 f.Teleport(p);
                 f.FaceInstant(t.transform.position);
-                f.Anim.Play(Clip.Hold(i % 2 == 0 ? PoseLib.HookR : PoseLib.KickHigh, 0.03f, 0.1f, 0.06f));
+                if (i % 2 == 0) Act("Melee_Hook", 2.2f, MocapLibrary.HookContact - 0.08f * 2.2f, 0.16f, Clip.Hold(PoseLib.HookR, 0.03f, 0.1f, 0.06f));
+                else Act(KickClip, 2.6f, MocapLibrary.KickContact - 0.08f * 2.6f, 0.16f, Clip.Hold(PoseLib.KickHigh, 0.03f, 0.1f, 0.06f));
                 Fx.Trail(f.Center, Wire, 0.5f);
                 Fx.Wire(Hand, t.Center + Random.insideUnitSphere * 0.3f, Wire, 0.22f, i % 2 == 0 ? 1f : -1f);
                 yield return new WaitForSeconds(0.08f);

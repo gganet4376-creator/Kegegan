@@ -105,7 +105,7 @@ namespace Kagegan
             charName.text = Roster.Name(id);
             charTitle.text = Roster.Title(id);
             charDesc.text = Roster.Description(id);
-            for (int i = 0; i < 3; i++) charButtons[i].GetComponent<Image>().color = i == (int)id ? UIKit.Accent : UIKit.Ink;
+            for (int i = 0; i < charButtons.Length; i++) charButtons[i].GetComponent<Image>().color = i == (int)id ? UIKit.Accent : UIKit.Ink;
             GameManager.Inst.SetShowcase(id);
         }
 

@@ -6,7 +6,7 @@ using UnityEngine.Playables;
 namespace Kagegan
 {
     /// <summary>
-    /// Motion-captured humanoid clips from the Quaternius Universal Animation Library (CC0),
+    /// Humanoid clips from the Quaternius Universal Animation Library (CC0) and KayKit Character Animations (CC0, "KK_" names),
     /// imported as Humanoid so Unity retargets them onto every procedural fighter's runtime avatar.
     /// </summary>
     public static class MocapLibrary
@@ -17,6 +17,8 @@ namespace Kagegan
         // contact times (seconds into the clip) measured from the source data: when the striking limb is fully extended
         public const float JabContact = 0.18f, CrossContact = 0.27f, SwordContact = 0.42f;
         public const float HookContact = 0.24f, ThrowContact = 0.35f, DashContact = 0.27f; // library part 2
+        // KayKit Character Animations (CC0), registered with a "KK_" prefix
+        public const float KickContact = 0.39f; // right foot fully out, hip height
         // root speeds of the locomotion loops (m/s), measured from the root-motion version of the library
         public const float WalkSpeed = 0.97f, JogSpeed = 5.36f, SprintSpeed = 8.25f;
 
@@ -25,6 +27,12 @@ namespace Kagegan
             get { Load(); return clips != null && clips.Count > 0 && Get("Idle_Loop") != null; }
         }
 
+        static readonly string[] Files =
+        {
+            "Kagegan/Anim/UAL1_Standard", "Kagegan/Anim/UAL2_Standard",
+            "Kagegan/Anim/KK_CombatMelee", "Kagegan/Anim/KK_CombatRanged", "Kagegan/Anim/KK_MovementAdvanced", "Kagegan/Anim/KK_General"
+        };
+
         static void Load()
         {
             if (loaded) return;
@@ -32,12 +40,13 @@ namespace Kagegan
             clips = new Dictionary<string, AnimationClip>();
             try
             {
-                foreach (var file in new[] { "Kagegan/Anim/UAL1_Standard", "Kagegan/Anim/UAL2_Standard" })
+                foreach (var file in Files)
                     foreach (var c in Resources.LoadAll<AnimationClip>(file))
                     {
                         if (c == null || c.name.StartsWith("__preview__")) continue;
                         if (!c.humanMotion) continue; // only humanoid clips can be retargeted
-                        if (!clips.ContainsKey(c.name)) clips[c.name] = c;
+                        string key = file.Contains("/KK_") ? "KK_" + c.name : c.name;
+                        if (!clips.ContainsKey(key)) clips[key] = c;
                     }
             }
             catch (System.Exception e) { Debug.LogWarning("Kagegan: mocap library unavailable: " + e.Message); }
