@@ -200,6 +200,21 @@ namespace Kagegan
         public static readonly Pose Dizzy = new Pose().H(0, -0.06f, 0).S(B.Spine, 12).S(B.Head, 25, 0, 15).S(B.UArmL, -8, 0, -8).S(B.LArmL, -10).S(B.UArmR, -8, 0, 8).S(B.LArmR, -10).S(B.ThighL, -15).S(B.ShinL, 30).S(B.ThighR, -10).S(B.ShinR, 30);
         public static readonly Pose Down = new Pose().H(0, -0.8f, -0.2f).S(B.Hips, -86).S(B.Head, -10).S(B.UArmL, 0, 0, -70).S(B.LArmL, -20).S(B.UArmR, 0, 0, 70).S(B.LArmR, -20)
             .S(B.ThighL, -12, 0, -8).S(B.ShinL, 25).S(B.ThighR, -2, 0, 10).S(B.ShinR, 10);
+        // face-down (knocked forward / hit from behind): mirror of Down, head turned so the cheek rests on the floor
+        public static readonly Pose DownFront = new Pose().H(0, -0.8f, 0.2f).S(B.Hips, 86).S(B.Spine, -6).S(B.Neck, -15).S(B.Head, -25, 65)
+            .S(B.UArmL, -20, 0, -75).S(B.LArmL, -70).S(B.UArmR, 10, 0, 70).S(B.LArmR, -25)
+            .S(B.ThighL, 4, 0, -12).S(B.ShinL, 45).S(B.ThighR, -6, 0, 6).S(B.ShinR, 10);
+        // half on the side: lying on the back with the torso rolled over and the legs stacked and bent
+        public static readonly Pose DownSide = new Pose().H(0.05f, -0.78f, -0.18f).S(B.Hips, -84, 0, 0).S(B.Spine, 0, 45, 8).S(B.Chest, 0, 25).S(B.Head, -5, 30)
+            .S(B.UArmL, -60, 0, -20).S(B.LArmL, -80).S(B.UArmR, 0, 0, 80).S(B.LArmR, -30)
+            .S(B.ThighL, -55, 0, 10).S(B.ShinL, 70).S(B.ThighR, -35, 0, 4).S(B.ShinR, 55);
+        // push-up from face-down: hands under the shoulders, one knee drawn under the hips
+        public static readonly Pose PushUp = new Pose().H(0, -0.52f, 0.12f).S(B.Hips, 55).S(B.Spine, -12).S(B.Head, -35)
+            .S(B.UArmL, -75, 0, -12).S(B.LArmL, -10).S(B.UArmR, -75, 0, 12).S(B.LArmR, -10)
+            .S(B.ThighL, -105).S(B.ShinL, 120).S(B.ThighR, -30).S(B.ShinR, 70);
+        // tumbling forward through the air after a hit from behind
+        public static readonly Pose JuggledFront = new Pose().H(0, 0, 0).S(B.Hips, 40).S(B.Spine, 10).S(B.Head, -30).S(B.UArmL, -70, 0, -50).S(B.UArmR, -70, 0, 50)
+            .S(B.LArmL, -40).S(B.LArmR, -40).S(B.ThighL, 15).S(B.ShinL, 60).S(B.ThighR, -10).S(B.ShinR, 40);
         public static readonly Pose GetUpMid = new Pose().H(0, -0.5f, -0.1f).S(B.Hips, -30).S(B.Spine, 40).S(B.Head, -10).S(B.UArmL, 30, 0, -20).S(B.LArmL, -10).S(B.UArmR, 30, 0, 20).S(B.LArmR, -10)
             .S(B.ThighL, -100).S(B.ShinL, 130).S(B.ThighR, -70).S(B.ShinR, 110);
         public static readonly Pose Crouch = new Pose().H(0, -0.32f, 0).S(B.Spine, 30).S(B.Head, -15).S(B.UArmL, -50, 0, -20).S(B.LArmL, -60).S(B.UArmR, -50, 0, 20).S(B.LArmR, -60)

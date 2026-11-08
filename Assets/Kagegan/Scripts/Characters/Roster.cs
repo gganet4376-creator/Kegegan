@@ -89,6 +89,18 @@ namespace Kagegan
         public static RunStyle Run(CharacterId id) => id == CharacterId.Kaito || id == CharacterId.Reina ? RunStyle.Ninja : id == CharacterId.Genryu ? RunStyle.Heavy : RunStyle.Glide;
         public static Pose Victory(CharacterId id) => id == CharacterId.Kaito || id == CharacterId.Reina ? PoseLib.WinSwift : id == CharacterId.Genryu ? PoseLib.WinHeavy : PoseLib.WinVoid;
 
+        /// <summary>Each fighter's own captured celebration.</summary>
+        public static string VictoryClip(CharacterId id)
+        {
+            switch (id)
+            {
+                case CharacterId.Kaito: return "Yes";
+                case CharacterId.Reina: return "Dance_Loop";
+                case CharacterId.Genryu: return "Idle_FoldArms_Loop";
+                default: return "KK_Ranged_Magic_Raise";
+            }
+        }
+
         public static Kit KitFor(CharacterId id)
         {
             switch (id)
@@ -108,6 +120,7 @@ namespace Kagegan
             f.IsPlayer = true;
             f.Anim.PlaySteps = true;
             f.Anim.VictoryPose = Victory(id);
+            f.VictoryClip = VictoryClip(id);
             return f;
         }
 

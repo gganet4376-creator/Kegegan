@@ -39,6 +39,10 @@ namespace Kagegan
         int flinchZone;               // 0 body, 1 head, 2 legs
         float flinchSide = 1f;
         float recoil;
+        float glance, glanceSide = 1f;  // attack bounced off a guard: arms and chest jolt back
+        float tumbleT = -1f, tumbleDur = 0.7f, tumbleDir = 1f; // airborne flip after a big launch
+        public Pose DownPose;           // lying pose chosen by the fall (back / face-down / side)
+        public Pose JugglePose;         // airborne pose: falling backward (default) or pitched forward
         float idleT, idleVariantTimer = 5f;
         int idleVariant;
         float blinkTimer = 2f, blinkT = -1f;
@@ -128,6 +132,89 @@ namespace Kagegan
         /// <summary>Attacker-side recoil when a blow connects: the body absorbs the impact, sells the weight of the hit.</summary>
         public void Recoil(float strength) { recoil = Mathf.Max(recoil, strength); }
 
+        /// <summary>A blow that hits the guard: the arms are knocked back, the chest jolts and the head ducks behind the forearms.</summary>
+        public void Glance(float strength, float side = 1f) { glance = Mathf.Max(glance, strength); glanceSide = side >= 0f ? 1f : -1f; }
+
+        /// <summary>Full flip around the hips while airborne (big launches); dir 1 = backflip, -1 = forward.</summary>
+        public void StartTumble(float duration, float dir = 1f) { tumbleT = 0f; tumbleDur = Mathf.Max(0.3f, duration); tumbleDir = dir >= 0f ? 1f : -1f; }
+        public void StopTumble() { tumbleT = -1f; }
+
+        /// <summary>Hit reactions shared by both animation paths. scale below 1 on the mocap path, where the clip already reacts.</summary>
+        void Reactive(float dt, ref Vector3 hp, float scale)
+        {
+            flinch *= Mathf.Exp(-7f * dt);
+            if (flinch > 0.01f)
+            {
+                float f = flinch * scale;
+                switch (flinchZone)
+                {
+                    case 1: // head: snaps back and turns away from the blow
+                        add[(int)B.Neck].x -= 14f * f * flinchDir;
+                        add[(int)B.Head].x -= 32f * f * flinchDir;
+                        add[(int)B.Head].y += 22f * f * flinchSide;
+                        add[(int)B.Head].z += 9f * f * flinchSide;
+                        add[(int)B.Chest].x -= 6f * f * flinchDir;
+                        add[(int)B.Chest].y += 6f * f * flinchSide;
+                        break;
+                    case 2: // legs: the knee on the struck side buckles, body dips toward it
+                    {
+                        bool left = flinchSide > 0f;
+                        add[(int)(left ? B.ThighL : B.ThighR)].x -= 20f * f;
+                        add[(int)(left ? B.ShinL : B.ShinR)].x += 35f * f;
+                        add[(int)B.Spine].z += 8f * f * flinchSide;
+                        add[(int)B.Hips].z -= 5f * f * flinchSide;
+                        hp.y -= 0.08f * f;
+                        break;
+                    }
+                    default: // body: folds around the impact and twists away from the struck side
+                        add[(int)B.Spine].x += 20f * f * flinchDir;
+                        add[(int)B.Spine].y += 10f * f * flinchSide;
+                        add[(int)B.Chest].x += 12f * f * flinchDir;
+                        add[(int)B.Chest].y += 8f * f * flinchSide;
+                        add[(int)B.Head].x += 10f * f * flinchDir;
+                        add[(int)(flinchSide > 0f ? B.UArmL : B.UArmR)].z += 12f * f * flinchSide;
+                        hp.z -= 0.05f * f * flinchDir;
+                        break;
+                }
+            }
+            recoil *= Mathf.Exp(-12f * dt);
+            if (recoil > 0.01f)
+            {
+                float r = recoil * scale;
+                add[(int)B.Chest].x -= 8f * r;
+                add[(int)B.Spine].x -= 4f * r;
+                hp.z -= 0.04f * r;
+            }
+            glance *= Mathf.Exp(-10f * dt);
+            if (glance > 0.01f)
+            {
+                float g = glance * scale;
+                add[(int)B.Chest].x -= 10f * g;
+                add[(int)B.Chest].y += 7f * g * glanceSide;
+                add[(int)B.Spine].x -= 5f * g;
+                add[(int)B.UArmL].x -= 18f * g; add[(int)B.UArmR].x -= 18f * g;
+                add[(int)B.LArmL].x -= 22f * g; add[(int)B.LArmR].x -= 22f * g;
+                add[(int)B.Head].x += 8f * g;
+                hp.z -= 0.06f * g;
+            }
+            if (tumbleT >= 0f)
+            {
+                tumbleT += dt;
+                float u = Mathf.Clamp01(tumbleT / tumbleDur);
+                if (u >= 1f) tumbleT = -1f;
+                else
+                {
+                    float e = u * u * (3f - 2f * u);
+                    add[(int)B.Hips].x -= 360f * e * tumbleDir;
+                    // tuck during the middle of the flip
+                    float tuck = Mathf.Sin(u * Mathf.PI);
+                    add[(int)B.ThighL].x -= 70f * tuck; add[(int)B.ThighR].x -= 70f * tuck;
+                    add[(int)B.ShinL].x += 90f * tuck; add[(int)B.ShinR].x += 90f * tuck;
+                    add[(int)B.Spine].x += 25f * tuck;
+                }
+            }
+        }
+
         public void LookAt(Vector3 worldPos) { lookTarget = worldPos; hasLook = true; }
         public void ClearLook() { hasLook = false; }
 
@@ -194,38 +281,7 @@ namespace Kagegan
                 add[(int)B.UArmR].x += Mathf.Sin(idleT * 0.8f) * 2.5f;
             }
 
-            flinch *= Mathf.Exp(-7f * dt);
-            if (flinch > 0.01f)
-            {
-                switch (flinchZone)
-                {
-                    case 1: // head: snaps back and turns away from the blow
-                        add[(int)B.Neck].x -= 14f * flinch * flinchDir;
-                        add[(int)B.Head].x -= 32f * flinch * flinchDir;
-                        add[(int)B.Head].y += 22f * flinch * flinchSide;
-                        add[(int)B.Chest].x -= 6f * flinch * flinchDir;
-                        break;
-                    case 2: // legs: knee buckles, body dips
-                        add[(int)B.ThighL].x -= 20f * flinch;
-                        add[(int)B.ShinL].x += 35f * flinch;
-                        add[(int)B.Spine].z += 8f * flinch * flinchSide;
-                        hips.y -= 0.08f * flinch;
-                        break;
-                    default: // body: folds around the impact
-                        add[(int)B.Spine].x += 20f * flinch * flinchDir;
-                        add[(int)B.Chest].x += 12f * flinch * flinchDir;
-                        add[(int)B.Head].x += 10f * flinch * flinchDir;
-                        hips.z -= 0.05f * flinch * flinchDir;
-                        break;
-                }
-            }
-            recoil *= Mathf.Exp(-12f * dt);
-            if (recoil > 0.01f)
-            {
-                add[(int)B.Chest].x -= 8f * recoil;
-                add[(int)B.Spine].x -= 4f * recoil;
-                hips.z -= 0.04f * recoil;
-            }
+            Reactive(dt, ref hips, 1f);
             if (Mode == AnimMode.Locomotion && MoveSpeed > 1f)
                 add[(int)B.Spine].z += Mathf.Clamp(-yawRate * 0.04f, -14f, 14f);
 
@@ -337,18 +393,7 @@ namespace Kagegan
             System.Array.Clear(add, 0, add.Length);
             idleT += dt;
             Vector3 hipsAdd = Vector3.zero;
-            flinch *= Mathf.Exp(-7f * dt);
-            if (flinch > 0.01f)
-            {
-                switch (flinchZone)
-                {
-                    case 1: add[(int)B.Head].x -= 26f * flinch * flinchDir; add[(int)B.Head].y += 18f * flinch * flinchSide; add[(int)B.Neck].x -= 10f * flinch * flinchDir; break;
-                    case 2: add[(int)B.ThighL].x -= 16f * flinch; add[(int)B.ShinL].x += 28f * flinch; hipsAdd.y -= 0.06f * flinch; break;
-                    default: add[(int)B.Spine].x += 16f * flinch * flinchDir; add[(int)B.Chest].x += 10f * flinch * flinchDir; break;
-                }
-            }
-            recoil *= Mathf.Exp(-12f * dt);
-            if (recoil > 0.01f) { add[(int)B.Chest].x -= 7f * recoil; add[(int)B.Spine].x -= 3f * recoil; }
+            Reactive(dt, ref hipsAdd, 0.8f);
             if (Mode == AnimMode.Locomotion && MoveSpeed > 1f) add[(int)B.Spine].z += Mathf.Clamp(-yawRate * 0.04f, -12f, 12f);
             HeadLook();
             ApplyTurnLag(ref hipsAdd);
@@ -483,10 +528,10 @@ namespace Kagegan
                 case AnimMode.Hurt: return HurtPose ?? PoseLib.Hurt;
                 case AnimMode.HurtBack: return PoseLib.HurtBack;
                 case AnimMode.Dizzy: return PoseLib.Dizzy;
-                case AnimMode.Down: case AnimMode.Dead: return PoseLib.Down;
+                case AnimMode.Down: case AnimMode.Dead: return DownPose ?? PoseLib.Down;
                 case AnimMode.Grabbed: return PoseLib.Grabbed;
                 case AnimMode.Dodge: return PoseLib.Dodge;
-                case AnimMode.Juggled: return PoseLib.Juggled;
+                case AnimMode.Juggled: return JugglePose ?? PoseLib.Juggled;
                 case AnimMode.Victory: return VictoryPose ?? stance;
                 case AnimMode.Crouch: return PoseLib.Crouch;
                 case AnimMode.Custom: return CustomPose ?? stance;

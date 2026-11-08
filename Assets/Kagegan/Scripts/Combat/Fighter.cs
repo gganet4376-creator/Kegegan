@@ -547,6 +547,12 @@ namespace Kagegan
                     m.OnHit?.Invoke(this, f);
                     if (m.Launch > 0f && Grounded) chaseUntil = Time.time + 0.7f;
                 }
+                else if (res == HitResult.Blocked && m.Kind != HitKind.Grab)
+                {
+                    // the strike glances off the guard: the attacker's arm and chest are thrown back a little
+                    Anim.Glance(m.Kind == HitKind.Light ? 0.35f : 0.7f, -1f);
+                    knock -= dir * (m.Kind == HitKind.Light ? 0.8f : 1.6f);
+                }
                 if (m.Kind == HitKind.Grab) break;
             }
             if (m.Kind != HitKind.Light && !envHitDone) { envHitDone = true; Destructible.ImpactAt(b, m.Radius + 0.4f, m.Damage * 1.5f, this); }
@@ -631,6 +637,9 @@ namespace Kagegan
                 knock = h.Dir * Mathf.Min(h.Knockback, 4f) * 0.6f / Weight;
                 Fx.Block(h.Point);
                 Sfx.PlayAt(SfxId.Block, h.Point, 0.8f);
+                // the guard absorbs the blow: forearms knocked back, chest jolts toward the struck side
+                float bSide = Vector3.Dot(transform.right, h.Point - Center) >= 0f ? -1f : 1f;
+                Anim.Glance(h.Kind == HitKind.Light ? 0.55f : 1f, bSide);
                 TimeFx.HitStop(0.03f);
                 if (IsPlayer) Haptics.Light();
                 if (Stamina <= 0f)
@@ -703,6 +712,8 @@ namespace Kagegan
             Anim.HurtPose = fromBehind ? PoseLib.HurtBack : zone == 1 ? PoseLib.HurtHead : zone == 2 ? PoseLib.HurtLow : (h.Kind == HitKind.Light && Random.value < 0.4f ? PoseLib.Hurt : PoseLib.HurtBody);
             Anim.Flinch(1f, fromBehind, zone, side);
             float kb = h.Knockback / Weight;
+            bool airborneHit = h.Launch > 0f || !Grounded || h.Knockdown;
+            if (airborneHit) ChooseFall(fromBehind, h);
             if (h.Slam && !Grounded)
             {
                 Velocity.y = -16f; knock = h.Dir * kb * 0.4f;
@@ -727,7 +738,7 @@ namespace Kagegan
                 stateTimer = h.Hitstun * (IsBoss ? 0.6f : 1f);
                 SetState(FState.Hitstun);
                 // captured hit reaction, timed to the stun so the fighter is back in stance as control returns
-                string react = kb >= 6f ? "Hit_Knockback" : zone == 1 ? "Hit_Head" : "Hit_Chest";
+                string react = kb >= 6f ? "Hit_Knockback" : zone == 1 ? "Hit_Head" : BodyReact();
                 var rc = MocapLibrary.Get(react);
                 if (rc != null) Anim.PlayMocap(react, Mathf.Clamp(rc.length / Mathf.Max(0.15f, stateTimer), 0.7f, 1.6f), 0f, false, -1f, 0.05f);
             }
@@ -895,7 +906,11 @@ namespace Kagegan
         {
             CancelMove();
             SetState(FState.Dead);
-            if (Grounded && Anim.PlayMocap("Death01", 1.15f, 0f, true, -1f, 0.08f))
+            bool deathFromBehind = Vector3.Dot(transform.forward, -h.Dir) <= -0.15f;
+            fallKind = deathFromBehind ? 1 : 0;
+            Anim.DownPose = deathFromBehind ? PoseLib.DownFront : PoseLib.Down;
+            Anim.JugglePose = deathFromBehind ? PoseLib.JuggledFront : null;
+            if (Grounded && PlayDeathClip())
             {
                 // captured collapse on the spot, with a short shove from the final blow
                 Anim.DeathMocap = true;
@@ -996,10 +1011,91 @@ namespace Kagegan
             ComboTaken = 0; juggleHits = 0;
         }
 
+        // ================== victory ==================
+        /// <summary>Captured celebration for this fighter; null picks one by stance.</summary>
+        public string VictoryClip;
+
+        /// <summary>Victory pose plus the fighter's own captured celebration (falls back to arms folded).</summary>
+        public void Celebrate(float duration)
+        {
+            if (!Alive || Anim == null) return;
+            CancelMove();
+            SetMove(Vector3.zero);
+            if (State != FState.Idle) SetState(FState.Idle);
+            Anim.Mode = AnimMode.Victory;
+            string c = VictoryClip;
+            if (c == null)
+                switch (Anim.Stance)
+                {
+                    case StanceKind.Heavy: case StanceKind.Thunder: c = "Idle_FoldArms_Loop"; break;
+                    case StanceKind.Void: case StanceKind.Moon: case StanceKind.Serpent: c = "KK_Ranged_Magic_Raise"; break;
+                    default: c = "Yes"; break;
+                }
+            bool loop = c.EndsWith("_Loop");
+            if (MocapLibrary.Get(c) == null || !Anim.PlayMocap(c, 1f, 0f, !loop, duration, 0.2f))
+                Anim.PlayMocap("Idle_FoldArms_Loop", 1f, 0f, false, duration, 0.2f);
+        }
+
+        // ================== fall variants ==================
+        int fallKind; // how the fighter will land: 0 on the back, 1 face-down, 2 on the side
+
+        void ChooseFall(bool fromBehind, HitInfo h)
+        {
+            if (fromBehind) fallKind = 1;
+            else if (h.Slam || h.Launch >= 8f || h.Knockback >= 9f || IsBoss) fallKind = 0;
+            else fallKind = Random.value < 0.3f ? 2 : 0;
+            Anim.DownPose = fallKind == 1 ? PoseLib.DownFront : fallKind == 2 ? PoseLib.DownSide : PoseLib.Down;
+            Anim.JugglePose = fallKind == 1 ? PoseLib.JuggledFront : null;
+            // a big launch sends the body into a full flip before it lands
+            if (h.Launch >= 8f && !IsBoss && fallKind == 0 && Random.value < 0.6f) Anim.StartTumble(0.62f, 1f);
+            else if (fromBehind && h.Knockdown && !IsBoss && Random.value < 0.35f) Anim.StartTumble(0.6f, -1f);
+        }
+
+        static readonly string[] bodyReacts = { "Hit_Chest", "KK_Hit_A", "KK_Hit_B" };
+        static string BodyReact()
+        {
+            string r = bodyReacts[Random.Range(0, bodyReacts.Length)];
+            return MocapLibrary.Get(r) != null ? r : "Hit_Chest";
+        }
+
+        static readonly string[] deathClips = { "Death01", "KK_Death_A", "KK_Death_B" };
+        bool PlayDeathClip()
+        {
+            if (fallKind == 1) return false; // face-down deaths use the procedural fall; captured deaths only for frontal kills
+            int start = Random.Range(0, deathClips.Length);
+            for (int i = 0; i < deathClips.Length; i++)
+            {
+                string c = deathClips[(start + i) % deathClips.Length];
+                if (MocapLibrary.Get(c) == null) continue;
+                return Anim.PlayMocap(c, c == "Death01" ? 1.15f : 1.05f, 0f, true, -1f, 0.08f);
+            }
+            return false;
+        }
+
         // ================== get-up variants ==================
         void BeginGetUp()
         {
             SetState(FState.GetUp);
+            int kind = fallKind;
+            fallKind = 0;
+            if (kind == 1)
+            {
+                // face-down: push up on the hands, draw a knee under and stand
+                stateTimer = 0.6f;
+                Anim.Play(Clip.Seq(0f, PoseLib.DownFront, 0.16f, PoseLib.PushUp, 0.38f, PoseLib.OneKnee, 0.6f, null));
+                invulnUntil = Time.time + stateTimer + 0.15f;
+                Fx.Dust(transform.position, 0.6f, 4);
+                return;
+            }
+            if (kind == 2)
+            {
+                // from the side: roll onto a hip, plant a hand and come up through one knee
+                stateTimer = 0.55f;
+                Anim.Play(Clip.Seq(0f, PoseLib.DownSide, 0.16f, PoseLib.GetUpMid, 0.36f, PoseLib.OneKnee, 0.55f, null));
+                invulnUntil = Time.time + stateTimer + 0.15f;
+                Fx.Dust(transform.position, 0.6f, 4);
+                return;
+            }
             int v;
             if (Anim.Stance == StanceKind.Swift || Anim.Stance == StanceKind.Thunder) v = Random.value < 0.7f ? 1 : 2;
             else if (Anim.Stance == StanceKind.Heavy || IsBoss) v = Random.value < 0.75f ? 0 : 2;

@@ -175,7 +175,7 @@ namespace Kagegan
             yield return StartCoroutine(BossFight(Wave));
             if (Wave == 2) { yield return StartCoroutine(Ending()); yield break; }
             Hud.Banner("БОСС ПОВЕРЖЕН", UIKit.Gold);
-            Player.Anim.Mode = AnimMode.Victory;
+            Player.Celebrate(2.5f);
             yield return new WaitForSeconds(2.5f);
             Finish(true);
         }
@@ -337,8 +337,7 @@ namespace Kagegan
             if (Boss != null) CameraRig.Cinematic(Boss.Center, KMath.Flat(Player.transform.position - Boss.transform.position).normalized + Vector3.up * 0.2f, 5f, 1f, 1.6f);
             Haptics.Heavy();
             yield return new WaitForSecondsRealtime(1.5f);
-            Player.Anim.Mode = AnimMode.Victory;
-            Player.Anim.PlayMocap("Idle_FoldArms_Loop", 1f, 0f, false, 2.5f, 0.2f);
+            Player.Celebrate(2.5f);
             CameraRig.Cinematic(Player.Center, Player.transform.forward + Vector3.up * 0.1f, 4f, 0.6f, 2f);
             // clean up summons
             foreach (var s in summons) if (s != null && s.Alive) s.Kill(Player);
@@ -374,8 +373,38 @@ namespace Kagegan
             GameManager.Inst.SetControlsVisible(false);
             Hud.Banner("ПОРАЖЕНИЕ", new Color(1f, 0.35f, 0.3f));
             Sfx.Voice("you_lose");
-            yield return new WaitForSeconds(2.4f);
+            // the winner celebrates over the fallen player
+            yield return new WaitForSeconds(0.9f);
+            Fighter winner = Player != null && Player.LastAttacker != null && Player.LastAttacker.Alive ? Player.LastAttacker : null;
+            if (winner == null && Player != null)
+            {
+                float best = float.MaxValue;
+                foreach (var e in enemies)
+                {
+                    if (e == null || !e.Alive) continue;
+                    float d = (e.transform.position - Player.transform.position).sqrMagnitude;
+                    if (d < best) { best = d; winner = e; }
+                }
+            }
+            if (winner == null && Boss != null && Boss.Alive) winner = Boss;
+            if (winner != null)
+            {
+                foreach (var e in enemies) StandDown(e);
+                StandDown(Boss);
+                winner.FaceInstant(Player.transform.position);
+                winner.Celebrate(2f);
+                CameraRig.Cinematic(winner.Center, winner.transform.forward + Vector3.up * 0.15f, 4.2f, 0.6f, 1.6f);
+            }
+            yield return new WaitForSeconds(1.6f);
             OnDefeat?.Invoke();
+        }
+
+        static void StandDown(Fighter e)
+        {
+            if (e == null || !e.Alive) return;
+            var brain = e.GetComponent<AIBrain>();
+            if (brain != null) brain.enabled = false;
+            e.SetMove(Vector3.zero);
         }
 
         /// <summary>Restart the current wave (or boss) with a fresh player.</summary>
