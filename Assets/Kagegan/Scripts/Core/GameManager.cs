@@ -267,6 +267,7 @@ namespace Kagegan
         {
             if (paused && Battle != null && !TimeFx.Paused && Battle.Running) Pause(true);
             if (paused) Save.Write();
+            else GraphicsQuality.ReapplyFps();
         }
     }
 }

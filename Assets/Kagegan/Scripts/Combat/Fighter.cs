@@ -782,7 +782,10 @@ namespace Kagegan
             Anim.HurtPose = fromBehind ? PoseLib.HurtBack : zone == 1 ? PoseLib.HurtHead : zone == 2 ? PoseLib.HurtLow : (h.Kind == HitKind.Light && Random.value < 0.4f ? PoseLib.Hurt : PoseLib.HurtBody);
             Anim.Flinch(1f, fromBehind, zone, side);
             float kb = h.Knockback / Weight;
-            bool airborneHit = h.Launch > 0f || !Grounded || h.Knockdown;
+            // CharacterController.isGrounded flickers on slopes and steps: a body standing on the floor must not be
+            // treated as airborne, or every jab lifts it again and it seems to float
+            bool onFloor = Grounded || NearGround(0.3f);
+            bool airborneHit = h.Launch > 0f || !onFloor || h.Knockdown;
             if (airborneHit) ChooseFall(fromBehind, h);
             if (h.Slam && !Grounded)
             {
@@ -790,12 +793,14 @@ namespace Kagegan
                 knockdownOnLand = true; slamming = true;
                 SetState(FState.Juggle);
             }
-            else if (h.Launch > 0f || !Grounded || h.Knockdown)
+            else if (airborneHit)
             {
-                float up = h.Launch > 0f ? h.Launch : (h.Knockdown ? 5f : 3.2f);
-                if (juggleHits > 9 && !h.Knockdown) up *= 0.25f;
-                Velocity.y = Mathf.Min(Mathf.Max(Velocity.y * 0.3f, up / Mathf.Sqrt(Weight)), 11f);
-                if (transform.position.y > 2.6f) Velocity.y = Mathf.Min(Velocity.y, 2f); // keep juggles inside the frame
+                float up = h.Launch > 0f ? h.Launch : (h.Knockdown ? 5f : 2.6f);
+                // each extra air hit lifts less (weight builds up), so juggles arc down instead of hovering
+                if (h.Launch <= 0f && !h.Knockdown) up *= Mathf.Pow(0.8f, Mathf.Max(0, juggleHits - 1));
+                if (juggleHits > 7 && !h.Knockdown) up *= 0.3f;
+                Velocity.y = Mathf.Min(Mathf.Max(Velocity.y * 0.2f, up / Mathf.Sqrt(Weight)), 11f);
+                if (transform.position.y > 2.2f) Velocity.y = Mathf.Min(Velocity.y, 1f); // keep juggles inside the frame
                 knock = h.Dir * kb * (h.Knockdown ? 1.5f : 0.6f);
                 juggleHits++;
                 knockdownOnLand = h.Knockdown || juggleHits > 2 || !IsBoss;
@@ -1557,10 +1562,22 @@ namespace Kagegan
         }
 
         // ================== physics ==================
+        static readonly RaycastHit[] groundHits = new RaycastHit[4];
+        /// Floor within `dist` under the feet (ignores fighters, triggers).
+        bool NearGround(float dist)
+        {
+            int n = Physics.RaycastNonAlloc(transform.position + Vector3.up * 0.15f, Vector3.down, groundHits, dist + 0.15f, ~0, QueryTriggerInteraction.Ignore);
+            for (int i = 0; i < n; i++)
+                if (groundHits[i].collider != Cc && groundHits[i].collider.GetComponentInParent<Fighter>() == null) return true;
+            return false;
+        }
+
         void ApplyPhysics(float dt, bool control)
         {
             float gravity = -24f;
-            if (State == FState.Juggle && juggleHits <= 9 && Time.time - lastHitTakenTime < 0.45f && Velocity.y < 2f) gravity *= 0.5f;
+            // short, mild hang right after an air hit (reads as impact) - not a long float
+            if (State == FState.Juggle && juggleHits <= 6 && Time.time - lastHitTakenTime < 0.2f && Velocity.y < 2f) gravity *= 0.75f;
+            else if (State == FState.Juggle && Velocity.y < 0f) gravity *= 1.25f; // falls faster than it rises: weighty arc
             if (State == FState.Attack && !Grounded && CurMove != null && Velocity.y < 0f) gravity *= 0.55f; // air combos hang briefly
             if (State == FState.Channel && !Grounded) gravity *= 0.3f;
 
@@ -1580,9 +1597,9 @@ namespace Kagegan
             }
 
             Velocity.y += gravity * dt;
-            if ((State == FState.Juggle || State == FState.Dead) && transform.position.y > 3.4f && Velocity.y > 0f) Velocity.y = 0f;
+            if ((State == FState.Juggle || State == FState.Dead) && transform.position.y > 3f && Velocity.y > 0f) Velocity.y = 0f;
             Vector3 total = Velocity + knock;
-            knock = Vector3.MoveTowards(knock, Vector3.zero, (Grounded ? 18f : 6f) * dt);
+            knock = Vector3.MoveTowards(knock, Vector3.zero, (Grounded ? 18f : 9f) * dt);
 
             if (!Cc.enabled) return;
             var flags = Cc.Move(total * dt);

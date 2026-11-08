@@ -40,6 +40,8 @@ namespace Kagegan
         // environment (Android only; NaN = unknown)
         float batteryC = float.NaN, headroom = float.NaN;
         int thermal = -1;
+        /// <summary>Android thermal status (0 none .. 6 shutdown, -1 unknown), for the frame-rate governor.</summary>
+        public static int Thermal { get; private set; } = -1;
         bool envBroken;
         int sdk = -1;
 
@@ -322,6 +324,7 @@ namespace Kagegan
                         using (var pm = act.Call<AndroidJavaObject>("getSystemService", "power"))
                         {
                             thermal = pm.Call<int>("getCurrentThermalStatus");
+                            Thermal = thermal;
                             // forecast 10 s ahead; 1.0 = the phone starts throttling
                             if (sdk >= 30) headroom = pm.Call<float>("getThermalHeadroom", 10);
                         }

@@ -102,14 +102,34 @@ namespace Kagegan
             return list.ToArray();
         }
 
-        static int ApplyFps()
+        /// <summary>Frame rate the player chose in settings, limited by the panel.</summary>
+        public static int WantedFps()
         {
             int want = Save.Data.targetFps <= 0 ? 60 : Save.Data.targetFps;
             int max = DisplayMaxFps();
             if (want > max) want = max >= 119 ? 120 : max >= 89 ? 90 : 60;
+            return want;
+        }
+
+        /// <summary>Session-only limit set by the frame-rate governor (0 = none). Never saved.</summary>
+        public static int FpsCap { get; private set; }
+
+        static int ApplyFps()
+        {
+            int want = WantedFps();
+            if (FpsCap > 0 && want > FpsCap) want = FpsCap;
             Application.targetFrameRate = want;
             return want;
         }
+
+        /// <summary>Re-applies the target (after returning from background Android may drop the swap interval).</summary>
+        public static void ReapplyFps() => ApplyFps();
+
+        /// <summary>Governor step: run at `cap` for this session (0 = back to the chosen rate).</summary>
+        public static void CapFps(int cap) { FpsCap = cap; ApplyFps(); }
+
+        /// <summary>The player changed the setting: forget the governor's limit.</summary>
+        public static void ResetFpsGovernor() { FpsCap = 0; ApplyFps(); PerfMonitor.ResetGovernor(); }
 
         public static void Apply(GraphicsPreset p)
         {
@@ -194,6 +214,42 @@ namespace Kagegan
 
         public static void ResetAverage() { sumFps = 0; samples = 0; }
 
+        // ---- frame-rate governor ----
+        // At 90/120 Hz, Android frame pacing snaps to the next divisor of the panel when a frame is late
+        // (120 -> 60 -> 40 -> 30). A target the phone can't hold therefore lands on 30 with uneven frames.
+        // When the chosen rate isn't held for a few seconds (or the phone heats up) step down to a rate it can
+        // hold - 90 or 60 - for this session only; try the higher rate again later if there is headroom.
+        static float govLow, govGood; static int govUps;
+        public static void ResetGovernor() { govLow = 0f; govGood = 0f; govUps = 0; }
+
+        void Governor(float dt)
+        {
+            int tgt = Application.targetFrameRate;
+            if (tgt <= 0) return;
+            int wanted = GraphicsQuality.WantedFps();
+            int thermal = PerfProbe.Thermal;
+            if (thermal >= 2 && tgt > 60) // moderate heat: 60 is the stable choice, before the OS throttles us to 30
+            {
+                GraphicsQuality.CapFps(60); govLow = govGood = 0f;
+                return;
+            }
+            if (tgt > 60)
+            {
+                if (Fps < tgt * 0.8f) govLow += dt; else govLow = Mathf.Max(0f, govLow - dt * 0.5f);
+                if (govLow >= 3.5f)
+                {
+                    bool has90 = System.Array.IndexOf(GraphicsQuality.FpsOptions(), 90) >= 0;
+                    GraphicsQuality.CapFps(tgt > 90 && has90 && Fps >= 82f ? 90 : 60);
+                    govLow = govGood = 0f;
+                }
+            }
+            if (tgt < wanted && thermal < 2 && govUps < 2)
+            {
+                if (Fps > tgt * 0.97f) govGood += dt; else govGood = 0f;
+                if (govGood >= 30f) { govUps++; govGood = govLow = 0f; GraphicsQuality.CapFps(0); }
+            }
+        }
+
         void Update()
         {
             float dt = Time.unscaledDeltaTime;
@@ -201,6 +257,7 @@ namespace Kagegan
             emaDt = Mathf.Lerp(emaDt, dt, 0.05f);
             Fps = 1f / emaDt;
             sumFps += 1.0 / dt; samples++;
+            Governor(dt);
 
             if (!Save.Data.dynamicResolution) return;
             checkTimer += dt;

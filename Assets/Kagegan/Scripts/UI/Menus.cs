@@ -196,13 +196,13 @@ namespace Kagegan
             SettingRow("Погода", () => Names.WeatherSetting(Save.Data.weather), d => Save.Data.weather = (Save.Data.weather + d + WeatherSystem.SettingCount) % WeatherSystem.SettingCount, nextY());
             SettingRow("Трава (густота и дальность)", () => GrassBend.LevelName, d => { Save.Data.grassLevel = (Save.Data.grassLevel + d + 4) % 4; GrassBend.ApplyDistance(); }, nextY());
             SettingRow("Динамическое разрешение", () => Save.Data.dynamicResolution ? "Вкл" : "Выкл", d => { Save.Data.dynamicResolution = !Save.Data.dynamicResolution; GraphicsQuality.SetRenderScale(GraphicsQuality.BaseRenderScale, false); }, nextY());
-            SettingRow("Частота кадров", () => Save.Data.targetFps + " FPS", d =>
+            SettingRow("Частота кадров", () => Save.Data.targetFps + " FPS" + (Application.targetFrameRate < GraphicsQuality.WantedFps() ? " (сейчас " + Application.targetFrameRate + ")" : ""), d =>
             {
                 var opts = GraphicsQuality.FpsOptions();
                 int i = System.Array.IndexOf(opts, Save.Data.targetFps);
                 i = i < 0 ? 1 : (i + d + opts.Length) % opts.Length;
                 Save.Data.targetFps = opts[Mathf.Clamp(i, 0, opts.Length - 1)];
-                Application.targetFrameRate = Save.Data.targetFps;
+                GraphicsQuality.ResetFpsGovernor();
             }, nextY());
             SettingRow("Обучение в бою", () => Save.Data.tutorialDone ? "Пройдено" : "Показать", d => { Save.Data.tutorialDone = !Save.Data.tutorialDone; }, nextY());
             SettingRow("Виброотдача", () => Save.Data.vibration ? "Вкл" : "Выкл", d => { Save.Data.vibration = !Save.Data.vibration; if (Save.Data.vibration) Haptics.Medium(); }, nextY());
