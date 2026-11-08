@@ -25,7 +25,8 @@ namespace Kagegan
             if (cache.TryGetValue(name, out var m)) return m;
             m = null;
             try { m = Load(name); }
-            catch (System.Exception e) { Debug.LogWarning("Kagegan: character model '" + name + "' failed to load: " + e.Message); }
+            catch (System.Exception e) { Debug.LogError("Kagegan: character model '" + name + "' failed to load: " + e.Message); }
+            if (m == null) Debug.LogError("Kagegan: character model '" + name + "' not found, using the procedural body");
             cache[name] = m;
             return m;
         }
