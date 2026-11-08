@@ -815,7 +815,7 @@ namespace Kagegan
                 // captured hit reaction, timed to the stun so the fighter is back in stance as control returns
                 string react = kb >= 6f ? "Hit_Knockback" : zone == 1 ? "Hit_Head" : BodyReact();
                 var rc = MocapLibrary.Get(react);
-                if (rc != null) Anim.PlayMocap(react, Mathf.Clamp(rc.length / Mathf.Max(0.15f, stateTimer), 0.7f, 1.6f), 0f, false, -1f, 0.05f);
+                if (rc != null) Anim.PlayMocap(react, Mathf.Clamp(rc.length / Mathf.Max(0.15f, stateTimer), 0.7f, 1.6f), 0f, false, -1f, 0.09f);
             }
             return HitResult.Hit;
         }
@@ -1704,7 +1704,14 @@ namespace Kagegan
             }
             dir = KMath.Flat(dir);
             if (rate <= 0f || dir.sqrMagnitude < 0.0001f) return;
-            transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(dir), 1f - Mathf.Exp(-rate * dt));
+            Quaternion want = Quaternion.LookRotation(dir);
+            if (!IsPlayer)
+            {
+                // AI turns like a body with weight: softer ease and a capped angular speed, no snapping round
+                Quaternion eased = Quaternion.Slerp(transform.rotation, want, 1f - Mathf.Exp(-rate * 0.65f * dt));
+                transform.rotation = Quaternion.RotateTowards(transform.rotation, eased, 600f * dt);
+            }
+            else transform.rotation = Quaternion.Slerp(transform.rotation, want, 1f - Mathf.Exp(-rate * dt));
         }
 
         public void FaceInstant(Vector3 point)

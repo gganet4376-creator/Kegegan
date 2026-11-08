@@ -83,6 +83,8 @@ namespace Kagegan
         {
             if (!HasMocap) return false;
             if (!Mocap.PlayAction(clip, speed, start, fade, hold, maxDuration)) return false;
+            // covers the case where a third clip interrupts a cross-fade and the oldest one is dropped
+            Inertialize(Mathf.Clamp(fade * 1.5f, 0.05f, 0.2f));
             action = null;
             return true;
         }
@@ -113,11 +115,85 @@ namespace Kagegan
 
         public void StopAction()
         {
+            if (AnyActionPlaying) Inertialize(0.16f);
             action = null;
             if (HasMocap) Mocap.StopAction(0.08f);
         }
 
         public void Flinch(float strength, bool fromBehind) => Flinch(strength, fromBehind, 0, 1f);
+
+        // ================= inertial transition blending =================
+        // AAA-style "dead blending": when the animation source switches (state change, clip interrupted, action stopped)
+        // the last shown pose keeps moving with its own velocity, decaying, and is cross-faded into the new animation.
+        // Nothing ever pops, and a short window keeps strikes responsive.
+        readonly Quaternion[] lastQ = new Quaternion[(int)B.Count], prevQ = new Quaternion[(int)B.Count],
+                              snapQ = new Quaternion[(int)B.Count], velQ = new Quaternion[(int)B.Count];
+        Vector3 lastHips, prevHips, snapHips, velHips;
+        float lastDt = 1f / 60f, inertT = -1f, inertDur;
+        int lastFrames;
+        AnimMode lastMode;
+
+        /// <summary>Blends from the pose currently on screen into whatever plays next, over <paramref name="duration"/> s.</summary>
+        public void Inertialize(float duration)
+        {
+            if (lastFrames < 2 || Rig == null) return;
+            int n = (int)B.EyeL;
+            // already blending: start from what is on screen now (the last output), not the old snapshot
+            for (int i = 0; i < n; i++)
+            {
+                snapQ[i] = lastQ[i];
+                Quaternion d = lastQ[i] * Quaternion.Inverse(prevQ[i]);
+                d.ToAngleAxis(out float ang, out _);
+                if (ang > 180f) ang = 360f - ang;
+                // a jump of more than ~25 degrees in one frame was a pop, not motion: don't carry it on
+                velQ[i] = ang < 25f ? d : Quaternion.identity;
+            }
+            snapHips = lastHips;
+            velHips = (lastHips - prevHips);
+            if (velHips.sqrMagnitude > 0.0025f) velHips = Vector3.zero;
+            inertDur = Mathf.Max(inertT >= 0f && inertT < inertDur ? Mathf.Min(inertDur, 0.12f) : 0f, duration);
+            inertT = 0f;
+        }
+
+        static float ModeBlend(AnimMode from, AnimMode to)
+        {
+            if (to == AnimMode.Hurt || to == AnimMode.HurtBack || to == AnimMode.Juggled || to == AnimMode.Dodge) return 0.08f; // impacts read instantly
+            if (from == AnimMode.Air && to == AnimMode.Locomotion) return 0.12f;  // landing
+            if (from == AnimMode.Down || from == AnimMode.Dizzy || from == AnimMode.Grabbed) return 0.25f; // getting back up
+            if (from == AnimMode.Hurt || from == AnimMode.HurtBack) return 0.2f;  // recovering from a hit
+            return 0.16f;
+        }
+
+        void Inertia(float dt)
+        {
+            if (inertT < 0f) return;
+            inertT += dt;
+            if (inertT >= inertDur) { inertT = -1f; return; }
+            float x = inertT / inertDur;
+            float w = x * x * (3f - 2f * x);
+            // extrapolate the frozen pose with its decaying velocity (integral of e^(-12 t), in frames)
+            float carry = Mathf.Min((1f - Mathf.Exp(-12f * inertT)) / (12f * Mathf.Max(0.004f, lastDt)), 3f);
+            var bones = Rig.Bones;
+            int n = (int)B.EyeL;
+            for (int i = 0; i < n; i++)
+            {
+                Quaternion from = Quaternion.SlerpUnclamped(Quaternion.identity, velQ[i], carry) * snapQ[i];
+                bones[i].localRotation = Quaternion.Slerp(from, bones[i].localRotation, w);
+            }
+            var hb = bones[(int)B.Hips];
+            hb.localPosition = Vector3.Lerp(snapHips + velHips * carry, hb.localPosition, w);
+        }
+
+        void StoreLast(float dt)
+        {
+            var bones = Rig.Bones;
+            int n = (int)B.EyeL;
+            for (int i = 0; i < n; i++) { prevQ[i] = lastFrames > 0 ? lastQ[i] : bones[i].localRotation; lastQ[i] = bones[i].localRotation; }
+            prevHips = lastFrames > 0 ? lastHips : bones[(int)B.Hips].localPosition;
+            lastHips = bones[(int)B.Hips].localPosition;
+            if (dt > 0f) lastDt = dt;
+            if (lastFrames < 2) lastFrames++;
+        }
 
         /// <summary>Additive hit reaction; zone 0 = body (folds forward), 1 = head (snaps back and twists), 2 = legs (knee buckles).</summary>
         public void Flinch(float strength, bool fromBehind, int zone, float side)
@@ -222,6 +298,11 @@ namespace Kagegan
         {
             if (Rig == null) return;
             float dt = Time.deltaTime * TimeScale;
+            if (Mode != lastMode)
+            {
+                Inertialize(ModeBlend(lastMode, Mode));
+                lastMode = Mode;
+            }
             if (HasMocap) { MocapLateUpdate(dt); return; }
             accumulatedDt += dt;
             // off-screen characters animate at 1/3 rate
@@ -305,8 +386,10 @@ namespace Kagegan
             Vector3 hipsTarget = Rig.HipsRestPos + hips * Rig.Look.height;
             bones[(int)B.Hips].localPosition = Vector3.Lerp(bones[(int)B.Hips].localPosition, hipsTarget, k);
 
+            Inertia(dt);
             FootIK();
             Eyes(dt);
+            StoreLast(dt);
         }
 
         /// <summary>
@@ -405,8 +488,10 @@ namespace Kagegan
                 bones[i].localRotation = q;
             }
             bones[(int)B.Hips].localPosition = Vector3.Lerp(mocapHips, procHips, procW) + hipsAdd * h;
+            Inertia(dt);
             FootIK();
             Eyes(dt);
+            StoreLast(dt);
         }
 
         /// <summary>

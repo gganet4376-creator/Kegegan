@@ -80,7 +80,8 @@ namespace Kagegan
         AnimationClipPlayable actA, actB;
         bool aIsCurrent = true, hasA, hasB;
         float actWeight, actTarget, actFadeRate = 12f;
-        float actEnd, actTime, actSpeed = 1f;
+        float actEnd, actTime, actSpeed = 1f, actOutFade = 0.18f;
+        bool actFull; // plays to the clip's natural end (not cut short by maxDuration)
         bool actHold;
         float crossW;
         public bool Ready { get; private set; }
@@ -157,6 +158,9 @@ namespace Kagegan
             float len = clip.length;
             actEnd = maxDuration > 0f ? start + maxDuration * speed : len;
             actHold = hold;
+            actFull = maxDuration <= 0f;
+            // blend out slower than in: the clip settles into the next pose instead of being cut
+            actOutFade = Mathf.Clamp((actEnd - start) / Mathf.Max(0.1f, speed) * 0.3f, 0.12f, 0.22f);
             actTarget = 1f;
             actFadeRate = 1f / Mathf.Max(0.02f, fade);
             crossW = actWeight > 0.05f ? 0f : 1f; // cross-fade from the previous action if one was showing
@@ -226,10 +230,12 @@ namespace Kagegan
             if (actTarget > 0f)
             {
                 actTime += dt * actSpeed * TimeScale;
-                if (actTime >= actEnd)
+                // a clip that plays to its end starts blending out while it still moves (no frozen last frame)
+                float lead = !actHold && actFull ? actOutFade * actSpeed : 0f;
+                if (actTime >= actEnd - lead)
                 {
-                    if (actHold) { var cur = aIsCurrent ? actA : actB; cur.SetSpeed(0f); }
-                    else actTarget = 0f;
+                    if (actHold) { if (actTime >= actEnd) { var cur = aIsCurrent ? actA : actB; cur.SetSpeed(0f); } }
+                    else { actTarget = 0f; actFadeRate = 1f / actOutFade; }
                 }
             }
             actWeight = Mathf.MoveTowards(actWeight, actTarget, dt * actFadeRate);
