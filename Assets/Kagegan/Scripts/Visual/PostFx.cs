@@ -48,8 +48,6 @@ namespace Kagegan
                 asset.msaaSampleCount = ultra ? 4 : (on ? 2 : 1);
                 asset.supportsCameraDepthTexture = on; // depth of field reads it
             }
-            // soft particles read the same depth texture, so they follow it (High / Ultra only)
-            if (on && asset != null) Shader.EnableKeyword("KAGE_SOFTFX"); else Shader.DisableKeyword("KAGE_SOFTFX");
             if (cam == null) return;
             cam.allowHDR = on;
             cam.allowMSAA = on;
@@ -60,6 +58,8 @@ namespace Kagegan
                 data.antialiasing = AntialiasingMode.None; // MSAA does the edges; keeps the toon lines crisp
                 data.dithering = on;
                 data.requiresDepthTexture = on;
+                // a single NaN/Inf pixel (driver quirks) would otherwise bloom into a white blob on HDR targets
+                data.stopNaN = on;
             }
             if (!on) { if (inst != null) inst.enabled = false; return; }
 

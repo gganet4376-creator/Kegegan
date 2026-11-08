@@ -190,21 +190,42 @@ namespace Kagegan
             if (checkTimer < 1.5f) return;
             checkTimer = 0f;
 
-            float target = Application.targetFrameRate > 0 ? Application.targetFrameRate : 60f;
+            // Judge against 60 at most: on a 90/120 Hz phone the game can run at 85 fps and still look smooth,
+            // and chasing 120 used to crush the resolution to x0.46 (blurry, "no shaders" look).
+            float target = Application.targetFrameRate > 0 ? Mathf.Min(Application.targetFrameRate, 60f) : 60f;
             float scale = GraphicsQuality.CurrentRenderScale;
-            if (Fps < target * 0.88f && scale > 0.5f)
+            float floor = MinScale(GraphicsQuality.Current);
+            if (Fps < target * 0.88f && scale > floor + 0.001f)
             {
                 goodTime = 0f;
-                GraphicsQuality.SetRenderScale(scale - 0.06f, false);
+                // CPU-bound: the last drop didn't help, so stop throwing away sharpness for nothing
+                if (lastDropFps > 0f && Fps < lastDropFps * 1.04f) { stuckDrops++; if (stuckDrops >= 2) return; }
+                else stuckDrops = 0;
+                lastDropFps = Fps;
+                GraphicsQuality.SetRenderScale(Mathf.Max(floor, scale - 0.06f), false);
             }
             else if (Fps > target * 0.97f)
             {
                 goodTime += 1.5f;
+                lastDropFps = 0f; stuckDrops = 0;
                 if (goodTime >= 6f && scale < GraphicsQuality.BaseRenderScale)
                 {
                     goodTime = 0f;
                     GraphicsQuality.SetRenderScale(Mathf.Min(GraphicsQuality.BaseRenderScale, scale + 0.04f), false);
                 }
+            }
+        }
+
+        float lastDropFps; int stuckDrops;
+
+        static float MinScale(GraphicsPreset p)
+        {
+            switch (p)
+            {
+                case GraphicsPreset.Ultra: return 0.85f;
+                case GraphicsPreset.High: return 0.8f;
+                case GraphicsPreset.Medium: return 0.65f;
+                default: return 0.5f;
             }
         }
     }
