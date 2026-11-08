@@ -54,6 +54,7 @@ namespace Kagegan
         public bool InActiveFrames => State == FState.Attack && CurMove != null && MoveTime >= CurMove.Startup && MoveTime < CurMove.Startup + CurMove.Active;
         public bool InStartup => State == FState.Attack && CurMove != null && MoveTime < CurMove.Startup;
         bool activeFired;
+        bool swingSfxDone; // the whoosh leads the contact so the swing is heard before the impact
         // swept hit check: where the strike tip was on the previous checked frame of this move
         Vector3 prevTip;
         bool prevTipValid;
@@ -364,6 +365,7 @@ namespace Kagegan
             CurMove = m;
             MoveTime = 0f;
             activeFired = false;
+            swingSfxDone = false;
             envHitDone = false;
             hitList.Clear();
             rehitTimer = 0f;
@@ -378,7 +380,7 @@ namespace Kagegan
             {
                 // time-scale the captured strike so the limb is fully extended exactly on the first active frame
                 float startup = Mathf.Max(0.05f, m.Startup / Mathf.Max(0.1f, m.AnimSpeed * speed));
-                float clipSpeed = Mathf.Clamp(m.MocapContact / startup, 0.8f, 2.6f);
+                float clipSpeed = Mathf.Clamp(m.MocapContact / startup, 0.5f, 2.6f); // slow enough that a long startup still lands on contact
                 float start = Mathf.Max(0f, m.MocapContact - startup * clipSpeed);
                 mocapPlayed = Anim.PlayMocap(m.Mocap, clipSpeed, start, false, m.Total / Mathf.Max(0.1f, m.AnimSpeed * speed) + 0.05f, 0.06f);
             }
@@ -413,12 +415,15 @@ namespace Kagegan
             if (t < m.Startup && m.Damage > 0f && (m.Kind == HitKind.Light || m.Kind == HitKind.Heavy) && t > m.Startup * 0.6f)
             { prevTip = HitPoint(m); prevTipValid = true; }
 
+            // the whoosh starts mid wind-up: the swing sound peaks ~60 ms in, so the impact lands on the contact frame
+            if (!swingSfxDone && t >= m.Startup - Mathf.Min(0.06f, m.Startup * 0.5f)) { swingSfxDone = true; PlaySwingSfx(m); }
+
             if (t >= m.Startup && !activeFired)
             {
                 activeFired = true;
                 m.OnActive?.Invoke(this);
                 if (State != FState.Attack || CurMove != m) return;
-                if (m.Sfx != SfxId.Count) Sfx.PlayAt(m.Sfx, Center, m.Kind == HitKind.Light ? 0.45f : 0.7f, m.Kind == HitKind.Light ? 1.15f : 0.9f);
+                if (!swingSfxDone) { swingSfxDone = true; PlaySwingSfx(m); }
                 if (m.SlashFx && m.Damage > 0f) Fx.Slash(transform, new Vector3(0, Height * 0.55f, 0.55f), m.SlashEuler, m.FxColor, (1.1f + m.Radius) * (m.Kind == HitKind.Light ? 0.65f : 1f));
             }
 
@@ -447,6 +452,11 @@ namespace Kagegan
                 EndMove();
                 ConsumeBuffer();
             }
+        }
+
+        void PlaySwingSfx(Move m)
+        {
+            if (m.Sfx != SfxId.Count) Sfx.PlayAt(m.Sfx, Center, m.Kind == HitKind.Light ? 0.45f : 0.7f, m.Kind == HitKind.Light ? 1.15f : 0.9f);
         }
 
         void EndMove()

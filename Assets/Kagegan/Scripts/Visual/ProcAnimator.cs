@@ -45,6 +45,7 @@ namespace Kagegan
         Vector2 eyeTarget, eyeCur;
         float saccadeTimer;
         float prevYaw, yawRate;
+        float legLag; // degrees the planted legs trail the body when turning on the spot
         int frameSkip;
         float accumulatedDt;
 
@@ -64,6 +65,10 @@ namespace Kagegan
         readonly Quaternion[] procCur = new Quaternion[(int)B.Count];
         Vector3 procHips;
         bool procInit;
+        // leg IK: smoothed pre-IK rotations (so the correction never feeds back into the smoothing) and the rest ankle height
+        readonly Quaternion[] smQ = new Quaternion[(int)B.Count];
+        bool smInit;
+        float ankleRest = -1f;
         float procW = 1f;
 
         public bool ActionPlaying => action != null && actionTime < action.Length;
@@ -143,8 +148,10 @@ namespace Kagegan
             if (dt <= 0f) return;
 
             float yaw = transform.eulerAngles.y;
-            yawRate = Mathf.Lerp(yawRate, Mathf.DeltaAngle(prevYaw, yaw) / dt, 1f - Mathf.Exp(-10f * dt));
+            float dYaw = Mathf.DeltaAngle(prevYaw, yaw);
+            yawRate = Mathf.Lerp(yawRate, dYaw / dt, 1f - Mathf.Exp(-10f * dt));
             prevYaw = yaw;
+            TurnLag(dYaw, dt);
 
             BuildBase(dt);
 
@@ -223,20 +230,26 @@ namespace Kagegan
                 add[(int)B.Spine].z += Mathf.Clamp(-yawRate * 0.04f, -14f, 14f);
 
             HeadLook();
+            ApplyTurnLag(ref hips);
 
             for (int i = 0; i < add.Length; i++)
                 if (add[i] != Vector3.zero) outQ[i] = outQ[i] * Quaternion.Euler(add[i]);
 
             // ----- apply with smoothing -----
             // actions track their keys tightly so the limb is really extended on the active (damage) frames
-            float rate = actWeight > 0f ? 44f : (Mode == AnimMode.Down || Mode == AnimMode.Dead ? 11f : 15f);
+            float rate = actWeight > 0f ? ActionRate() : (Mode == AnimMode.Down || Mode == AnimMode.Dead ? 11f : 15f);
             float k = 1f - Mathf.Exp(-rate * dt);
             var bones = Rig.Bones;
+            if (!smInit) { for (int i = 0; i < (int)B.EyeL; i++) smQ[i] = bones[i].localRotation; smInit = true; }
             for (int i = 0; i < (int)B.EyeL; i++)
-                bones[i].localRotation = Quaternion.Slerp(bones[i].localRotation, Rig.RestRot[i] * outQ[i], k);
+            {
+                smQ[i] = Quaternion.Slerp(smQ[i], Rig.RestRot[i] * outQ[i], k);
+                bones[i].localRotation = smQ[i];
+            }
             Vector3 hipsTarget = Rig.HipsRestPos + hips * Rig.Look.height;
             bones[(int)B.Hips].localPosition = Vector3.Lerp(bones[(int)B.Hips].localPosition, hipsTarget, k);
 
+            FootIK();
             Eyes(dt);
         }
 
@@ -265,8 +278,17 @@ namespace Kagegan
             }
 
             float yaw = transform.eulerAngles.y;
-            yawRate = Mathf.Lerp(yawRate, Mathf.DeltaAngle(prevYaw, yaw) / dt, 1f - Mathf.Exp(-10f * dt));
+            float dYaw = Mathf.DeltaAngle(prevYaw, yaw);
+            yawRate = Mathf.Lerp(yawRate, dYaw / dt, 1f - Mathf.Exp(-10f * dt));
             prevYaw = yaw;
+            TurnLag(dYaw, dt);
+            // a quick catch-up of the legs is a couple of real steps: drive the walk loop at a slow step rate
+            if (Mode == AnimMode.Locomotion && MoveSpeed < 0.3f && Mathf.Abs(legLag) > 8f)
+            {
+                float step = Mathf.Clamp01((Mathf.Abs(legLag) - 8f) / 20f) * 0.9f;
+                Mocap.Speed = Mathf.Max(Mocap.Speed, step);
+                Mocap.MoveLocal = new Vector2(0f, Mocap.Speed);
+            }
 
             // procedural base: live mocap pose for locomotion/air, authored poses for everything else
             if (Mode == AnimMode.Locomotion || Mode == AnimMode.Air)
@@ -298,9 +320,10 @@ namespace Kagegan
                 case AnimMode.Hurt: wT = 0.6f; break;
                 default: wT = 1f; break;
             }
-            procW = Mathf.MoveTowards(procW, wT, dt * 7f);
+            // a procedural strike must be fully in control by its contact frame (a kick's startup is ~0.14 s)
+            procW = Mathf.MoveTowards(procW, wT, dt * (procAction ? 25f : 7f));
 
-            float rate = procAction ? 44f : (Mode == AnimMode.Down || Mode == AnimMode.Dead ? 11f : 15f);
+            float rate = procAction ? ActionRate() : (Mode == AnimMode.Down || Mode == AnimMode.Dead ? 11f : 15f);
             float k = 1f - Mathf.Exp(-rate * dt);
             for (int i = 0; i < n; i++)
             {
@@ -328,6 +351,7 @@ namespace Kagegan
             if (recoil > 0.01f) { add[(int)B.Chest].x -= 7f * recoil; add[(int)B.Spine].x -= 3f * recoil; }
             if (Mode == AnimMode.Locomotion && MoveSpeed > 1f) add[(int)B.Spine].z += Mathf.Clamp(-yawRate * 0.04f, -12f, 12f);
             HeadLook();
+            ApplyTurnLag(ref hipsAdd);
 
             for (int i = 0; i < n; i++)
             {
@@ -336,8 +360,91 @@ namespace Kagegan
                 bones[i].localRotation = q;
             }
             bones[(int)B.Hips].localPosition = Vector3.Lerp(mocapHips, procHips, procW) + hipsAdd * h;
+            FootIK();
             Eyes(dt);
         }
+
+        /// <summary>
+        /// Keeps the feet out of the floor: authored poses lower the hips (crouch, wind-ups, hurt) and a straight leg would push
+        /// the foot under the ground. A two-bone IK bends the knee forward until the ankle is back at its standing height.
+        /// It only ever raises a foot, so kicks, knees and jumps are left as authored.
+        /// </summary>
+        void FootIK()
+        {
+            switch (Mode)
+            {
+                case AnimMode.Air: case AnimMode.Juggled: case AnimMode.Down: case AnimMode.Dead: case AnimMode.Grabbed: return;
+            }
+            if (ankleRest < 0f)
+            {
+                var bn = Rig.Bones;
+                Vector3 p = Rig.HipsRestPos;
+                Quaternion r = Rig.RestRot[(int)B.Hips];
+                p += r * bn[(int)B.ThighL].localPosition; r *= Rig.RestRot[(int)B.ThighL];
+                p += r * bn[(int)B.ShinL].localPosition; r *= Rig.RestRot[(int)B.ShinL];
+                p += r * bn[(int)B.FootL].localPosition;
+                ankleRest = Mathf.Max(0.01f, p.y);
+            }
+            float ground = Rig.transform.position.y + ankleRest * Rig.transform.lossyScale.y;
+            LegIK(B.ThighL, B.ShinL, B.FootL, ground);
+            LegIK(B.ThighR, B.ShinR, B.FootR, ground);
+        }
+
+        void LegIK(B thighB, B shinB, B footB, float groundY)
+        {
+            Transform a = Rig.Bones[(int)thighB], b = Rig.Bones[(int)shinB], c = Rig.Bones[(int)footB];
+            Vector3 cp = c.position;
+            if (cp.y >= groundY - 0.002f) return;
+            Vector3 t = new Vector3(cp.x, groundY, cp.z);
+            Quaternion footRot = c.rotation;
+            Vector3 ap = a.position, bp = b.position;
+            float lab = (bp - ap).magnitude, lcb = (cp - bp).magnitude;
+            if (lab < 1e-4f || lcb < 1e-4f) return;
+            float lat = Mathf.Clamp((t - ap).magnitude, 0.01f, (lab + lcb) * 0.999f);
+            float ac0 = Mathf.Acos(Mathf.Clamp(Vector3.Dot((cp - ap).normalized, (bp - ap).normalized), -1f, 1f));
+            float bc0 = Mathf.Acos(Mathf.Clamp(Vector3.Dot((ap - bp).normalized, (cp - bp).normalized), -1f, 1f));
+            float ac1 = Mathf.Acos(Mathf.Clamp((lcb * lcb - lab * lab - lat * lat) / (-2f * lab * lat), -1f, 1f));
+            float bc1 = Mathf.Acos(Mathf.Clamp((lat * lat - lab * lab - lcb * lcb) / (-2f * lab * lcb), -1f, 1f));
+            // the small forward bias makes a straight leg fold at the knee in the right direction
+            Vector3 axis = Vector3.Cross(cp - ap, (bp - ap) + Rig.transform.forward * (0.02f * lab));
+            if (axis.sqrMagnitude < 1e-10f) axis = Rig.transform.right;
+            axis.Normalize();
+            a.rotation = Quaternion.AngleAxis((ac1 - ac0) * Mathf.Rad2Deg, axis) * a.rotation;
+            b.rotation = Quaternion.AngleAxis((bc1 - bc0) * Mathf.Rad2Deg, axis) * b.rotation;
+            a.rotation = Quaternion.FromToRotation(c.position - ap, t - ap) * a.rotation;
+            c.rotation = footRot; // the sole stays as it was
+        }
+
+        /// <summary>
+        /// Smoothing rate while a procedural action plays: soft for the first few frames so the action blends in from
+        /// whatever pose came before, then effectively lag-free so the limb really is extended on the damage frame
+        /// (a fixed rate of 44/s trailed the strike key by ~25 ms, which is the whole strike segment of a jab).
+        /// </summary>
+        /// <summary>
+        /// Turning on the spot: the fighter's root snaps toward the opponent, but planted feet can't. The legs trail the
+        /// body by legLag degrees (clamped) and catch up with a small step, instead of the whole body pivoting on sliding soles.
+        /// </summary>
+        void TurnLag(float dYaw, float dt)
+        {
+            bool planted = (Mode == AnimMode.Locomotion || Mode == AnimMode.Block || Mode == AnimMode.Crouch) && MoveSpeed < 0.6f;
+            if (!planted) { legLag = Mathf.MoveTowards(legLag, 0f, dt * 400f); return; }
+            legLag = Mathf.Clamp(legLag - dYaw, -40f, 40f);
+            // the catch-up gets faster the further the legs are twisted
+            legLag *= Mathf.Exp(-(4f + Mathf.Abs(legLag) * 0.25f) * dt);
+        }
+
+        void ApplyTurnLag(ref Vector3 hips)
+        {
+            if (Mathf.Abs(legLag) < 0.5f) return;
+            // hips carry most of the twist, the spine and chest unwind it so the shoulders still face the target
+            add[(int)B.Hips].y += legLag * 0.7f;
+            add[(int)B.Spine].y -= legLag * 0.4f;
+            add[(int)B.Chest].y -= legLag * 0.3f;
+            // a small dip while stepping round
+            hips.y -= Mathf.Clamp01(Mathf.Abs(legLag) / 30f) * 0.015f;
+        }
+
+        float ActionRate() => 44f + 1500f * actionTime;
 
         void BuildBase(float dt)
         {
