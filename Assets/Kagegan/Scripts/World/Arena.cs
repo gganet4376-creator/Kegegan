@@ -802,8 +802,10 @@ namespace Kagegan
                 for (int j = 0; j < seg; j++)
                 {
                     int i0 = s + i * (seg + 1) + j, i1 = i0 + seg + 1;
-                    mb.T.Add(i0); mb.T.Add(i1); mb.T.Add(i0 + 1);
-                    mb.T.Add(i0 + 1); mb.T.Add(i1); mb.T.Add(i1 + 1);
+                    // clockwise seen from above (Unity front face): the old order was back-facing, so the disc was culled
+                    // and the sky showed through as a flat blue-grey floor
+                    mb.T.Add(i0); mb.T.Add(i0 + 1); mb.T.Add(i1);
+                    mb.T.Add(i0 + 1); mb.T.Add(i1 + 1); mb.T.Add(i1);
                 }
         }
 
