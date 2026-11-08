@@ -338,17 +338,9 @@ namespace Kagegan
                 default: Mat.SetWind(new Vector2(0.85f, 0.5f), 0.9f); break;
             }
             // weather: stronger wind in rain and storms, a calm hush in snow and fog
-            Vector4 wind = Shader.GetGlobalVector("_KageWind");
-            switch (weather)
-            {
-                case WeatherType.Rain: Mat.SetWind(new Vector2(wind.x, wind.y), Mathf.Max(wind.z, 1.5f), Mathf.Max(wind.w, 1.15f)); break;
-                case WeatherType.Storm: Mat.SetWind(new Vector2(wind.x, wind.y), Mathf.Max(wind.z, 1.9f), Mathf.Max(wind.w, 1.3f)); break;
-                case WeatherType.Snow: Mat.SetWind(new Vector2(wind.x, wind.y), Mathf.Min(wind.z, 0.7f), 0.8f); break;
-                case WeatherType.Fog: Mat.SetWind(new Vector2(wind.x, wind.y), Mathf.Min(wind.z, 0.45f), 0.7f); break;
-            }
+            ApplyWind(weather);
             // the arena's own drifting dust / sparkles don't belong in a downpour (forest leaves still blow about)
-            if (a.weatherGo != null && WeatherSystem.Precipitation(weather) && !(id == ArenaId.Forest && weather != WeatherType.Snow) && !(id == ArenaId.MoonTemple && weather == WeatherType.Snow))
-                a.weatherGo.SetActive(false);
+            if (a.weatherGo != null && HidesAmbientParticles(id, weather)) a.weatherGo.SetActive(false);
             a.BuildClouds();
             if (weather != WeatherType.Clear)
             {
@@ -497,31 +489,98 @@ namespace Kagegan
             sunDir = dirToSun; sunCol = sun; ambCol = amb; fogCol = fog; fogStart = fStart; fogEnd = fEnd; fogMax = fMax;
         }
 
-        Color SunNow => look.HasValue ? sunCol * look.Value.Sun * look.Value.SunTint : sunCol;
-        Color AmbNow => look.HasValue ? ambCol * look.Value.Amb : ambCol;
+        // weather look blending during a mid-fight weather change (lookFrom -> look)
+        WeatherLook? lookFrom;
+        float lookBlend = 1f, lookBlendSpeed;
+        MaterialPropertyBlock skyMpb;
+
+        /// <summary>"No weather" expressed as a look, so two looks can be blended.</summary>
+        WeatherLook Neutral => new WeatherLook { Sun = 1f, Amb = 1f, FogLerp = 0f, FogNear = 1f, FogMax = 0f, SunTint = Color.white, Fog = fogCol, Sky = Color.white };
+
+        WeatherLook? CurLook
+        {
+            get
+            {
+                if (lookBlend >= 1f || (!lookFrom.HasValue && !look.HasValue)) return look;
+                WeatherLook a = lookFrom ?? Neutral, b = look ?? Neutral;
+                float t = Mathf.SmoothStep(0f, 1f, lookBlend);
+                return new WeatherLook
+                {
+                    Sun = Mathf.Lerp(a.Sun, b.Sun, t), Amb = Mathf.Lerp(a.Amb, b.Amb, t),
+                    FogLerp = Mathf.Lerp(a.FogLerp, b.FogLerp, t), FogNear = Mathf.Lerp(a.FogNear, b.FogNear, t), FogMax = Mathf.Lerp(a.FogMax, b.FogMax, t),
+                    SunTint = Color.Lerp(a.SunTint, b.SunTint, t), Fog = Color.Lerp(a.Fog, b.Fog, t), Sky = Color.Lerp(a.Sky, b.Sky, t)
+                };
+            }
+        }
+
+        Color SunNow { get { var l = CurLook; return l.HasValue ? sunCol * l.Value.Sun * l.Value.SunTint : sunCol; } }
+        Color AmbNow { get { var l = CurLook; return l.HasValue ? ambCol * l.Value.Amb : ambCol; } }
 
         public void ApplyLighting()
         {
+            var cl = CurLook;
             WorldLighting.SetSun(sunDir, SunNow, AmbNow);
-            if (look.HasValue)
+            if (cl.HasValue)
             {
-                var l = look.Value;
+                var l = cl.Value;
                 WorldLighting.SetFog(Color.Lerp(fogCol, l.Fog, l.FogLerp), fogStart * l.FogNear, fogEnd * Mathf.Lerp(1f, l.FogNear, 0.6f), Mathf.Max(fogMax, l.FogMax));
             }
             else WorldLighting.SetFog(fogCol, fogStart, fogEnd, fogMax);
             if (skyRenderer != null && dimensionUntil <= 0f)
             {
-                if (look.HasValue)
-                {
-                    var mpb = new MaterialPropertyBlock();
-                    mpb.SetColor("_Color", look.Value.Sky);
-                    skyRenderer.SetPropertyBlock(mpb);
-                }
-                else skyRenderer.SetPropertyBlock(new MaterialPropertyBlock());
+                if (skyMpb == null) skyMpb = new MaterialPropertyBlock();
+                skyMpb.Clear();
+                if (cl.HasValue) skyMpb.SetColor("_Color", cl.Value.Sky);
+                skyRenderer.SetPropertyBlock(skyMpb);
             }
-            if (CameraRig.Inst != null) CameraRig.Inst.Cam.backgroundColor = look.HasValue ? skyHorizon * look.Value.Sky : skyHorizon;
+            if (CameraRig.Inst != null) CameraRig.Inst.Cam.backgroundColor = cl.HasValue ? skyHorizon * cl.Value.Sky : skyHorizon;
             PostFx.SetGrade(Id);
         }
+
+        /// <summary>
+        /// Weather changes during the fight: the old precipitation thins out, the new one builds up, light, fog,
+        /// sky, wind and the ambience loop blend over `seconds`.
+        /// </summary>
+        public void ChangeWeather(WeatherType to, float seconds = 14f)
+        {
+            if (to == WeatherKind) return;
+            lookFrom = CurLook;
+            look = WeatherSystem.Look(to, Id);
+            lookBlend = 0f;
+            lookBlendSpeed = 1f / Mathf.Max(1f, seconds);
+            WeatherKind = to;
+            ApplyWind(to);
+            if (WeatherFx != null) WeatherFx.FadeOut(seconds * 0.7f);
+            var wgo = new GameObject("Weather_" + to);
+            wgo.transform.SetParent(transform, false);
+            WeatherFx = wgo.AddComponent<WeatherSystem>();
+            WeatherFx.Begin(this, to, seconds);
+            // the arena's own drifting dust only shows in dry weather
+            if (weatherGo != null) weatherGo.SetActive(!HidesAmbientParticles(Id, to));
+            var (n, v) = WeatherFx.Ambience();
+            Sfx.FadeAmbience(n, v, Mathf.Min(6f, seconds * 0.5f));
+            if (to == WeatherType.Storm) stormTimer = Mathf.Max(stormTimer, seconds * 0.6f); // first strike once the clouds have rolled in
+        }
+
+        static bool HidesAmbientParticles(ArenaId id, WeatherType w) =>
+            WeatherSystem.Precipitation(w) && !(id == ArenaId.Forest && w != WeatherType.Snow) && !(id == ArenaId.MoonTemple && w == WeatherType.Snow);
+
+        static void ApplyWind(WeatherType weather)
+        {
+            Vector4 wind = Shader.GetGlobalVector("_KageWind");
+            switch (weather)
+            {
+                case WeatherType.Rain: Mat.SetWind(new Vector2(wind.x, wind.y), Mathf.Max(wind.z, 1.5f), Mathf.Max(wind.w, 1.15f)); break;
+                case WeatherType.Storm: Mat.SetWind(new Vector2(wind.x, wind.y), Mathf.Max(wind.z, 1.9f), Mathf.Max(wind.w, 1.3f)); break;
+                case WeatherType.Snow: Mat.SetWind(new Vector2(wind.x, wind.y), Mathf.Min(wind.z, 0.7f), 0.8f); break;
+                case WeatherType.Fog: Mat.SetWind(new Vector2(wind.x, wind.y), Mathf.Min(wind.z, 0.45f), 0.7f); break;
+            }
+        }
+
+        // scheduled mid-fight change (set by WeatherSystem.PlanChange)
+        float weatherChangeAt = -1f;
+        WeatherType weatherChangeTo;
+        public void ScheduleWeatherChange(WeatherType to, float delay) { weatherChangeTo = to; weatherChangeAt = Time.time + delay; }
 
         /// <summary>Temporarily shift into another "dimension" (Moon boss): recolors sky, sun and fog.</summary>
         public void DimensionShift(Color sun, Color amb, Color fog, Color skyTint, float seconds)
@@ -626,6 +685,17 @@ namespace Kagegan
 
         void Update()
         {
+            if (weatherChangeAt > 0f && Time.time >= weatherChangeAt && dimensionUntil <= 0f)
+            {
+                weatherChangeAt = -1f;
+                ChangeWeather(weatherChangeTo);
+            }
+            if (lookBlend < 1f && dimensionUntil <= 0f)
+            {
+                lookBlend = Mathf.Min(1f, lookBlend + Time.deltaTime * lookBlendSpeed);
+                // relight a few times a second (cheap) and on the final step
+                if (lookBlend >= 1f || Time.frameCount % 4 == 0) ApplyLighting();
+            }
             if (WeatherKind == WeatherType.Storm && dimensionUntil <= 0f) Storm();
             if (dimensionUntil > 0f && Time.time > dimensionUntil)
             {

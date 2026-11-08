@@ -66,7 +66,7 @@ namespace Kagegan
             F.SetBlock(Time.time < blockUntil);
         }
 
-        protected void PickTarget()
+        protected virtual void PickTarget()
         {
             if (F.Target != null && F.Target.Alive && F.Target.Team != F.Team && Random.value < 0.85f) return;
             F.Target = Combat.Nearest(F.transform.position, F.Team);

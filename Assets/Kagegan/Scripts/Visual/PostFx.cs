@@ -20,6 +20,7 @@ namespace Kagegan
         static Vignette vignette;
         static DepthOfField dof;
         static ChromaticAberration chroma;
+        static ShadowsMidtonesHighlights smh;
         static float kick;
 
         public static bool Enabled { get; private set; }
@@ -47,6 +48,8 @@ namespace Kagegan
                 asset.msaaSampleCount = ultra ? 4 : (on ? 2 : 1);
                 asset.supportsCameraDepthTexture = on; // depth of field reads it
             }
+            // soft particles read the same depth texture, so they follow it (High / Ultra only)
+            if (on && asset != null) Shader.EnableKeyword("KAGE_SOFTFX"); else Shader.DisableKeyword("KAGE_SOFTFX");
             if (cam == null) return;
             cam.allowHDR = on;
             cam.allowMSAA = on;
@@ -72,6 +75,10 @@ namespace Kagegan
             dof.gaussianMaxRadius.value = ultra ? 1.1f : 0.8f;
             dof.highQualitySampling.value = ultra;
             chroma.intensity.value = 0f;
+            // film-like split: cool shadows, warm highlights (baked into the grading LUT, no extra pass)
+            smh.shadows.value = new Vector4(0.96f, 0.99f, 1.07f, 0f);
+            smh.midtones.value = new Vector4(1f, 1f, 1f, 0f);
+            smh.highlights.value = new Vector4(1.05f, 1.01f, 0.95f, 0f);
             if (inst != null) inst.enabled = true;
             SetGrade(currentGrade);
         }
@@ -116,6 +123,7 @@ namespace Kagegan
             vignette = profile.Add<Vignette>(true);
             dof = profile.Add<DepthOfField>(true);
             chroma = profile.Add<ChromaticAberration>(true);
+            smh = profile.Add<ShadowsMidtonesHighlights>(true);
             var go = new GameObject("PostFxVolume");
             DontDestroyOnLoad(go);
             var vol = go.AddComponent<Volume>();

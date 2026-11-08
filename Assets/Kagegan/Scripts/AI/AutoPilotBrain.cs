@@ -26,13 +26,88 @@ namespace Kagegan
             f.Brain = null; // still the human player for kits, finishers and HUD
         }
 
+        float mashT, downSince = -1f, mountT, mountTry, retreatCd;
+
         protected override void Update()
         {
             if (F == null || !F.Alive) return;
-            if (F.Target == null || !F.Target.Alive || F.Target.Team == F.Team) F.Target = Combat.Nearest(F.transform.position, F.Team);
+            if (F.Target == null || !F.Target.Alive || F.Target.Team == F.Team) PickTarget();
+            if (Active && !TimeFx.Paused && Situational(Time.deltaTime)) { F.SetMove(Vector3.zero); F.SetBlock(false); return; }
             base.Update();
             if (!Active || TimeFx.Paused) return;
             UseSkills();
+        }
+
+        /// <summary>Lock onto whoever is about to hit us, else a finishable / nearby weak enemy, else keep the current one.</summary>
+        protected override void PickTarget()
+        {
+            var threat = F.IncomingAttacker();
+            var cur = F.Target;
+            bool curOk = cur != null && cur.Alive && cur.Team != F.Team && cur.Team != Team.Neutral;
+            if (threat != null && !(curOk && cur.Target == F && (cur.InStartup || cur.InActiveFrames))) { F.Target = threat; return; }
+            Fighter best = null;
+            float bs = float.MaxValue;
+            var all = Fighter.All;
+            for (int i = 0; i < all.Count; i++)
+            {
+                var e = all[i];
+                if (e == null || !e.Alive || e.Team == F.Team || e.Team == Team.Neutral) continue;
+                float d = KMath.Flat(e.transform.position - F.transform.position).magnitude;
+                // distance first, then prefer wounded / downed enemies and keep the current one (hysteresis)
+                float score = d + e.HpFrac * 2.5f - (F.Kit.CanFinish(e) ? 4f : 0f) - (e.State == FState.Knockdown ? 1.5f : 0f) - (e == cur ? 2f : 0f);
+                if (score < bs) { bs = score; best = e; }
+            }
+            if (best != null) F.Target = best;
+        }
+
+        /// <summary>Context actions the generic AI does not know: struggle, trip, mount, finishers, retreat when swarmed.</summary>
+        bool Situational(float dt)
+        {
+            // break holds / mounts by mashing
+            if (F.CanBreakFree)
+            {
+                mashT -= dt;
+                if (mashT <= 0f) { F.Press(Cmd.Dodge); mashT = Random.Range(0.08f, 0.12f); }
+                return true;
+            }
+            // on the ground: sweep a careless enemy after a short human-like delay
+            if (F.State == FState.Knockdown)
+            {
+                if (downSince < 0f) downSince = Time.time;
+                if (Time.time - downSince > 0.25f && F.CanTrip) F.TryTrip();
+                return true;
+            }
+            downSince = -1f;
+            // sitting on a downed enemy: rain blows (the last one becomes the hammer)
+            if (F.State == FState.Mount)
+            {
+                mountT -= dt;
+                if (mountT <= 0f) { F.Press(Cmd.Light); mountT = Random.Range(0.27f, 0.34f); }
+                return true;
+            }
+            var t = F.Target;
+            if (t == null || !F.CanAct) return false;
+            float d = KMath.Flat(t.transform.position - F.transform.position).magnitude;
+            if (F.Kit.CanFinish(t) && d < 3f) { F.Press(Cmd.Heavy); return true; }
+            if (F.CanMountTarget && Time.time >= mountTry)
+            {
+                mountTry = Time.time + 1.5f;
+                if (Random.value < 0.7f) { F.Press(Cmd.Grab); return true; }
+            }
+            // badly hurt and surrounded: back off, the skills timer will throw ranged techniques
+            retreatCd -= dt;
+            if (F.HpFrac < 0.3f && retreatCd <= 0f)
+            {
+                int near = 0;
+                for (int i = 0; i < Fighter.All.Count; i++)
+                {
+                    var e = Fighter.All[i];
+                    if (e != null && e.Alive && e.Team != F.Team && e.Team != Team.Neutral && KMath.Flat(e.transform.position - F.transform.position).sqrMagnitude < 9f) near++;
+                }
+                retreatCd = 1f;
+                if (near >= 2) { retreatUntil = Time.time + Random.Range(0.6f, 1f); retreatCd = 4f; techTimer = Mathf.Min(techTimer, 0.3f); }
+            }
+            return false;
         }
 
         protected override void React(float dt)

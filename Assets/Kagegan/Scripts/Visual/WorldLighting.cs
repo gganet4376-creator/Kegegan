@@ -16,6 +16,10 @@ namespace Kagegan
         readonly Vector4[] colArr = new Vector4[4];
         static readonly int IdPos = Shader.PropertyToID("_KageDynPos");
         static readonly int IdCol = Shader.PropertyToID("_KageDynCol");
+        static readonly int IdCasters = Shader.PropertyToID("_KageCasters");
+        static readonly int IdCasterCount = Shader.PropertyToID("_KageCasterCount");
+        readonly Vector4[] casters = new Vector4[6];
+        readonly float[] casterDist = new float[6];
 
         public static void Init(GameObject host) { inst = host.AddComponent<WorldLighting>(); }
 
@@ -65,6 +69,38 @@ namespace Kagegan
             Shader.SetGlobalVectorArray(IdCol, colArr);
             Shader.SetGlobalFloat("_KageDynLightCount", Mathf.Min(n, GraphicsQuality.DynamicLights));
             Shader.SetGlobalFloat("_KageOutlineScale", Screen.height / 1080f * 1.15f);
+            PushCasters();
+        }
+
+        /// <summary>Feeds the fighters nearest to the camera into the capsule sun-shadow (High: 4, Ultra: 6, else off).</summary>
+        void PushCasters()
+        {
+            int max = GraphicsQuality.ShadowCasters;
+            int n = 0;
+            if (max > 0)
+            {
+                var cam = Camera.main;
+                Vector3 cp = cam != null ? cam.transform.position : Vector3.zero;
+                var all = Fighter.All;
+                for (int i = 0; i < all.Count; i++)
+                {
+                    var f = all[i];
+                    if (f == null || !f.isActiveAndEnabled) continue;
+                    Vector3 p = f.transform.position;
+                    float d = (p - cp).sqrMagnitude;
+                    // lying bodies cast a low hump, not a standing figure
+                    bool down = f.State == FState.Knockdown || f.State == FState.Dead;
+                    var c = new Vector4(p.x, p.y, p.z, down ? f.Height * 0.32f : f.Height);
+                    // keep the closest ones (insertion into a tiny sorted list)
+                    int slot = n < max ? n++ : -1;
+                    if (slot < 0) { if (d >= casterDist[n - 1]) continue; slot = n - 1; }
+                    while (slot > 0 && casterDist[slot - 1] > d) { casters[slot] = casters[slot - 1]; casterDist[slot] = casterDist[slot - 1]; slot--; }
+                    casters[slot] = c; casterDist[slot] = d;
+                }
+            }
+            for (int i = n; i < casters.Length; i++) casters[i] = Vector4.zero;
+            Shader.SetGlobalVectorArray(IdCasters, casters);
+            Shader.SetGlobalFloat(IdCasterCount, n);
         }
     }
 }

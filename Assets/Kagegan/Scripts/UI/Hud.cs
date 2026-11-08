@@ -16,6 +16,9 @@ namespace Kagegan
         Image playerBadge;
         Text hpText, bossHpText;
         Image[] phasePips = new Image[3];
+        RectTransform escapePanel;
+        Image escapeFill;
+        Text escapeText;
         float popupT, bannerT, lineT, comboShow;
         int lastCombo;
         public Fighter Player, Boss;
@@ -89,6 +92,12 @@ namespace Kagegan
             statsPanel = UIKit.Box(Root, "Stats", new Vector2(0, 1), new Vector2(30, -260), new Vector2(760, 120), new Vector2(0, 1));
             statsText = UIKit.Label(statsPanel, "", 26, UIKit.Paper, TextAnchor.UpperLeft);
             statsPanel.gameObject.SetActive(false);
+
+            // ---- struggle meter (grab hold / pinned under a mount) ----
+            escapePanel = UIKit.Box(Root, "Escape", new Vector2(0.5f, 0.5f), new Vector2(0, -20), new Vector2(620, 90));
+            escapeText = UIKit.Label(UIKit.Box(escapePanel, "EscText", new Vector2(0.5f, 1), new Vector2(0, -18), new Vector2(620, 40)), "ВЫРВИСЬ! Жми быстрее", 32, new Color(1f, 0.85f, 0.7f), TextAnchor.MiddleCenter, FontStyle.Bold);
+            escapeFill = UIKit.Bar(escapePanel, new Vector2(0.5f, 0), new Vector2(0, 20), new Vector2(600, 34), new Color(1f, 0.6f, 0.25f));
+            escapePanel.gameObject.SetActive(false);
 
             var lockBtn = UIKit.Button(Root, "Цель", new Vector2(1, 1), new Vector2(-70, -110), new Vector2(110, 70), () => { var pc = FindAnyObjectByType<PlayerController>(); if (pc != null) pc.CycleTarget(); }, UIKit.Ink, 28);
         }
@@ -175,6 +184,17 @@ namespace Kagegan
                 comboRt.localScale = Vector3.Lerp(comboRt.localScale, Vector3.one, dt * 10f);
                 comboShow -= dt * 0.6f;
                 comboText.color = new Color(UIKit.Gold.r, UIKit.Gold.g, UIKit.Gold.b, Mathf.Clamp01(comboShow * 2f));
+
+                // struggle meter
+                bool struggling = p.CanBreakFree;
+                if (escapePanel.gameObject.activeSelf != struggling) escapePanel.gameObject.SetActive(struggling);
+                if (struggling)
+                {
+                    escapeFill.fillAmount = Mathf.MoveTowards(escapeFill.fillAmount, p.EscapeMeter, dt * 6f);
+                    escapeFill.color = Color.Lerp(new Color(1f, 0.45f, 0.2f), new Color(0.5f, 1f, 0.55f), p.EscapeMeter);
+                    escapePanel.localScale = Vector3.one * (1f + 0.03f * Mathf.Sin(Time.unscaledTime * 14f));
+                }
+                else escapeFill.fillAmount = 0f;
 
                 // target
                 var t = p.Target;

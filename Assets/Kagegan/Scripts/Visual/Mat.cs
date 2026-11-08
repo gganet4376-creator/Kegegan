@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace Kagegan
 {
-    /// <summary>Shared materials and procedurally generated textures. Everything uses vertex colors, so a handful of materials cover the game.</summary>
+    /// <summary>Shared materials and effect textures (CC0, with generated fallbacks). Everything uses vertex colors, so a handful of materials cover the game.</summary>
     public static class Mat
     {
         public static Material ToonWind;
@@ -21,10 +21,11 @@ namespace Kagegan
             fxShader = fx;
             surfaceShader = Resources.Load<Shader>("Kagegan/Shaders/KageSurface");
 
-            SoftDot = MakeRadial(64, (r) => Mathf.Pow(Mathf.Clamp01(1f - r), 2f));
-            Ring = MakeRadial(128, (r) => Mathf.Clamp01(1f - Mathf.Abs(r - 0.82f) * 7f) * Mathf.Clamp01(r * 1.3f));
-            Streak = MakeStreak();
-            Crack = MakeCrack(128);
+            // CC0 Kenney Particle Pack textures (Resources/Kagegan/Vfx); the generated ones remain only as a fallback
+            SoftDot = LoadVfx("soft_dot") ?? MakeRadial(64, (r) => Mathf.Pow(Mathf.Clamp01(1f - r), 2f));
+            Ring = LoadVfx("ring_thin") ?? MakeRadial(128, (r) => Mathf.Clamp01(1f - Mathf.Abs(r - 0.82f) * 7f) * Mathf.Clamp01(r * 1.3f));
+            Streak = LoadVfx("rain_streak") ?? MakeStreak();
+            Crack = LoadVfx("scorch") ?? MakeCrack(128);
             White = Texture2D.whiteTexture;
 
             Toon = new Material(toon) { name = "KageToon", enableInstancing = true };
@@ -110,6 +111,13 @@ namespace Kagegan
             m.SetFloat("_ZWrite", 0f);
             m.renderQueue = 3000;
             return m;
+        }
+
+        static Texture2D LoadVfx(string name)
+        {
+            var t = Resources.Load<Texture2D>("Kagegan/Vfx/" + name);
+            if (t != null) t.wrapMode = TextureWrapMode.Clamp;
+            return t;
         }
 
         static Texture2D MakeRadial(int size, System.Func<float, float> f)

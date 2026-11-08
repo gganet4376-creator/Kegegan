@@ -272,6 +272,13 @@ namespace Kagegan
     {
         static Mesh quad;
         static Material mat;
+        static float strength = 1f;
+
+        public static void SetStrength(float s)
+        {
+            strength = s;
+            if (mat != null) mat.SetColor("_Color", new Color(1f, 1f, 1f, s));
+        }
 
         public static Transform Create(Transform owner, float size)
         {
@@ -282,6 +289,7 @@ namespace Kagegan
                 mb.Quad(Vector3.zero, Vector3.right * 0.5f, Vector3.back * 0.5f);
                 quad = mb.ToMesh("blob");
                 mat = new Material(Mat.FxAlpha) { name = "Blob", renderQueue = 2460 };
+                mat.SetColor("_Color", new Color(1f, 1f, 1f, strength));
             }
             var go = new GameObject("BlobShadow");
             go.AddComponent<MeshFilter>().sharedMesh = quad;

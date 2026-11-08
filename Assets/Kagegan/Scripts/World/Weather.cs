@@ -19,6 +19,10 @@ namespace Kagegan
         float wet, wetTarget, snow, snowTarget;
         readonly System.Collections.Generic.List<(ParticleSystem ps, float rate)> systems = new System.Collections.Generic.List<(ParticleSystem, float)>();
         Transform follow; // emitters that move with the camera
+        float fade = 1f, fadeTarget = 1f, fadeSpeed = 1f; // emission multiplier for mid-fight changes
+        bool retiring;   // being replaced: stops writing the global wet / snow state
+        float retireAt;
+        static WeatherType lastAuto = (WeatherType)(-1);
 
         /// <summary>Weather for an arena from the player's setting. battle = false (training, menu) keeps "auto" clear.</summary>
         public static WeatherType Choose(ArenaId id, bool battle)
@@ -27,15 +31,47 @@ namespace Kagegan
             if (s >= 2) return (WeatherType)Mathf.Clamp(s - 2, 0, 4);
             if (s == 1) return (WeatherType)Random.Range(0, 5);
             if (!battle) return WeatherType.Clear;
-            // auto: the ruined city always has its storm, the rest roll a weighted chance
+            // auto: the ruined city always has its storm, the rest roll a weighted chance;
+            // one re-roll if it repeats the previous fight, so consecutive fights look different
+            if (id == ArenaId.City) return lastAuto = WeatherType.Storm;
+            var w = RollAuto(id);
+            if (w == lastAuto) w = RollAuto(id);
+            return lastAuto = w;
+        }
+
+        static WeatherType RollAuto(ArenaId id)
+        {
             float r = Random.value;
             switch (id)
             {
-                case ArenaId.City: return WeatherType.Storm;
-                case ArenaId.Forest: return r < 0.45f ? WeatherType.Clear : r < 0.72f ? WeatherType.Rain : r < 0.87f ? WeatherType.Fog : WeatherType.Storm;
-                case ArenaId.MoonTemple: return r < 0.55f ? WeatherType.Clear : r < 0.8f ? WeatherType.Snow : WeatherType.Fog;
-                default: return r < 0.5f ? WeatherType.Clear : r < 0.7f ? WeatherType.Rain : r < 0.88f ? WeatherType.Snow : WeatherType.Fog;
+                case ArenaId.Forest: return r < 0.4f ? WeatherType.Clear : r < 0.68f ? WeatherType.Rain : r < 0.85f ? WeatherType.Fog : WeatherType.Storm;
+                case ArenaId.MoonTemple: return r < 0.5f ? WeatherType.Clear : r < 0.78f ? WeatherType.Snow : WeatherType.Fog;
+                default: return r < 0.45f ? WeatherType.Clear : r < 0.67f ? WeatherType.Rain : r < 0.86f ? WeatherType.Snow : WeatherType.Fog;
             }
+        }
+
+        /// <summary>
+        /// "Auto" weather can turn during a fight: clouds roll in and it starts to rain, rain grows into a storm,
+        /// a storm eases off, fog lifts, snow starts or stops. Only for the auto setting (a fixed choice stays fixed).
+        /// </summary>
+        public static void PlanChange(Arena a, bool battle)
+        {
+            if (a == null || !battle || Save.Data == null || Save.Data.weather != 0 || a.Id == ArenaId.City) return;
+            if (Random.value > 0.55f) return;
+            var from = a.WeatherKind;
+            WeatherType to;
+            float r = Random.value;
+            switch (from)
+            {
+                case WeatherType.Clear:
+                    to = a.Id == ArenaId.MoonTemple ? (r < 0.6f ? WeatherType.Snow : WeatherType.Fog) : a.Id == ArenaId.Dojo ? (r < 0.55f ? WeatherType.Rain : WeatherType.Snow) : WeatherType.Rain;
+                    break;
+                case WeatherType.Rain: to = r < 0.6f ? WeatherType.Storm : WeatherType.Clear; break;
+                case WeatherType.Storm: to = WeatherType.Rain; break;
+                case WeatherType.Snow: to = r < 0.5f ? WeatherType.Clear : WeatherType.Fog; break;
+                default: to = a.Id == ArenaId.MoonTemple && r < 0.4f ? WeatherType.Snow : r < 0.7f ? WeatherType.Clear : WeatherType.Rain; break;
+            }
+            a.ScheduleWeatherChange(to, Random.Range(35f, 80f));
         }
 
         /// <summary>Clears the global wet / snow state (arena rebuilt without weather, back to menu).</summary>
@@ -85,10 +121,12 @@ namespace Kagegan
             }
         }
 
-        public void Begin(Arena a, WeatherType t)
+        /// <summary>Starts this weather. fadeIn > 0: a mid-fight change, the precipitation builds up over that many seconds.</summary>
+        public void Begin(Arena a, WeatherType t, float fadeIn = 0f)
         {
             arena = a;
             Type = t;
+            if (fadeIn > 0f) { fade = 0f; fadeTarget = 1f; fadeSpeed = 1f / fadeIn; }
             var fgo = new GameObject("WeatherFollow");
             fgo.transform.SetParent(transform, false);
             fgo.AddComponent<FollowCameraXZ>();
@@ -116,6 +154,8 @@ namespace Kagegan
             }
             // grass and dirt only get damp: full puddles + sky reflection read as a lake outside the asphalt city
             if (a == null || a.Id != ArenaId.City) { wet *= 0.35f; wetTarget *= 0.35f; }
+            // a change mid-fight continues from how wet / snowy the ground already is (it dries or melts slowly)
+            if (fadeIn > 0f) { wet = Shader.GetGlobalFloat("_KageWet"); snow = Shader.GetGlobalFloat("_KageSnow"); }
             Shader.SetGlobalFloat("_KageWet", wet);
             Shader.SetGlobalFloat("_KageSnow", snow);
             GraphicsQuality.Changed += Refresh;
@@ -123,25 +163,48 @@ namespace Kagegan
 
         void Update()
         {
-            // the ground gets wetter (or whiter) the longer it rains (or snows)
-            if (wet < wetTarget) { wet = Mathf.MoveTowards(wet, wetTarget, Time.deltaTime / 45f); Shader.SetGlobalFloat("_KageWet", wet); }
-            if (snow < snowTarget) { snow = Mathf.MoveTowards(snow, snowTarget, Time.deltaTime / 70f); Shader.SetGlobalFloat("_KageSnow", snow); }
+            if (fade != fadeTarget)
+            {
+                fade = Mathf.MoveTowards(fade, fadeTarget, Time.deltaTime * fadeSpeed);
+                Refresh();
+            }
+            if (retiring)
+            {
+                // wait for the last drops / flakes to finish falling, then go
+                if (fade <= 0f && Time.time > retireAt) Destroy(gameObject);
+                return;
+            }
+            // the ground gets wetter (or whiter) the longer it rains (or snows), and dries / melts after it stops
+            if (wet != wetTarget) { wet = Mathf.MoveTowards(wet, wetTarget, Time.deltaTime / (wet < wetTarget ? 45f : 60f)); Shader.SetGlobalFloat("_KageWet", wet); }
+            if (snow != snowTarget) { snow = Mathf.MoveTowards(snow, snowTarget, Time.deltaTime / (snow < snowTarget ? 70f : 50f)); Shader.SetGlobalFloat("_KageSnow", snow); }
+        }
+
+        /// <summary>Replaced by another weather: emission eases to zero, falling particles finish, then the object is removed.</summary>
+        public void FadeOut(float seconds)
+        {
+            retiring = true;
+            fadeTarget = 0f;
+            fadeSpeed = 1f / Mathf.Max(0.5f, seconds);
+            retireAt = Time.time + seconds + 26f; // longest particle life (mist) after the last emission
         }
 
         void OnDestroy()
         {
             GraphicsQuality.Changed -= Refresh;
+            if (retiring) return; // its successor owns the wet / snow globals
             // a new arena may already have set its own weather this frame
             if (Arena.Current == null || Arena.Current == arena) ResetGlobals();
         }
 
         void Refresh()
         {
+            // eased so the downpour thickens (or thins) gradually instead of a straight ramp
+            float k = GraphicsQuality.WeatherMul * fade * fade * (3f - 2f * fade);
             foreach (var (ps, rate) in systems)
             {
                 if (ps == null) continue;
                 var em = ps.emission;
-                em.rateOverTime = rate * GraphicsQuality.WeatherMul;
+                em.rateOverTime = rate * k;
             }
         }
 
@@ -161,7 +224,7 @@ namespace Kagegan
             main.simulationSpace = ParticleSystemSimulationSpace.World;
             main.maxParticles = Mathf.CeilToInt(rate * Mathf.Max(1f, GraphicsQuality.WeatherMul) * life * 1.3f) + 4;
             var em = ps.emission;
-            em.rateOverTime = rate * GraphicsQuality.WeatherMul;
+            em.rateOverTime = rate * GraphicsQuality.WeatherMul * fade;
             go.GetComponent<ParticleSystemRenderer>().sharedMaterial = m;
             systems.Add((ps, rate));
             return ps;
@@ -300,7 +363,10 @@ namespace Kagegan
             if (tex == null) return;
             tex.wrapMode = TextureWrapMode.Clamp;
             float life = 24f;
-            var m = Layer("Mist", follow, new Vector3(0f, 1.2f, 8f), count / life, life, Mat.FxTex(tex, false, "Mist"));
+            var mm = Mat.FxTex(tex, false, "Mist");
+            mm.SetFloat("_Lit", 1f);   // mist takes the scene's light colour (dark at night, warm at dusk)
+            mm.SetFloat("_Soft", 1f);  // and melts into the ground and walls instead of cutting through them
+            var m = Layer("Mist", follow, new Vector3(0f, 1.2f, 8f), count / life, life, mm);
             var main = m.main;
             main.prewarm = true;
             main.startSize = new ParticleSystem.MinMaxCurve(7f, 14f);

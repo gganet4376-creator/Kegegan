@@ -86,7 +86,7 @@ namespace Kagegan
         public float LastHitDamage { get; private set; }
         public Fighter ThrowVictim;
         public Fighter GrabbedBy { get; private set; }
-        Move throwMove;
+        Move throwMove, holdMove;
         float flashAmount;
         Color flashColor = Color.white;
         Transform blob;
@@ -179,13 +179,20 @@ namespace Kagegan
                     break;
                 case FState.Knockdown:
                     stateTimer -= dt;
-                    if (pinnedBy != null && pinnedBy.State == FState.Mount && pinnedBy.MountVictim == this) { stateTimer = Mathf.Max(stateTimer, 0.3f); break; }
+                    if (pinnedBy != null && pinnedBy.State == FState.Mount && pinnedBy.MountVictim == this)
+                    {
+                        stateTimer = Mathf.Max(stateTimer, 0.3f);
+                        UpdateEscape(dt);
+                        break;
+                    }
                     pinnedBy = null;
+                    if ((buffered == Cmd.Light || buffered == Cmd.Heavy) && TryTrip()) { buffered = Cmd.None; break; }
                     if (buffered == Cmd.Dodge && stateTimer < 0.6f) { buffered = Cmd.None; stateTimer = 0f; }
                     if (stateTimer <= 0f) BeginGetUp();
                     break;
                 case FState.GetUp:
                     stateTimer -= dt;
+                    UpdateTrip(dt);
                     if (stateTimer <= 0f) Recover();
                     break;
                 case FState.Stunned:
@@ -193,7 +200,8 @@ namespace Kagegan
                     if (stateTimer <= 0f) Recover();
                     break;
                 case FState.Grabbed:
-                    if (GrabbedBy == null || !GrabbedBy.Alive || GrabbedBy.ThrowVictim != this) { GrabbedBy = null; Recover(); }
+                    if (GrabbedBy == null || !GrabbedBy.Alive || GrabbedBy.ThrowVictim != this) { GrabbedBy = null; EscapeMeter = 0f; Recover(); }
+                    else UpdateEscape(dt);
                     break;
                 case FState.Channel:
                     control = true;
@@ -602,6 +610,7 @@ namespace Kagegan
             Rage = Mathf.Min(100f, Rage + dmg * 0.45f);
             Stats.damageTaken += dmg; Stats.hitsTaken++;
             var atk = h.Attacker;
+            if (atk != null && atk != this && atk.Team != Team) { LastAttacker = atk; LastAttackedTime = Time.time; }
             if (atk != null)
             {
                 atk.Rage = Mathf.Min(100f, atk.Rage + dmg * 0.3f);
@@ -734,7 +743,21 @@ namespace Kagegan
             victim.Velocity = Vector3.zero;
             ThrowVictim = victim;
             throwMove = toss;
-            StartMove(toss);
+            victim.EscapeMeter = 0f;
+            if (victim.IsPlayer && !IsClone)
+            {
+                // the player gets a short struggle window before the toss: mash "Вырваться" to break the hold
+                float hold = IsBoss ? 1.35f : 1.55f;
+                holdMove = new Move
+                {
+                    Name = "grabhold", Windup = PoseLib.GrabReach, Strike = PoseLib.GrabReach, Startup = hold, Active = 0.02f, Recovery = 0f,
+                    Damage = 0f, Lunge = 0f, SlashFx = false, NoTracking = true, Sfx = SfxId.Count,
+                    OnActive = f => { if (f.ThrowVictim != null) f.StartMove(toss); }
+                };
+                StartMove(holdMove);
+                if (victim.IsPlayer) { Haptics.Medium(); Hud.Popup("ЗАХВАТ!  Жми «Вырваться»", new Color(1f, 0.55f, 0.45f)); }
+            }
+            else StartMove(toss);
         }
 
         void HoldVictim()
@@ -748,7 +771,7 @@ namespace Kagegan
             v.transform.position = Vector3.Lerp(v.transform.position, p, k);
             v.transform.rotation = Quaternion.Slerp(v.transform.rotation, Quaternion.LookRotation(-transform.forward), k);
             v.Cc.enabled = true;
-            if (State != FState.Attack || CurMove != throwMove) { v.ReleaseGrab(); ThrowVictim = null; }
+            if (State != FState.Attack || (CurMove != throwMove && (holdMove == null || CurMove != holdMove))) { v.ReleaseGrab(); ThrowVictim = null; }
         }
 
         /// <summary>Releases the held victim with the throw hit (called from the throw move's OnActive).</summary>
@@ -960,6 +983,184 @@ namespace Kagegan
             Fx.Dust(transform.position, 0.6f, 4);
         }
 
+        // ================== who is attacking me (auto-focus) ==================
+        /// <summary>The enemy that last damaged this fighter and when.</summary>
+        public Fighter LastAttacker;
+        public float LastAttackedTime = -10f;
+
+        /// <summary>
+        /// The enemy that is about to hit this fighter: the one whose attack (aimed at us, in range) lands soonest.
+        /// Falls back to whoever hit us within the last second. Null when nobody is attacking.
+        /// </summary>
+        public Fighter IncomingAttacker(bool includeRecentHit = true)
+        {
+            Fighter best = null;
+            float bestT = 999f;
+            for (int i = 0; i < All.Count; i++)
+            {
+                var e = All[i];
+                if (e == null || e == this || !e.Alive || e.Team == Team || e.Team == Team.Neutral) continue;
+                if (e.Target != this || e.State != FState.Attack || e.CurMove == null) continue;
+                var m = e.CurMove;
+                if (m.Damage <= 0f && m.Kind != HitKind.Grab) continue;
+                if (!e.InStartup && !e.InActiveFrames) continue;
+                float d = KMath.Flat(e.transform.position - transform.position).magnitude;
+                if (d > m.Range + 2.5f) continue;
+                float t = Mathf.Max(0f, m.Startup - e.MoveTime) + d * 0.02f;
+                if (t < bestT) { bestT = t; best = e; }
+            }
+            if (best == null && includeRecentHit && LastAttacker != null && LastAttacker.Alive && Time.time - LastAttackedTime < 1f
+                && KMath.Flat(LastAttacker.transform.position - transform.position).sqrMagnitude < 196f) best = LastAttacker;
+            return best;
+        }
+
+        // ================== struggle: break out of a hold or a mount ==================
+        /// <summary>0..1 struggle progress while held in a grab or pinned under a mount.</summary>
+        public float EscapeMeter;
+
+        /// <summary>True while mashing can still free this fighter (grab hold phase or pinned under a mount).</summary>
+        public bool CanBreakFree
+        {
+            get
+            {
+                if (State == FState.Grabbed && GrabbedBy != null && GrabbedBy.holdMove != null && GrabbedBy.CurMove == GrabbedBy.holdMove) return true;
+                return State == FState.Knockdown && pinnedBy != null && pinnedBy.State == FState.Mount && pinnedBy.MountVictim == this;
+            }
+        }
+
+        Fighter Holder => State == FState.Grabbed ? GrabbedBy : pinnedBy;
+
+        void UpdateEscape(float dt)
+        {
+            if (!CanBreakFree) { buffered = Cmd.None; return; }
+            EscapeMeter = Mathf.Max(0f, EscapeMeter - dt * 0.3f);
+            if (buffered == Cmd.None) return;
+            buffered = Cmd.None;
+            var h = Holder;
+            float gain = h != null && h.IsBoss ? 0.12f : 0.16f;
+            EscapeMeter += gain;
+            Anim.Recoil(0.35f);
+            if (IsPlayer) Haptics.Light();
+            if (EscapeMeter >= 1f) BreakFree();
+        }
+
+        void BreakFree()
+        {
+            var h = Holder;
+            EscapeMeter = 0f;
+            invulnUntil = Time.time + 0.6f;
+            Vector3 away = h != null ? KMath.Flat(transform.position - h.transform.position).normalized : -transform.forward;
+            if (away.sqrMagnitude < 0.01f) away = -transform.forward;
+            if (State == FState.Grabbed)
+            {
+                GrabbedBy = null;
+                if (h != null)
+                {
+                    h.ThrowVictim = null;
+                    h.CancelMove();
+                    h.Stagger(h.IsBoss ? 0.35f : 0.7f, -away * 5f);
+                }
+                Recover();
+                knock = away * 4f;
+            }
+            else
+            {
+                pinnedBy = null;
+                if (h != null)
+                {
+                    h.EndMount(true);
+                    h.Stagger(h.IsBoss ? 0.3f : 0.6f, Vector3.zero);
+                }
+                stateTimer = 0f; // stand up next frame (get-up is invulnerable)
+            }
+            Fx.Dust(transform.position, 1f, 8);
+            Fx.Ring(Center, new Color(1f, 0.85f, 0.6f), 0.3f, 2.6f, 0.35f, Quaternion.identity);
+            Sfx.Play(SfxId.Whoosh, 0.8f, 1.1f);
+            CameraRig.Shake(0.2f);
+            if (IsPlayer) { Haptics.Heavy(); Hud.Popup("ВЫРВАЛСЯ!", new Color(0.6f, 1f, 0.7f)); }
+        }
+
+        /// <summary>Short daze after losing a hold or a mount (or being tripped mid-move).</summary>
+        public void Stagger(float seconds, Vector3 push)
+        {
+            if (!Alive) return;
+            if (State == FState.Attack) CancelMove();
+            SetState(FState.Stunned);
+            stateTimer = seconds;
+            knock += push;
+            Anim.Flinch(0.8f, false, 1, Random.value < 0.5f ? 1f : -1f);
+        }
+
+        // ================== trip: sweep a nearby enemy's legs from the ground ==================
+        public float TripReadyAt;
+        Fighter tripVictim;
+        float tripHitAt = -1f;
+        Vector3 tripFace;
+
+        /// <summary>The enemy a trip would hit right now (null when none is close enough or tripping is unavailable).</summary>
+        public Fighter TripTarget
+        {
+            get
+            {
+                if (State != FState.Knockdown || (pinnedBy != null && pinnedBy.MountVictim == this) || Time.time < TripReadyAt) return null;
+                Fighter best = null;
+                float bd = 2.5f;
+                for (int i = 0; i < All.Count; i++)
+                {
+                    var o = All[i];
+                    if (o == null || o == this || !o.Alive || o.Team == Team || o.Team == Team.Neutral || !o.Grounded || o.Invulnerable) continue;
+                    if (o.State == FState.Knockdown || o.State == FState.GetUp || o.State == FState.Grabbed || o.State == FState.Cinematic || o.State == FState.Juggle) continue;
+                    float d = KMath.Flat(o.transform.position - transform.position).magnitude;
+                    if (d < bd) { bd = d; best = o; }
+                }
+                return best;
+            }
+        }
+
+        public bool CanTrip => TripTarget != null;
+
+        /// <summary>From the ground: spin-sweep the closest enemy's legs, knock them down and roll up to the feet.</summary>
+        public bool TryTrip()
+        {
+            var t = TripTarget;
+            if (t == null) return false;
+            TripReadyAt = Time.time + 5f;
+            tripVictim = t;
+            tripHitAt = 0.16f;
+            tripFace = KMath.Flat(t.transform.position - transform.position);
+            SetState(FState.GetUp);
+            stateTimer = 0.62f;
+            invulnUntil = Time.time + 0.75f;
+            Anim.Play(Clip.Seq(0f, PoseLib.Down, 0.1f, PoseLib.Crouch, 0.16f, PoseLib.Sweep, 0.36f, PoseLib.Sweep, 0.5f, PoseLib.Crouch, 0.62f, null));
+            Sfx.Play(SfxId.Whoosh, 0.7f, 0.85f);
+            Fx.Dust(transform.position, 0.9f, 8);
+            return true;
+        }
+
+        void UpdateTrip(float dt)
+        {
+            if (tripVictim == null) return;
+            if (tripFace.sqrMagnitude > 0.0001f)
+                transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(tripFace), 1f - Mathf.Exp(-22f * dt));
+            tripHitAt -= dt;
+            if (tripHitAt > 0f) return;
+            var v = tripVictim;
+            tripVictim = null;
+            if (v == null || !v.Alive || KMath.Flat(v.transform.position - transform.position).magnitude > 3f) return;
+            Vector3 dir = KMath.Flat(v.transform.position - transform.position).normalized;
+            if (v.State == FState.Attack) v.CancelMove();
+            var h = new HitInfo
+            {
+                Attacker = this, Damage = 6f * DamageMul, Stamina = 0, Knockback = 1.5f, Launch = 4.5f, Hitstun = 0.5f,
+                Kind = HitKind.Heavy, Unblockable = true, Knockdown = true, Parryable = false, IgnoreArmor = true,
+                Point = v.transform.position + Vector3.up * 0.25f, Dir = dir, FxColor = HitColor, Shake = 0.3f, HitStop = 0.08f
+            };
+            v.ReceiveHit(ref h);
+            Fx.Dust(v.transform.position, 1.3f, 12);
+            Sfx.PlayAt(SfxId.Land, v.transform.position, 0.9f, 0.85f);
+            if (IsPlayer) { Haptics.Heavy(); Hud.Popup("ПОДНОЖКА!", new Color(1f, 0.85f, 0.4f)); }
+        }
+
         // ================== mount: pin a downed opponent and rain blows ==================
         public Fighter MountVictim { get; private set; }
         Fighter pinnedBy;
@@ -1080,6 +1281,7 @@ namespace Kagegan
             LastHitDamage = dmg;
             lastHitTakenTime = Time.time;
             Stats.damageTaken += dmg; Stats.hitsTaken++;
+            if (attacker != null && attacker.Team != Team) { LastAttacker = attacker; LastAttackedTime = Time.time; }
             Rage = Mathf.Min(100f, Rage + dmg * 0.45f);
             if (attacker != null)
             {

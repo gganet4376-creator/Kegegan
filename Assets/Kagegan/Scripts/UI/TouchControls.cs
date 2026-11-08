@@ -162,6 +162,8 @@ namespace Kagegan
             new Def { id = "swap", label = "Смена", icon = "swap", pos = new Vector2(-835, 455), size = 100, color = new Color(0.2f, 0.2f, 0.25f, 1f) },
             new Def { id = "ult", label = "УЛЬТА", icon = "ult", pos = new Vector2(-175, 690), size = 160, color = new Color(0.82f, 0.52f, 0.1f, 1f) },
             new Def { id = "auto", label = "АВТО", icon = null, pos = new Vector2(-640, 720), size = 130, color = new Color(0.3f, 0.75f, 0.95f, 1f) },
+            // context action (trip from the ground / break a hold): hidden until the situation allows it
+            new Def { id = "ctx", label = "Подножка", icon = null, pos = new Vector2(-420, 850), size = 200, color = new Color(1f, 0.78f, 0.25f, 1f) },
         };
 
         public void Build(Transform canvas)
@@ -186,6 +188,7 @@ namespace Kagegan
 
             foreach (var d in Defs) MakeButton(d);
             ApplyScaleAlpha();
+            SetContext(null);
         }
 
         void MakeButton(Def d)
@@ -250,6 +253,7 @@ namespace Kagegan
         public void SetEditMode(bool on)
         {
             LayoutEditor.Editing = on;
+            SetContext(null); // the context button is shown (and draggable) only while editing the layout
             // the joystick base becomes draggable in edit mode through a helper button
             if (on && Stick.Base.GetComponent<TouchButton>() == null)
             {
@@ -264,5 +268,18 @@ namespace Kagegan
         }
 
         public void SetVisible(bool v) { Root.gameObject.SetActive(v); }
+
+        /// <summary>Shows the context button with the given caption (pulsing), or hides it when caption is null.</summary>
+        public void SetContext(string caption)
+        {
+            if (!Buttons.TryGetValue("ctx", out var b)) return;
+            bool on = caption != null || LayoutEditor.Editing;
+            if (b.gameObject.activeSelf != on) b.gameObject.SetActive(on);
+            if (!on) return;
+            if (caption != null && b.Label.text != caption) b.Label.text = caption;
+            float s = Save.Data.buttonScale * (b.Held ? 0.9f : 1f + 0.07f * Mathf.Sin(Time.unscaledTime * 10f));
+            ((RectTransform)b.transform).localScale = Vector3.one * s;
+            if (b.Ring != null) b.Ring.color = Color.Lerp(new Color(1f, 0.75f, 0.2f), Color.white, 0.5f + 0.5f * Mathf.Sin(Time.unscaledTime * 10f));
+        }
     }
 }

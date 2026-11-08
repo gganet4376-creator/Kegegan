@@ -52,6 +52,11 @@ namespace Kagegan
                 case "tech1": Tech(SlotToTech(1), down); break;
                 case "swap": if (down) { TechPage = 1 - TechPage; RefreshTechLabels(); Sfx.Play(SfxId.Click, 0.6f); } break;
                 case "ult": if (down) F.Press(Cmd.Ult); break;
+                case "ctx":
+                    if (!down) break;
+                    if (F.CanBreakFree) F.Press(Cmd.Dodge);   // every tap fills the struggle meter
+                    else F.TryTrip();
+                    break;
             }
         }
 
@@ -145,6 +150,7 @@ namespace Kagegan
 
             // ---- targeting ----
             lockCheck -= Time.deltaTime;
+            AutoFocusAttacker();
             if (F.Target == null || !F.Target.Alive || F.Target.Team == F.Team || lockCheck <= 0f)
             {
                 lockCheck = 0.5f;
@@ -154,6 +160,29 @@ namespace Kagegan
             if (CameraRig.Inst != null) CameraRig.Inst.Target = F.Target != null ? F.Target.transform : null;
 
             UpdateCooldowns();
+        }
+
+        float focusHoldUntil;
+
+        /// <summary>
+        /// Auto-focus: swing the lock-on to whoever is attacking the player. A manual lock (target button) is respected
+        /// for 3 s unless that other enemy actually lands a hit; mid-combo the lock only moves on a landed hit.
+        /// </summary>
+        void AutoFocusAttacker()
+        {
+            if (Time.time < focusHoldUntil) return;
+            var cur = F.Target;
+            bool curValid = cur != null && cur.Alive && cur.Team != F.Team;
+            bool hitNow = F.LastAttacker != null && F.LastAttacker.Alive && Time.time - F.LastAttackedTime < 0.25f;
+            bool comboing = curValid && F.ComboDealt >= 2 && (cur.State == FState.Hitstun || cur.State == FState.Juggle || cur.State == FState.Knockdown);
+            bool manual = lockCheck > 0.5f;
+            Fighter threat = (manual || comboing) ? (hitNow ? F.LastAttacker : null) : F.IncomingAttacker();
+            if (threat == null || threat == cur) return;
+            // the current target is also swinging at us: keep it (no ping-pong between two attackers)
+            if (curValid && cur.Target == F && (cur.InStartup || cur.InActiveFrames)) return;
+            F.Target = threat;
+            focusHoldUntil = Time.time + 0.7f;
+            lockCheck = Mathf.Max(lockCheck, 0.5f);
         }
 
         bool legacyInputOk = true;
@@ -251,6 +280,7 @@ namespace Kagegan
                 h.Label.text = F.Kit.CanFinish(F.Target) ? "ДОБИТЬ" : F.State == FState.Mount ? "Добить" : "Мощный";
             if (Touch.Buttons.TryGetValue("grab", out var g))
                 g.Label.text = F.CanMountTarget ? "Верхом" : "Захват";
+            Touch.SetContext(AutoOn ? null : F.CanBreakFree ? "Вырваться" : F.CanTrip ? "Подножка" : null);
         }
 
         void OnDisable()

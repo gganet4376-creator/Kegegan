@@ -47,6 +47,7 @@ Shader "Kagegan/Toon"
             float4 _KageDynCol[4];
             half _KageWet;            // weather: rain darkens and glosses the scenery (0..1)
             half _KageSnow;           // weather: snow settles on upward faces of the scenery (0..1)
+            #include "KageCasterShadow.cginc"
 
             struct appdata
             {
@@ -162,7 +163,10 @@ Shader "Kagegan/Toon"
                     wetHere = _KageWet * scenery * saturate(n.y * 0.6 + 0.6);
                     albedo *= 1.0 - 0.28 * wetHere;
                 }
-                half3 lit = albedo * lerp(_ShadowTint.rgb, half3(1,1,1), band1) * (_KageLightColor.rgb + band2) + albedo * _KageAmbient.rgb;
+                // fighters' sun shadows on the scenery (High / Ultra), and a sky-vs-ground ambient instead of a flat one
+                if (_KageCasterCount > 0 && scenery > 0) { half sh = KageCasterShadow(i.wpos, l); band1 *= sh; band2 *= sh; }
+                half hemi = lerp(0.82, 1.1, saturate(n.y * 0.5 + 0.5));
+                half3 lit = albedo * lerp(_ShadowTint.rgb, half3(1,1,1), band1) * (_KageLightColor.rgb + band2) + albedo * _KageAmbient.rgb * hemi;
 
                 half fres = 1.0 - saturate(dot(n, vdir));
                 half rim = pow(fres, 4.0) * _RimColor.a * (0.35 + band1);

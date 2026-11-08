@@ -275,12 +275,52 @@ namespace Kagegan
         public static void SetAmbience(string name, float volume)
         {
             if (inst == null) return;
-            if (string.IsNullOrEmpty(name)) { inst.ambience.Stop(); return; }
+            if (string.IsNullOrEmpty(name)) { inst.StopAllAmbienceFades(); inst.ambience.Stop(); return; }
             var clip = Resources.Load<AudioClip>("Kagegan/Audio/Music/" + name);
             if (clip == null) return;
+            inst.StopAllAmbienceFades();
             inst.ambience.clip = clip;
             inst.ambience.volume = volume * Save.Data.sfx;
             inst.ambience.Play();
+        }
+
+        Coroutine ambFade;
+        void StopAllAmbienceFades() { if (ambFade != null) { StopCoroutine(ambFade); ambFade = null; } }
+
+        /// <summary>Crossfades the ambience loop (weather turning mid-fight): the old loop fades down, the new one fades up.</summary>
+        public static void FadeAmbience(string name, float volume, float seconds)
+        {
+            if (inst == null) return;
+            inst.StopAllAmbienceFades();
+            inst.ambFade = inst.StartCoroutine(inst.AmbienceFade(name, volume, Mathf.Max(0.2f, seconds)));
+        }
+
+        System.Collections.IEnumerator AmbienceFade(string name, float volume, float seconds)
+        {
+            var clip = string.IsNullOrEmpty(name) ? null : Resources.Load<AudioClip>("Kagegan/Audio/Music/" + name);
+            float half = seconds * 0.5f;
+            // same loop: only glide the volume
+            if (clip != null && ambience.clip == clip && ambience.isPlaying)
+            {
+                float v0 = ambience.volume;
+                for (float t = 0f; t < seconds; t += Time.unscaledDeltaTime) { ambience.volume = Mathf.Lerp(v0, volume * Save.Data.sfx, t / seconds); yield return null; }
+                ambience.volume = volume * Save.Data.sfx;
+                ambFade = null;
+                yield break;
+            }
+            float start = ambience.volume;
+            if (ambience.isPlaying)
+                for (float t = 0f; t < half; t += Time.unscaledDeltaTime) { ambience.volume = Mathf.Lerp(start, 0f, t / half); yield return null; }
+            ambience.Stop();
+            if (clip != null)
+            {
+                ambience.clip = clip;
+                ambience.volume = 0f;
+                ambience.Play();
+                for (float t = 0f; t < half; t += Time.unscaledDeltaTime) { ambience.volume = Mathf.Lerp(0f, volume * Save.Data.sfx, t / half); yield return null; }
+                ambience.volume = volume * Save.Data.sfx;
+            }
+            ambFade = null;
         }
 
         void Update()

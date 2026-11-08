@@ -24,6 +24,8 @@ namespace Kagegan
         public static int MaxActiveEnemies = 4;
         public static int DebrisPerBreak = 6;
         public static bool GroundDetail = true;
+        /// <summary>Fighters casting a capsule sun-shadow on the scenery (0 = blob shadows only).</summary>
+        public static int ShadowCasters = 0;
         public static float CurrentRenderScale { get; private set; } = 1f;
 
         static PropertyInfo urpRenderScale;
@@ -102,22 +104,22 @@ namespace Kagegan
             {
                 case GraphicsPreset.Low:
                     BaseRenderScale = 0.62f; Outlines = false; DynamicLights = 0; ParticleMul = 0.45f; WeatherMul = 0.3f;
-                    MaxActiveEnemies = 3; DebrisPerBreak = 3; GroundDetail = false;
+                    MaxActiveEnemies = 3; DebrisPerBreak = 3; GroundDetail = false; ShadowCasters = 0;
                     QualitySettings.antiAliasing = 0;
                     break;
                 case GraphicsPreset.Medium:
                     BaseRenderScale = 0.8f; Outlines = true; DynamicLights = 2; ParticleMul = 0.75f; WeatherMul = 0.65f;
-                    MaxActiveEnemies = 4; DebrisPerBreak = 6; GroundDetail = true;
+                    MaxActiveEnemies = 4; DebrisPerBreak = 6; GroundDetail = true; ShadowCasters = 0;
                     QualitySettings.antiAliasing = 0;
                     break;
                 case GraphicsPreset.High:
                     BaseRenderScale = 0.9f; Outlines = true; DynamicLights = 4; ParticleMul = 1f; WeatherMul = 1f;
-                    MaxActiveEnemies = 5; DebrisPerBreak = 10; GroundDetail = true;
+                    MaxActiveEnemies = 5; DebrisPerBreak = 10; GroundDetail = true; ShadowCasters = 4;
                     QualitySettings.antiAliasing = 2;
                     break;
                 default: // Ultra: flagship phones (full resolution, 4x MSAA, dense particles and weather)
                     BaseRenderScale = 1f; Outlines = true; DynamicLights = 4; ParticleMul = 1.25f; WeatherMul = 1.4f;
-                    MaxActiveEnemies = 5; DebrisPerBreak = 14; GroundDetail = true;
+                    MaxActiveEnemies = 5; DebrisPerBreak = 14; GroundDetail = true; ShadowCasters = 6;
                     QualitySettings.antiAliasing = 4;
                     break;
             }
@@ -129,6 +131,9 @@ namespace Kagegan
             QualitySettings.anisotropicFiltering = p >= GraphicsPreset.High ? AnisotropicFiltering.ForceEnable : AnisotropicFiltering.Enable;
             QualitySettings.lodBias = p == GraphicsPreset.Low ? 0.6f : (p == GraphicsPreset.Medium ? 1f : 1.5f);
             Shader.SetGlobalFloat("_KageDynLightCount", DynamicLights);
+            Shader.SetGlobalFloat("_KageCasterStrength", 0.78f);
+            if (ShadowCasters == 0) Shader.SetGlobalFloat("_KageCasterCount", 0f);
+            BlobShadow.SetStrength(ShadowCasters > 0 ? 0.6f : 1f); // real shadows take over; the blob stays as contact darkening
             SetRenderScale(BaseRenderScale, true);
             PostFx.Apply(p);
             Changed?.Invoke();

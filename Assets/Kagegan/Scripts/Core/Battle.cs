@@ -196,6 +196,7 @@ namespace Kagegan
             SpawnPlayer(arena.PlayerSpawn);
             Sfx.PlayTrack(w == 0 ? "forest" : w == 1 ? "city" : "moon", 1);
             SetWeatherAmbience(arena);
+            WeatherSystem.PlanChange(arena, true);
             Hud.Inst.SetBoss(null);
             Hud.Inst.SetWave("Волна " + (w + 1) + "/3 — " + WaveName(w) + "   •   " + Names.Difficulty(Diff));
             CameraRig.Orbit(arena.PlayerSpawn + Vector3.up * 1.5f, 9f, 3f, 2.2f);

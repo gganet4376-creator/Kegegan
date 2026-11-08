@@ -46,10 +46,35 @@ namespace Kagegan
         {
             mpb = new MaterialPropertyBlock();
             sparks = MakePS("Sparks", Mat.FxAdd, 500, 0f, true);
-            smoke = MakePS("Smoke", Mat.FxAlpha, 300, -0.15f, false);
+            smoke = MakePS("Smoke", Own(Mat.FxAlpha, "FxSmoke", 1f, 1f), 300, -0.15f, false);
+            // real smoke puffs (Kenney CC0 atlas, 2x2 cells) instead of a soft dot: random cell, angle and a slow turn
+            var puffTex = Resources.Load<Texture2D>("Kagegan/Vfx/puff_white");
+            if (puffTex != null)
+            {
+                var sm = Mat.FxTex(puffTex, false, "FxSmokePuff");
+                sm.SetFloat("_Lit", 1f);
+                sm.SetFloat("_Soft", 1f);
+                smoke.GetComponent<ParticleSystemRenderer>().sharedMaterial = sm;
+                var stsa = smoke.textureSheetAnimation;
+                stsa.enabled = true; stsa.numTilesX = 2; stsa.numTilesY = 2;
+                stsa.frameOverTime = new ParticleSystem.MinMaxCurve(0f);
+                stsa.startFrame = new ParticleSystem.MinMaxCurve(0f, 3.999f);
+                var smain = smoke.main;
+                smain.startRotation = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
+                var srot = smoke.rotationOverLifetime;
+                srot.enabled = true; srot.z = new ParticleSystem.MinMaxCurve(-0.6f, 0.6f);
+            }
             fire = MakePS("Fire", Mat.FxAdd, 300, -0.6f, false);
             glow = MakePS("Glow", Mat.FxAdd, 120, 0f, false);
-            debris = MakePS("Debris", Mat.FxAlphaSolid, 200, 1.6f, false);
+            debris = MakePS("Debris", Own(Mat.FxAlphaSolid, "FxDebris", 1f, 0f), 200, 1.6f, false);
+            // chunks keep their size, then shrink away in the last quarter of their life (no pop)
+            var dsol = debris.sizeOverLifetime;
+            dsol.size = new ParticleSystem.MinMaxCurve(1f, new AnimationCurve(new Keyframe(0, 1f), new Keyframe(0.72f, 1f), new Keyframe(1f, 0f, -2.5f, 0f)));
+            var dcol = debris.colorOverLifetime;
+            var dg = new Gradient();
+            dg.SetKeys(new[] { new GradientColorKey(Color.white, 0), new GradientColorKey(Color.white, 1) },
+                       new[] { new GradientAlphaKey(1f, 0), new GradientAlphaKey(1f, 0.8f), new GradientAlphaKey(0f, 1f) });
+            dcol.color = dg;
             var dr = debris.GetComponent<ParticleSystemRenderer>();
             dr.renderMode = ParticleSystemRenderMode.Mesh;
             dr.mesh = CubeMesh();
@@ -141,10 +166,7 @@ namespace Kagegan
             sol.size = new ParticleSystem.MinMaxCurve(1f, stretch ? AnimationCurve.Linear(0, 1, 1, 0.1f) : new AnimationCurve(new Keyframe(0, 0.5f), new Keyframe(0.25f, 1f), new Keyframe(1, 1.3f)));
             var colm = ps.colorOverLifetime;
             colm.enabled = true;
-            var g = new Gradient();
-            g.SetKeys(new[] { new GradientColorKey(Color.white, 0), new GradientColorKey(Color.white, 1) },
-                      new[] { new GradientAlphaKey(0.9f, 0), new GradientAlphaKey(1f, 0.1f), new GradientAlphaKey(0.7f, 0.5f), new GradientAlphaKey(0.3f, 0.8f), new GradientAlphaKey(0, 1) });
-            colm.color = g;
+            colm.color = EaseOut(0.9f, 0.08f);
             var r = go.GetComponent<ParticleSystemRenderer>();
             r.sharedMaterial = m;
             r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
@@ -172,11 +194,12 @@ namespace Kagegan
                 ? new AnimationCurve(new Keyframe(0, 0.92f), new Keyframe(0.5f, 1f), new Keyframe(1, 1.12f))
                 : new AnimationCurve(new Keyframe(0, 0.55f), new Keyframe(0.25f, 0.95f), new Keyframe(1, 1.6f)));
             var col = ps.colorOverLifetime;
-            var g = new Gradient();
-            g.SetKeys(new[] { new GradientColorKey(Color.white, 0), new GradientColorKey(Color.white, 1) },
-                      frames > 0 ? new[] { new GradientAlphaKey(0.85f, 0), new GradientAlphaKey(1, 0.12f), new GradientAlphaKey(0.85f, 0.55f), new GradientAlphaKey(0.4f, 0.82f), new GradientAlphaKey(0, 1) }
-                                 : new[] { new GradientAlphaKey(0, 0), new GradientAlphaKey(0.9f, 0.12f), new GradientAlphaKey(0.62f, 0.45f), new GradientAlphaKey(0.25f, 0.78f), new GradientAlphaKey(0, 1) });
-            col.color = g;
+            // sheets start visible (they animate their own burst); puffs fade in so smoke never pops into view
+            col.color = frames > 0 ? EaseOut(0.85f, 0.1f) : EaseOut(0f, 0.14f);
+            // smoke and dust are lit by the scene; everything not lying flat fades softly into the ground on High/Ultra
+            var fm = ps.GetComponent<ParticleSystemRenderer>().sharedMaterial;
+            if (!additive) fm.SetFloat("_Lit", 1f);
+            if (!horizontal) fm.SetFloat("_Soft", 1f);
             if (frames == 0)
             {
                 // smoke and dust decelerate, turn slowly and dissipate instead of popping out
@@ -215,6 +238,32 @@ namespace Kagegan
             r.maxParticleSize = 1.5f;
             if (horizontal) r.renderMode = ParticleSystemRenderMode.HorizontalBillboard;
             return ps;
+        }
+
+        /// <summary>Alpha over life: a quick rise to full, then a long eased tail down to exactly zero (no hard cut).</summary>
+        static Gradient EaseOut(float startAlpha, float peakAt)
+        {
+            var g = new Gradient();
+            float r = 1f - peakAt;
+            g.SetKeys(new[] { new GradientColorKey(Color.white, 0), new GradientColorKey(Color.white, 1) },
+                      new[]
+                      {
+                          new GradientAlphaKey(startAlpha, 0f), new GradientAlphaKey(1f, peakAt),
+                          // (1 - x)^2 sampled along the tail
+                          new GradientAlphaKey(0.86f, peakAt + r * 0.07f), new GradientAlphaKey(0.56f, peakAt + r * 0.25f),
+                          new GradientAlphaKey(0.3f, peakAt + r * 0.45f), new GradientAlphaKey(0.12f, peakAt + r * 0.65f),
+                          new GradientAlphaKey(0.03f, peakAt + r * 0.83f), new GradientAlphaKey(0f, 1f)
+                      });
+            return g;
+        }
+
+        /// <summary>A private copy of a shared effect material with its own lighting / soft-edge settings.</summary>
+        static Material Own(Material shared, string name, float lit, float soft)
+        {
+            var m = new Material(shared) { name = name };
+            m.SetFloat("_Lit", lit);
+            m.SetFloat("_Soft", soft);
+            return m;
         }
 
         static void EmitF(ParticleSystem ps, Vector3 pos, Vector3 vel, Color c, float size, float life) => EmitF(ps, pos, vel, c, size, life, Random.value * 360f);
@@ -624,7 +673,8 @@ namespace Kagegan
                         Vector3 start = a.follow != null ? a.follow.position : a.from;
                         WireShape(lr, start, a.to, u, a.size0);
                         float flicker = 0.85f + 0.15f * Mathf.Sin(a.t * 90f) * Random.value;
-                        Color cc = Color.Lerp(Color.white, c, 0.35f) * (u < 0.7f ? 1.6f : 1.6f * (1f - (u - 0.7f) / 0.3f)) * flicker;
+                        float wf = u < 0.6f ? 1f : 1f - (u - 0.6f) / 0.4f;
+                        Color cc = Color.Lerp(Color.white, c, 0.35f) * 1.6f * wf * wf * (3f - 2f * wf) * flicker;
                         lr.startColor = cc * 0.7f; lr.endColor = cc;
                         Vector3 tip = lr.GetPosition(WireSegs - 1);
                         if (u < 0.4f && Random.value < 0.5f) Trail(tip, c, 0.16f);
@@ -677,7 +727,8 @@ namespace Kagegan
             inst.anims.Clear();
             inst.ringPool.ReleaseAll(); inst.slashPool.ReleaseAll(); inst.crackPool.ReleaseAll(); inst.spherePool.ReleaseAll(); inst.boltPool.ReleaseAll(); inst.wirePool.ReleaseAll();
             inst.sparks.Clear(); inst.smoke.Clear(); inst.fire.Clear(); inst.debris.Clear(); inst.glow.Clear();
-            foreach (var ps in new[] { inst.ringGold, inst.ringEnergy, inst.ringVoid, inst.ringLightning, inst.ringFire, inst.fireBurst, inst.explosionFlip, inst.groundRing, inst.puffWhite, inst.puffBlack, inst.puffFire, inst.flashPs })
+            foreach (var ps in new[] { inst.ringGold, inst.ringEnergy, inst.ringVoid, inst.ringLightning, inst.ringFire, inst.fireBurst, inst.explosionFlip, inst.groundRing, inst.puffWhite, inst.puffBlack, inst.puffFire, inst.flashPs,
+                                       inst.slashFlip, inst.hitStar, inst.hitBurst, inst.electric, inst.flames, inst.dirtPs })
                 if (ps != null) ps.Clear();
         }
 
