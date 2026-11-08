@@ -36,6 +36,8 @@ namespace Kagegan
                 cam.allowHDR = false;
                 cam.allowMSAA = false;
                 Vector3 head = rig.BonePos(B.Head) + Vector3.up * 0.07f * look.height;
+                // baked models have their own head proportions: frame them by the eyes (same offset as the procedural head)
+                if (!string.IsNullOrEmpty(look.model)) head = 0.5f * (rig.BonePos(B.EyeL) + rig.BonePos(B.EyeR)) + Vector3.down * 0.05f;
                 cam.transform.position = head + new Vector3(0.18f, 0.03f, 1.15f);
                 cam.transform.LookAt(head + Vector3.down * 0.06f);
                 rt = RenderTexture.GetTemporary(256, 256, 16, RenderTextureFormat.ARGB32);

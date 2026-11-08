@@ -2,6 +2,13 @@
 
 Код, процедурные модели и анимации — проект Kagegan Mobile.
 
+## Модель персонажа (CC BY-NC 4.0)
+- This work is based on "LUCY (EDGERUNNER)" (https://sketchfab.com/3d-models/lucy-edgerunner-1042ed786b0946b6b1aa910cfb37e96c) by Adwerd Jr. (https://sketchfab.com/Adwerd.Jr.) licensed under CC-BY-NC-4.0 (http://creativecommons.org/licenses/by-nc/4.0/)
+  Изменения: модель привязана к скелету игры (21 кость, веса скиннинга), руки и ноги выпрямлены в стойку покоя,
+  текстуры из оригинальной загрузки собраны в один атлас 2048, добавлен упрощённый LOD для слабых телефонов,
+  контурные оболочки удалены (контур рисует шейдер игры). Используется для Кайто, Генрю, Мугена и двойников.
+  Лицензия некоммерческая: игра Kagegan Mobile распространяется бесплатно и не продаётся.
+
 ## Анимации (CC0)
 - "Universal Animation Library" (Standard) — Quaternius — https://quaternius.itch.io/universal-animation-library
   Захват движения: стойка, ходьба, бег, спринт, прыжок, джеб, кросс, размашистый удар, реакции на удар, падение, заклинание.

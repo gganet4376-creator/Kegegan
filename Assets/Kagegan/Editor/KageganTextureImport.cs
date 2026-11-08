@@ -3,10 +3,10 @@ using UnityEditor;
 namespace Kagegan.EditorTools
 {
     /// <summary>Import settings for the Poly Haven (CC0) photo textures and the monowire strip: normal maps are flagged as such,
-    /// the 4K skies keep their full 4096 px width, ground/props get trilinear + anisotropic filtering.</summary>
+    /// character atlases stay 2048 px and clamped, the 4K skies keep their full 4096 px width, ground/props get trilinear + anisotropic filtering.</summary>
     public class KageganTextureImport : AssetPostprocessor
     {
-        public override uint GetVersion() => 1;
+        public override uint GetVersion() => 2;
 
         void OnPreprocessTexture()
         {
@@ -23,6 +23,17 @@ namespace Kagegan.EditorTools
                 wt.alphaIsTransparency = true;
                 wt.mipmapEnabled = true;
                 wt.filterMode = UnityEngine.FilterMode.Bilinear;
+                return;
+            }
+            if (path.Contains("/Kagegan/Resources/Kagegan/Chars/"))
+            {
+                // character atlases: 2048 px, clamped (UV islands sit in padded slots), bilinear mips
+                var ct = (TextureImporter)assetImporter;
+                ct.maxTextureSize = 2048;
+                ct.mipmapEnabled = true;
+                ct.filterMode = UnityEngine.FilterMode.Bilinear;
+                ct.wrapMode = UnityEngine.TextureWrapMode.Clamp;
+                ct.alphaSource = TextureImporterAlphaSource.None;
                 return;
             }
             if (!ground && !photo && !sky4k) return;

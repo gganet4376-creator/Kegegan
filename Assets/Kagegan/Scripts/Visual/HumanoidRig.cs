@@ -24,6 +24,8 @@ namespace Kagegan
         public bool headband, cape, horns, robe, armor, mask, palmEyes, scarf, bareForearms = true, longSleeves;
         public float hairLength = 1f;
         public Color outline = new Color(0.07f, 0.05f, 0.09f);
+        /// <summary>Name of a baked body in Resources/Kagegan/Chars (e.g. "lucy"); empty = procedural body from the fields above.</summary>
+        public string model;
     }
 
     /// <summary>
@@ -39,6 +41,7 @@ namespace Kagegan
         public Look Look;
         MaterialPropertyBlock mpb;
         Material[] withOutline, noOutline;
+        CharModel model;
         static readonly int IdFlash = Shader.PropertyToID("_Flash");
         static readonly int IdFlashColor = Shader.PropertyToID("_FlashColor");
         static readonly int IdEmit = Shader.PropertyToID("_Emit");
@@ -68,6 +71,11 @@ namespace Kagegan
 
         void Create(Look L)
         {
+            if (!string.IsNullOrEmpty(L.model))
+            {
+                model = CharModel.Get(L.model);
+                if (model != null) { CreateFromModel(L); return; }
+            }
             float h = L.height, w = L.bulk;
             // ----- skeleton (rest pose: arms down, facing +Z) -----
             MakeBone(B.Hips, B.Hips, new Vector3(0, 0.95f * h, 0), true);
@@ -241,7 +249,33 @@ namespace Kagegan
                 bind[i] = Bones[i].worldToLocalMatrix * transform.localToWorldMatrix;
             }
             var mesh = mb.ToSkinnedMesh("Fighter", boneToRoot, bind, JointWeight);
+            SetupRenderer(mesh, Mat.Toon, L);
+        }
 
+        static readonly B[] ModelParent =
+        {
+            B.Hips, B.Hips, B.Spine, B.Chest, B.Neck,
+            B.Chest, B.UArmL, B.LArmL, B.Chest, B.UArmR, B.LArmR,
+            B.Hips, B.ThighL, B.ShinL, B.Hips, B.ThighR, B.ShinR,
+            B.Head, B.Head, B.Head, B.Head,
+        };
+
+        /// <summary>Skeleton from the baked model's bone positions (identity rest rotations) and its pre-skinned mesh.</summary>
+        void CreateFromModel(Look L)
+        {
+            var p = model.BonePos;
+            for (int i = 0; i < (int)B.Count; i++)
+            {
+                bool root = i == (int)B.Hips;
+                MakeBone((B)i, ModelParent[i], root ? p[i] : p[i] - p[(int)ModelParent[i]], root);
+            }
+            for (int i = 0; i < Bones.Length; i++) RestRot[i] = Bones[i].localRotation;
+            HipsRestPos = Bones[(int)B.Hips].localPosition;
+            SetupRenderer(model.MeshFor(GraphicsQuality.Current), model.Toon, L);
+        }
+
+        void SetupRenderer(Mesh mesh, Material toon, Look L)
+        {
             var meshGo = new GameObject("Body");
             meshGo.transform.SetParent(transform, false);
             Smr = meshGo.AddComponent<SkinnedMeshRenderer>();
@@ -253,8 +287,8 @@ namespace Kagegan
             Smr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             Smr.receiveShadows = false;
             Smr.localBounds = new Bounds(new Vector3(0, 0, 0), new Vector3(3f, 3.4f, 3f));
-            noOutline = new[] { Mat.Toon };
-            withOutline = new[] { Mat.Toon, Mat.Outline };
+            noOutline = new[] { toon };
+            withOutline = new[] { toon, Mat.Outline };
             ApplyOutline();
             mpb = new MaterialPropertyBlock();
             mpb.SetColor(IdOutlineColor, L.outline);
@@ -379,8 +413,13 @@ namespace Kagegan
                 {
                     var t = Bones[i];
                     Quaternion r = RestRot[i];
-                    if (i == (int)B.UArmL) r = Quaternion.Euler(0f, 0f, -90f);
-                    if (i == (int)B.UArmR) r = Quaternion.Euler(0f, 0f, 90f);
+                    // T-pose for the avatar: turn each upper arm so the elbow points straight out sideways
+                    // (procedural rigs hang straight down -> exactly +-90 deg about Z; baked models are slightly spread)
+                    if (i == (int)B.UArmL || i == (int)B.UArmR)
+                    {
+                        Vector3 down = Bones[i + 1].localPosition.normalized;
+                        r = Quaternion.FromToRotation(down, i == (int)B.UArmL ? Vector3.left : Vector3.right) * RestRot[i];
+                    }
                     Vector3 pos = i == (int)B.Hips ? HipsRestPos : t.localPosition;
                     skel.Add(new SkeletonBone { name = t.name, position = pos, rotation = r, scale = Vector3.one });
                 }
@@ -409,7 +448,13 @@ namespace Kagegan
 
         public void ApplyOutline()
         {
-            if (Smr != null) Smr.sharedMaterials = GraphicsQuality.Outlines ? withOutline : noOutline;
+            if (Smr == null) return;
+            Smr.sharedMaterials = GraphicsQuality.Outlines ? withOutline : noOutline;
+            if (model != null)
+            {
+                var m = model.MeshFor(GraphicsQuality.Current);
+                if (Smr.sharedMesh != m) Smr.sharedMesh = m;
+            }
         }
 
         public void SetFlash(float amount, Color color)

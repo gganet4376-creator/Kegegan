@@ -55,7 +55,7 @@ namespace Kagegan
                         skin = new Color(0.98f, 0.84f, 0.72f), top = new Color(0.14f, 0.2f, 0.42f), sleeve = new Color(0.14f, 0.2f, 0.42f), top2 = new Color(0.9f, 0.9f, 0.92f),
                         pants = new Color(0.16f, 0.17f, 0.22f), shoes = new Color(0.1f, 0.1f, 0.12f), hair = new Color(0.1f, 0.32f, 0.38f),
                         eye = new Color(0.35f, 0.95f, 1f), accent = new Color(0.78f, 0.12f, 0.12f), hairStyle = HairStyle.Spiky, headband = false, scarf = true,
-                        bareForearms = true, eyeGlow = 0.45f
+                        bareForearms = true, eyeGlow = 0.45f, model = "lucy"
                     };
                 case CharacterId.Genryu:
                     return new Look
@@ -63,7 +63,7 @@ namespace Kagegan
                         skin = new Color(0.98f, 0.84f, 0.72f), top = new Color(0.16f, 0.15f, 0.25f), sleeve = new Color(0.16f, 0.15f, 0.25f), top2 = new Color(0.1f, 0.1f, 0.12f),
                         pants = new Color(0.14f, 0.13f, 0.2f), shoes = new Color(0.1f, 0.1f, 0.1f), hair = new Color(0.08f, 0.08f, 0.14f),
                         eye = new Color(0.95f, 0.15f, 0.1f), accent = new Color(0.62f, 0.13f, 0.12f), hairStyle = HairStyle.LongSpiky, armor = true,
-                        bulk = 1.12f, height = 1.04f, eyeGlow = 0.8f, hairLength = 1.1f, bareForearms = false
+                        eyeGlow = 0.8f, hairLength = 1.1f, bareForearms = false, model = "lucy"
                     };
                 case CharacterId.Reina:
                     return new Look
@@ -80,7 +80,7 @@ namespace Kagegan
                         skin = new Color(0.96f, 0.92f, 0.96f), top = new Color(0.95f, 0.94f, 0.98f), sleeve = new Color(0.95f, 0.94f, 0.98f), top2 = new Color(0.4f, 0.25f, 0.6f),
                         pants = new Color(0.9f, 0.88f, 0.94f), shoes = new Color(0.3f, 0.25f, 0.4f), hair = new Color(0.97f, 0.96f, 1f),
                         eye = new Color(0.75f, 0.5f, 1f), accent = new Color(0.55f, 0.3f, 0.8f), hairStyle = HairStyle.LongWhite, horns = true, robe = true,
-                        palmEyes = true, eyeGlow = 0.9f, hairLength = 0.55f, longSleeves = true, height = 1.02f
+                        palmEyes = true, eyeGlow = 0.9f, hairLength = 0.55f, longSleeves = true, model = "lucy"
                     };
             }
         }
