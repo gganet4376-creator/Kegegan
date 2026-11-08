@@ -816,16 +816,22 @@ namespace Kagegan
 
         static void GrassTufts(MeshBuilder mb, int count, float rMin, float rMax, Color c, int seed)
         {
-            if (!GraphicsQuality.GroundDetail) count /= 3;
-            if (GraphicsQuality.Current == GraphicsPreset.Ultra) count = count * 3 / 2;
-            int blades = GraphicsQuality.GroundDetail ? 7 : 4;
+            // Low stays light for weak GPUs; High/Ultra get a dense, visibly swaying lawn
+            int blades;
+            switch (GraphicsQuality.Current)
+            {
+                case GraphicsPreset.Low: count /= 3; blades = 4; break;
+                case GraphicsPreset.Medium: blades = 7; break;
+                case GraphicsPreset.High: count *= 2; blades = 9; break;
+                default: count *= 3; blades = 10; break;
+            }
             var rnd = new System.Random(seed);
             for (int i = 0; i < count; i++)
             {
                 float ang = (float)rnd.NextDouble() * Mathf.PI * 2f, rr = Mathf.Lerp(rMin, rMax, Mathf.Sqrt((float)rnd.NextDouble()));
                 Vector3 p = new Vector3(Mathf.Cos(ang) * rr, 0, Mathf.Sin(ang) * rr);
                 Color tint = c * (0.8f + 0.4f * (float)rnd.NextDouble());
-                float tall = 0.35f + 0.3f * (float)rnd.NextDouble();
+                float tall = (0.35f + 0.3f * (float)rnd.NextDouble()) * (GraphicsQuality.Current >= GraphicsPreset.High ? 1.3f : 1f);
                 for (int k = 0; k < blades; k++)
                 {
                     // blades fan out from the clump centre and arc outwards

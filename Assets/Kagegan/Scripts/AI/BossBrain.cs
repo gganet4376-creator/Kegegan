@@ -27,7 +27,7 @@ namespace Kagegan
             UsesTokens = false;
             PreferredRange = 1.5f;
             speedBase = f.MoveSpeed;
-            patternReadyAt = Time.time + 2.5f;
+            patternReadyAt = Time.time + 2.5f * tune.bossPace;
         }
 
         protected override void Think()
@@ -50,7 +50,7 @@ namespace Kagegan
             {
                 if (DoPattern(DistToTarget))
                 {
-                    patternReadyAt = Time.time + patternGap * Mathf.Lerp(1.35f, 0.7f, Tune.aggression) * (1f - Phase * 0.12f);
+                    patternReadyAt = Time.time + patternGap * Tune.bossPace * Mathf.Lerp(1.35f, 0.7f, Tune.aggression) * (1f - Phase * 0.1f);
                     return;
                 }
             }

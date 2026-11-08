@@ -79,9 +79,11 @@ namespace Kagegan
 
         bool Summon(Fighter f)
         {
-            if (Battle.Inst == null || Battle.Inst.SummonCount >= 2) return false;
+            if (Battle.Inst == null) return false;
+            int free = Mathf.Max(1, Battle.Inst.Tune.bossSummons) - Battle.Inst.SummonCount;
+            if (free <= 0) return false;
             f.Anim.Play(Clip.Hold(PoseLib.Seal, 0.1f, 0.5f, 0.2f));
-            for (int i = 0; i < 2; i++)
+            for (int i = 0; i < free; i++)
             {
                 Vector3 p = f.transform.position + f.transform.right * (i == 0 ? 2.5f : -2.5f);
                 Fx.Smoke(p + Vector3.up, 1.2f, new Color(0.6f, 0.5f, 0.7f, 0.6f), 12);

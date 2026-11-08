@@ -265,9 +265,9 @@ namespace Kagegan
                     kit = new MoonKit(); stance = StanceKind.Moon; run = RunStyle.Glide; hp = 2000f; speed = 6.2f; scale = 1.12f;
                     break;
             }
-            var f = FighterFactory.Make(BossName(i), L, stance, run, kit, Team.Enemy, pos, FighterRoot, hp * tune.enemyHp, speed, scale);
+            var f = FighterFactory.Make(BossName(i), L, stance, run, kit, Team.Enemy, pos, FighterRoot, hp * tune.enemyHp * tune.bossHp, speed, scale);
             f.IsBoss = true;
-            f.DamageMul = tune.enemyDamage * (1f + i * 0.12f);
+            f.DamageMul = tune.enemyDamage * tune.bossDamage * (1f + i * 0.06f);
             f.Weight = 1.25f;
             f.MaxChakra = 150f; f.Chakra = 150f; f.ChakraRegen = 7f;
             f.MaxStamina = 160f; f.Stamina = 160f;

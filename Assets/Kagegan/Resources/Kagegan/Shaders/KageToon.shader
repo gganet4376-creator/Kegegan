@@ -68,7 +68,7 @@ Shader "Kagegan/Toon"
                 // grass: bend by blade uv (root 0, tip 1); trees/bushes: by height above the model's base
                 float objB = saturate((wpos.y - origin.y) / _WindHeight);
                 float bend = lerp(uv.y * uv.y, objB * objB, _WindObj);
-                float amp = lerp(0.22, 0.04 * _WindHeight + 0.12, _WindObj);
+                float amp = lerp(0.38, 0.05 * _WindHeight + 0.16, _WindObj);
                 float tall = lerp(0.45, _WindHeight, _WindObj);
                 // big gusts roll across the field as visible waves
                 float along = dot(wpos.xz, dir);
@@ -78,9 +78,9 @@ Shader "Kagegan/Toon"
                 // every clump / tree also rocks on its own rhythm
                 float2 anchor = lerp(wpos.xz, origin.xz + wpos.xz * 0.1, _WindObj);
                 float ph = dot(anchor, float2(0.73, 1.21));
-                float sway = sin(t * 1.9 + ph) * 0.6 + sin(t * 3.3 + ph * 1.7) * 0.4;
+                float sway = sin(t * 2.1 + ph) * 0.7 + sin(t * 3.7 + ph * 1.7) * 0.45;
                 float2 side = float2(-dir.y, dir.x);
-                float2 off = (dir * ((0.25 + gust) + sway * 0.2) + side * sway * 0.12) * amp * bend * str;
+                float2 off = (dir * ((0.25 + gust) + sway * 0.35) + side * sway * 0.2) * amp * bend * str;
                 float3 d = float3(off.x, 0, off.y);
                 d.y = -dot(off, off) / (2.0 * tall); // bend instead of stretching
                 // leaves shiver
