@@ -201,5 +201,63 @@ namespace Kagegan
         public static readonly string[] PhotoMoonRocks = { "moon_rock_01", "moon_rock_03", "moon_rock_05" };
 
         public static string Pick(string[] set, System.Random rnd) => set[rnd.Next(set.Length)];
+
+        /// <summary>
+        /// Merge the models spawned under <paramref name="root"/> that sit entirely beyond <paramref name="minZ"/>
+        /// (behind the fight, where they can never come between the camera and a fighter) into one mesh per material.
+        /// A street of buildings with a dozen materials each, or a tree line, then costs a handful of draw calls
+        /// instead of dozens, and drops out of the per-frame camera-fade checks. Breakable props are left alone.
+        /// </summary>
+        public static int MergeBehind(Transform root, float minZ)
+        {
+            if (root == null) return 0;
+            var groups = new Dictionary<Material, List<CombineInstance>>();
+            var merged = new List<GameObject>();
+            Matrix4x4 toRoot = root.worldToLocalMatrix;
+            for (int c = 0; c < root.childCount; c++)
+            {
+                var child = root.GetChild(c).gameObject;
+                if (child.GetComponentInChildren<Destructible>() != null) continue;
+                var rs = child.GetComponentsInChildren<Renderer>();
+                if (rs.Length == 0) continue;
+                bool ok = true;
+                foreach (var r in rs)
+                {
+                    var mf = r.GetComponent<MeshFilter>();
+                    if (!(r is MeshRenderer) || mf == null || mf.sharedMesh == null || !mf.sharedMesh.isReadable || r.bounds.min.z < minZ) { ok = false; break; }
+                }
+                if (!ok) continue;
+                foreach (var r in rs)
+                {
+                    var mesh = r.GetComponent<MeshFilter>().sharedMesh;
+                    var sm = r.sharedMaterials;
+                    for (int s = 0; s < mesh.subMeshCount && s < sm.Length; s++)
+                    {
+                        if (sm[s] == null) continue;
+                        if (!groups.TryGetValue(sm[s], out var list)) groups[sm[s]] = list = new List<CombineInstance>();
+                        list.Add(new CombineInstance { mesh = mesh, subMeshIndex = s, transform = toRoot * r.transform.localToWorldMatrix });
+                    }
+                }
+                merged.Add(child);
+            }
+            if (merged.Count < 2) return 0;
+            foreach (var kv in groups)
+            {
+                var go = new GameObject("Merged_" + kv.Key.name);
+                go.transform.SetParent(root, false);
+                var mesh = new Mesh { name = go.name, indexFormat = UnityEngine.Rendering.IndexFormat.UInt32 };
+                mesh.CombineMeshes(kv.Value.ToArray(), true, true, false);
+                mesh.RecalculateBounds();
+                go.AddComponent<MeshFilter>().sharedMesh = mesh;
+                var mr = go.AddComponent<MeshRenderer>();
+                mr.sharedMaterial = kv.Key;
+                mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                mr.receiveShadows = false;
+                go.isStatic = true;
+            }
+            // detach first so the merged copies replace them in this very frame (Destroy is deferred)
+            foreach (var g in merged) { g.SetActive(false); Object.Destroy(g); }
+            return merged.Count;
+        }
     }
 }

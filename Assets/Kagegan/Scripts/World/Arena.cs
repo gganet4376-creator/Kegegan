@@ -140,7 +140,12 @@ namespace Kagegan
             }
             for (int i = 0; i < 5; i++)
                 ModelKit.Spawn(i % 2 == 0 ? "Prop_Crate" : "Barrel", root, new Vector3(-26f + (float)rnd.NextDouble() * 52f, 0, 9.5f + (float)rnd.NextDouble() * 3f), i % 2 == 0 ? 1f : 0.9f, (float)rnd.NextDouble() * 360f);
+            ModelKit.MergeBehind(root, MergeZ);
         }
+
+        /// <summary>Scenery entirely beyond this depth is behind the fight from every camera (side view, victory
+        /// orbit at 6.5 m from a fighter at the lane edge), so it can be merged and needs no camera fade.</summary>
+        const float MergeZ = 10.5f;
 
         /// <summary>Downtown City MegaKit buildings as the street behind the lane, plus breakable street props.</summary>
         void CityModels()
@@ -201,6 +206,8 @@ namespace Kagegan
             if (!low)
                 for (int i = 0; i < 4; i++)
                     ModelKit.Spawn("Prop_ACUnit", root, new Vector3(-20f + i * 13f, 0, LaneDepth + 8.5f), 0.6f, 180f + (float)rnd.NextDouble() * 30f - 15f);
+            // buildings and the far skyline become one mesh per material: the MegaKit street alone was ~60 draw calls
+            ModelKit.MergeBehind(root, MergeZ);
             // breakable crates, barrels and planters along the fight
             string[] brk = { "Crate_Wooden", "Barrel", "Prop_Planter_Single", "Crate_Metal", "Barrel" };
             for (int i = 0; i < brk.Length; i++)
@@ -266,6 +273,8 @@ namespace Kagegan
                 float x = -32f + (float)rnd.NextDouble() * 64f;
                 ModelKit.Spawn(ModelKit.Pick(ModelKit.Rocks, rnd), root, new Vector3(x, 0, 9f + (float)rnd.NextDouble() * 3f), 1.2f + (float)rnd.NextDouble() * 1.4f, (float)rnd.NextDouble() * 360f);
             }
+            // the tree line merges into a few meshes (bark / leaves); the undergrowth near the lane keeps its camera fade
+            ModelKit.MergeBehind(root, MergeZ);
         }
 
         /// <summary>Ultra only: photoscanned Poly Haven models (CC0) just behind the lane, where the camera sees them
