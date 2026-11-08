@@ -17,12 +17,12 @@ namespace Kagegan
         ParticleSystem ringGold, ringEnergy, ringVoid, ringLightning, ringFire, fireBurst, explosionFlip, groundRing, puffWhite, puffBlack, puffFire, flashPs;
         readonly List<Anim> anims = new List<Anim>(64);
         Pool<MeshRenderer> ringPool, slashPool, crackPool, spherePool;
-        Pool<LineRenderer> boltPool;
+        Pool<LineRenderer> boltPool, wirePool;
         Mesh ringMesh, slashMesh, crackMesh, sphereMesh;
         MaterialPropertyBlock mpb;
         static readonly int IdColor = Shader.PropertyToID("_Color");
 
-        enum Kind { Ring, Slash, Crack, Bolt, Sphere }
+        enum Kind { Ring, Slash, Crack, Bolt, Sphere, Wire }
 
         class Anim
         {
@@ -107,6 +107,7 @@ namespace Kagegan
             crackPool = new Pool<MeshRenderer>(() => MakeMeshObj("Crack", crackMesh, Mat.Decal), 6);
             spherePool = new Pool<MeshRenderer>(() => MakeMeshObj("Burst", sphereMesh, Mat.FxAddSolid), 4);
             boltPool = new Pool<LineRenderer>(MakeBolt, 4);
+            wirePool = new Pool<LineRenderer>(MakeWire, 6);
         }
 
         ParticleSystem MakePS(string name, Material m, int max, float gravity, bool stretch)
@@ -501,6 +502,54 @@ namespace Kagegan
             WorldLighting.Flash((from + to) * 0.5f, color * 2f, 6f, life);
         }
 
+        LineRenderer MakeWire()
+        {
+            var go = new GameObject("Monowire");
+            go.transform.SetParent(transform, false);
+            var lr = go.AddComponent<LineRenderer>();
+            lr.sharedMaterial = Mat.FxAddSolid;
+            lr.positionCount = WireSegs;
+            lr.useWorldSpace = true;
+            lr.numCapVertices = 2;
+            lr.widthCurve = new AnimationCurve(new Keyframe(0, 0.045f), new Keyframe(0.85f, 0.03f), new Keyframe(1, 0.012f));
+            lr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            lr.receiveShadows = false;
+            go.SetActive(false);
+            return lr;
+        }
+
+        const int WireSegs = 18;
+
+        /// <summary>
+        /// Monowire whip: a thin glowing filament shoots out of <paramref name="hand"/>, follows a curved whip arc
+        /// (<paramref name="sweep"/> bends it sideways, + = right), hits <paramref name="to"/> at 35% of its life and retracts.
+        /// </summary>
+        public static void Wire(Transform hand, Vector3 to, Color color, float life = 0.3f, float sweep = 1f)
+        {
+            if (inst == null || hand == null) return;
+            var lr = inst.wirePool.Get();
+            inst.anims.Add(new Anim { kind = Kind.Wire, c = lr, life = life, from = hand.position, to = to, color = color, follow = hand, size0 = sweep });
+            WireShape(lr, hand.position, to, 0f, sweep);
+        }
+
+        static void WireShape(LineRenderer lr, Vector3 a, Vector3 b, float u, float sweep)
+        {
+            // extend (0..0.35), taut on contact, then whip back while the tail swings
+            float ext = u < 0.35f ? 1f - Mathf.Pow(1f - u / 0.35f, 3f) : 1f - Mathf.Pow((u - 0.35f) / 0.65f, 2f);
+            Vector3 dir = b - a;
+            float len = dir.magnitude;
+            Vector3 side = Vector3.Cross(Vector3.up, dir / Mathf.Max(0.01f, len));
+            if (side.sqrMagnitude < 0.01f) side = Vector3.right;
+            float bend = sweep * len * 0.22f * (u < 0.35f ? 1f - u / 0.35f : (u - 0.35f) * 1.4f);
+            for (int i = 0; i < WireSegs; i++)
+            {
+                float k = (float)i / (WireSegs - 1) * ext;
+                float arc = Mathf.Sin(k / Mathf.Max(0.01f, ext) * Mathf.PI);
+                Vector3 p = a + dir * k + side * bend * arc + Vector3.up * (-0.08f * len * arc * (1f - ext));
+                lr.SetPosition(i, p);
+            }
+        }
+
         static void JaggedLine(LineRenderer lr, Vector3 a, Vector3 b)
         {
             int n = lr.positionCount;
@@ -549,6 +598,16 @@ namespace Kagegan
                         r.SetPropertyBlock(mpb);
                         break;
                     }
+                    case Kind.Wire:
+                    {
+                        var lr = (LineRenderer)a.c;
+                        Vector3 start = a.follow != null ? a.follow.position : a.from;
+                        WireShape(lr, start, a.to, u, a.size0);
+                        Color cc = Color.Lerp(Color.white, c, 0.35f) * (u < 0.7f ? 1.6f : 1.6f * (1f - (u - 0.7f) / 0.3f));
+                        lr.startColor = cc * 0.7f; lr.endColor = cc;
+                        if (u < 0.4f && Random.value < 0.5f) Trail(lr.GetPosition(WireSegs - 1), c, 0.16f);
+                        break;
+                    }
                     case Kind.Bolt:
                     {
                         var lr = (LineRenderer)a.c;
@@ -567,6 +626,7 @@ namespace Kagegan
                         case Kind.Slash: slashPool.Release((MeshRenderer)a.c); break;
                         case Kind.Crack: crackPool.Release((MeshRenderer)a.c); break;
                         case Kind.Bolt: boltPool.Release((LineRenderer)a.c); break;
+                        case Kind.Wire: wirePool.Release((LineRenderer)a.c); break;
                     }
                     anims[i] = anims[anims.Count - 1];
                     anims.RemoveAt(anims.Count - 1);
@@ -580,7 +640,7 @@ namespace Kagegan
             foreach (var a in inst.anims)
                 if (a.c != null) a.c.gameObject.SetActive(false);
             inst.anims.Clear();
-            inst.ringPool.ReleaseAll(); inst.slashPool.ReleaseAll(); inst.crackPool.ReleaseAll(); inst.spherePool.ReleaseAll(); inst.boltPool.ReleaseAll();
+            inst.ringPool.ReleaseAll(); inst.slashPool.ReleaseAll(); inst.crackPool.ReleaseAll(); inst.spherePool.ReleaseAll(); inst.boltPool.ReleaseAll(); inst.wirePool.ReleaseAll();
             inst.sparks.Clear(); inst.smoke.Clear(); inst.fire.Clear(); inst.debris.Clear(); inst.glow.Clear();
             foreach (var ps in new[] { inst.ringGold, inst.ringEnergy, inst.ringVoid, inst.ringLightning, inst.ringFire, inst.fireBurst, inst.explosionFlip, inst.groundRing, inst.puffWhite, inst.puffBlack, inst.puffFire, inst.flashPs })
                 if (ps != null) ps.Clear();

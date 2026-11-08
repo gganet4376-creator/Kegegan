@@ -227,7 +227,7 @@ namespace Kagegan
             seenAttacksDecay += dt;
             if (seenAttacksDecay > 2.5f) { seenAttacksDecay = 0f; seenAttacks = Mathf.Max(0, seenAttacks - 3); }
             if (F.State == FState.Block && t.State == FState.Attack && t.MoveTime > t.CurMove?.Startup) blockedRecently = true;
-            if (threat && reactTimer < 0f && lastSeenAttacker != t) { reactTimer = Tune.reaction * Random.Range(0.8f, 1.3f); lastSeenAttacker = t; }
+            if (threat && reactTimer < 0f && lastSeenAttacker != t) { reactTimer = Tune.reaction * Random.Range(0.8f, 1.3f) * (F.Overloaded ? (F.IsBoss ? 1.5f : 2.4f) : 1f); lastSeenAttacker = t; }
             if (!threat && t.State != FState.Attack) lastSeenAttacker = null;
             if (reactTimer >= 0f)
             {

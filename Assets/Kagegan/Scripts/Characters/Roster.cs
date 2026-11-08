@@ -13,6 +13,7 @@ namespace Kagegan
             {
                 case CharacterId.Kaito: return "Кайто";
                 case CharacterId.Genryu: return "Гэнрю";
+                case CharacterId.Reina: return "Рэйна";
                 default: return "Мугэн";
             }
         }
@@ -23,6 +24,7 @@ namespace Kagegan
             {
                 case CharacterId.Kaito: return "Неугомонный вихрь";
                 case CharacterId.Genryu: return "Пламя древнего клана";
+                case CharacterId.Reina: return "Призрак сети";
                 default: return "Поглотитель небес";
             }
         }
@@ -35,6 +37,8 @@ namespace Kagegan
                     return "Быстрый боец с длинными комбо.\n• Спиральная сфера — рывок с ударом сжатой чакры\n• Теневые двойники — клоны, которые реально дерутся\n• Вихревой сюрикен — снаряд, раскрывающийся в сферу ветра\n• Режим чакры — скорость, урон и регенерация\n• Ульта: Ураган теней — серия клонов и сфера сверху";
                 case CharacterId.Genryu:
                     return "Мощный боец с тяжёлыми ударами.\n• Огненный шар и Огненная волна\n• Дух-страж — гигантская призрачная броня: -50% урона, супер-броня, удары рук духа\n• Контрстойка — перехват удара и мгновенная контратака\n• Ульта: Падение небес — метеор, разрушающий арену";
+                case CharacterId.Reina:
+                    return "Кибер-нетраннер: моноструна, взломы и акробатика.\n• Монострунный хлыст — удар светящейся нитью на 4–5 м\n• Захват струной — притягивает врага и бьёт ногой (к тяжёлым и боссам подтягивается сама)\n• Системный шок — блокирует техники и ульту врага\n• Нейроперегрузка — замедляет реакции и движение (на боссах слабее)\n• Кибер-удар, сальто при уклонении, пике с моноструной в воздухе\n• Ульта: Глубокое погружение — удары струн со всех сторон и добивание сверху";
                 default:
                     return "Технический боец, обращающий силу врага против него.\n• Поглощение (держать) — правая ладонь поглощает техники и снаряды\n• Выброс — левая ладонь выпускает накопленное усиленным лучом\n• Чакровые стержни — высасывают чакру и замедляют\n• Телепортация — за спину цели с окном контратаки\n• Ульта: Небесный разлом";
             }
@@ -61,6 +65,15 @@ namespace Kagegan
                         eye = new Color(0.95f, 0.15f, 0.1f), accent = new Color(0.62f, 0.13f, 0.12f), hairStyle = HairStyle.LongSpiky, armor = true,
                         bulk = 1.12f, height = 1.04f, eyeGlow = 0.8f, hairLength = 1.1f, bareForearms = false
                     };
+                case CharacterId.Reina:
+                    return new Look
+                    {
+                        // original design: crimson ponytail, graphite tech-suit with acid-green circuit accents
+                        skin = new Color(0.95f, 0.8f, 0.7f), top = new Color(0.12f, 0.13f, 0.15f), sleeve = new Color(0.12f, 0.13f, 0.15f), top2 = new Color(0.35f, 1f, 0.55f),
+                        pants = new Color(0.1f, 0.1f, 0.12f), shoes = new Color(0.2f, 0.22f, 0.24f), hair = new Color(0.55f, 0.07f, 0.12f),
+                        eye = new Color(0.4f, 1f, 0.6f), accent = new Color(0.35f, 1f, 0.55f), hairStyle = HairStyle.LongStraight, hairLength = 0.8f,
+                        bareForearms = false, eyeGlow = 0.7f, height = 0.97f, bulk = 0.92f
+                    };
                 default:
                     return new Look
                     {
@@ -72,9 +85,9 @@ namespace Kagegan
             }
         }
 
-        public static StanceKind Stance(CharacterId id) => id == CharacterId.Kaito ? StanceKind.Swift : id == CharacterId.Genryu ? StanceKind.Heavy : StanceKind.Void;
-        public static RunStyle Run(CharacterId id) => id == CharacterId.Kaito ? RunStyle.Ninja : id == CharacterId.Genryu ? RunStyle.Heavy : RunStyle.Glide;
-        public static Pose Victory(CharacterId id) => id == CharacterId.Kaito ? PoseLib.WinSwift : id == CharacterId.Genryu ? PoseLib.WinHeavy : PoseLib.WinVoid;
+        public static StanceKind Stance(CharacterId id) => id == CharacterId.Kaito || id == CharacterId.Reina ? StanceKind.Swift : id == CharacterId.Genryu ? StanceKind.Heavy : StanceKind.Void;
+        public static RunStyle Run(CharacterId id) => id == CharacterId.Kaito || id == CharacterId.Reina ? RunStyle.Ninja : id == CharacterId.Genryu ? RunStyle.Heavy : RunStyle.Glide;
+        public static Pose Victory(CharacterId id) => id == CharacterId.Kaito || id == CharacterId.Reina ? PoseLib.WinSwift : id == CharacterId.Genryu ? PoseLib.WinHeavy : PoseLib.WinVoid;
 
         public static Kit KitFor(CharacterId id)
         {
@@ -82,14 +95,15 @@ namespace Kagegan
             {
                 case CharacterId.Kaito: return new KaitoKit();
                 case CharacterId.Genryu: return new GenryuKit();
+                case CharacterId.Reina: return new ReinaKit();
                 default: return new MugenKit();
             }
         }
 
         public static Fighter CreatePlayer(CharacterId id, Vector3 pos)
         {
-            float hp = id == CharacterId.Genryu ? 640f : id == CharacterId.Kaito ? 560f : 580f;
-            float speed = id == CharacterId.Kaito ? 6.6f : id == CharacterId.Genryu ? 5.5f : 6.1f;
+            float hp = id == CharacterId.Genryu ? 640f : id == CharacterId.Kaito ? 560f : id == CharacterId.Reina ? 540f : 580f;
+            float speed = id == CharacterId.Kaito ? 6.6f : id == CharacterId.Genryu ? 5.5f : id == CharacterId.Reina ? 6.9f : 6.1f;
             var f = FighterFactory.Make(Name(id), LookFor(id), Stance(id), Run(id), KitFor(id), Team.Player, pos, FighterRoot, hp, speed);
             f.IsPlayer = true;
             f.Anim.PlaySteps = true;

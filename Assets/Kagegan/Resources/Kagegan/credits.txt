@@ -66,5 +66,5 @@
 - Russo One — Jovanny Lemonad — https://fonts.google.com/specimen/Russo+One (лицензия: Resources/Kagegan/Fonts/OFL.txt)
 
 ## Иконки (CC BY 3.0)
-Иконки с https://game-icons.net — авторы Lorc, Delapouite, Felbrigg, Skoll, GUARD13007.
+Иконки с https://game-icons.net — авторы Lorc, Delapouite, Felbrigg, Skoll, GUARD13007 (r_wire=lorc/whiplash, r_capture=delapouite/lasso, r_shock=lorc/circuitry, r_overload=lorc/brain-freeze, r_ult=delapouite/cyber-eye).
 Лицензия: https://creativecommons.org/licenses/by/3.0/

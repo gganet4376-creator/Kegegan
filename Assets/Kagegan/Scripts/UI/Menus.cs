@@ -13,7 +13,7 @@ namespace Kagegan
         readonly List<RectTransform> screens = new List<RectTransform>();
         RectTransform main, charSel, diffSel, bossSel, settings, layout, pause, defeat, results, ending, confirm;
         Text charName, charTitle, charDesc, endingLine, resultsTitle, resultsRank, resultsBody, settingsBody;
-        readonly Button[] charButtons = new Button[3];
+        readonly Button[] charButtons = new Button[4];
         readonly Button[] diffButtons = new Button[3];
         readonly Button[] bossButtons = new Button[3];
         Button bossDiffButton, sparringButton;
@@ -84,10 +84,10 @@ namespace Kagegan
             charName = UIKit.Label(UIKit.Box(left, "Name", new Vector2(0.5f, 1), new Vector2(0, -70), new Vector2(740, 100)), "", 80, UIKit.Paper, TextAnchor.MiddleLeft, FontStyle.Bold);
             charTitle = UIKit.Label(UIKit.Box(left, "Title", new Vector2(0.5f, 1), new Vector2(0, -145), new Vector2(740, 50)), "", 36, UIKit.Gold, TextAnchor.MiddleLeft);
             charDesc = UIKit.Label(UIKit.Box(left, "Desc", new Vector2(0.5f, 1), new Vector2(0, -420), new Vector2(740, 480)), "", 30, Color.white, TextAnchor.UpperLeft);
-            for (int i = 0; i < 3; i++)
+            for (int i = 0; i < charButtons.Length; i++)
             {
                 int idx = i;
-                charButtons[i] = UIKit.Button(charSel, Roster.Name((CharacterId)i), new Vector2(0, 0), new Vector2(180 + i * 300, 90), new Vector2(280, 120), () => SelectChar((CharacterId)idx), UIKit.Ink, 42);
+                charButtons[i] = UIKit.Button(charSel, Roster.Name((CharacterId)i), new Vector2(0, 0), new Vector2(160 + i * 250, 90), new Vector2(235, 120), () => SelectChar((CharacterId)idx), UIKit.Ink, 40);
             }
             UIKit.Button(charSel, "Назад", new Vector2(1, 0), new Vector2(-560, 90), new Vector2(240, 110), ShowMain, new Color(0.15f, 0.12f, 0.14f, 0.9f));
             UIKit.Button(charSel, "Далее", new Vector2(1, 0), new Vector2(-220, 90), new Vector2(340, 120), CharNext, UIKit.Accent, 46);

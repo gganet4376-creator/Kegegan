@@ -208,6 +208,7 @@ namespace Kagegan
             if (State != FState.Grabbed && State != FState.Cinematic) ApplyPhysics(dt, control);
             Face(dt);
             if (ThrowVictim != null) HoldVictim();
+            HackFx();
             UpdateAnim();
         }
 
@@ -319,6 +320,7 @@ namespace Kagegan
             if (Vector3.Dot(dodgeDir, transform.forward) > 0.3f) Anim.PlayMocap("Slide_Start", 2.4f, 0.05f, false, 0.32f, 0.05f); // captured dash-slide
             Sfx.Play(SfxId.Whoosh, 0.6f, 1.5f);
             Fx.Dust(transform.position, 0.5f, 4);
+            Kit?.OnDodge(dodgeDir);
         }
 
         void UpdateDodge(float dt)
@@ -781,6 +783,36 @@ namespace Kagegan
         }
 
         public bool Drained => Time.time < drainUntil;
+
+        /// <summary>Quickhack: techniques (and, for non-bosses, the ultimate) are locked until this time.</summary>
+        public float HackedUntil, OverloadUntil;
+        public bool Hacked => Time.time < HackedUntil;
+        /// <summary>Neural overload: AI reacts slower and the fighter moves slower.</summary>
+        public bool Overloaded => Time.time < OverloadUntil;
+
+        public void ApplyHack(float seconds)
+        {
+            if (!Alive) return;
+            if (IsBoss) seconds *= 0.45f; // bosses keep fighting: short lock only
+            HackedUntil = Mathf.Max(HackedUntil, Time.time + seconds);
+            Flash(new Color(0.55f, 1f, 0.35f));
+            if (IsPlayer) Hud.Popup("ВЗЛОМ", new Color(0.55f, 1f, 0.35f));
+        }
+
+        public void ApplyOverload(Fighter source, float seconds, float slow)
+        {
+            if (!Alive) return;
+            if (IsBoss) { seconds *= 0.5f; slow = Mathf.Lerp(slow, 1f, 0.5f); }
+            OverloadUntil = Mathf.Max(OverloadUntil, Time.time + seconds);
+            ApplyDrain(source, IsBoss ? 3f : 6f, seconds, slow);
+        }
+
+        void HackFx()
+        {
+            if (!Hacked && !Overloaded) return;
+            if (Random.value < (GraphicsQuality.Current >= GraphicsPreset.High ? 0.18f : 0.08f))
+                Fx.Electric(Center + Random.insideUnitSphere * 0.45f, Overloaded ? new Color(1f, 0.3f, 0.75f) : new Color(0.55f, 1f, 0.35f), 0.5f, 1);
+        }
 
         // ================== death ==================
         public Fighter Owner; // for clones / summons

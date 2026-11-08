@@ -187,7 +187,7 @@ namespace Kagegan
             GM.ShowMenu();
             Begin("menu_main"); yield return Wait(2.5f); yield return Shot("menu_main"); EndScenario();
             Begin("menu_characters"); m.ShowCharSelect(); yield return Wait(1.5f); yield return Shot("menu_characters"); EndScenario();
-            for (int c = 0; c < 3; c++)
+            for (int c = 0; c < 4; c++)
             {
                 Begin("showcase_" + (CharacterId)c); GM.SetShowcase((CharacterId)c); yield return Wait(4f); yield return Shot("showcase_" + (CharacterId)c); EndScenario();
             }
@@ -257,7 +257,7 @@ namespace Kagegan
             Save.Data.weather = 0;
             var runs = new List<(CharacterId c, Difficulty d)>
             {
-                (CharacterId.Kaito, Difficulty.Warrior), (CharacterId.Genryu, Difficulty.Warrior), (CharacterId.Mugen, Difficulty.Warrior),
+                (CharacterId.Kaito, Difficulty.Warrior), (CharacterId.Genryu, Difficulty.Warrior), (CharacterId.Mugen, Difficulty.Warrior), (CharacterId.Reina, Difficulty.Warrior),
             };
             if (!quick) { runs.Add((CharacterId.Kaito, Difficulty.Novice)); runs.Add((CharacterId.Genryu, Difficulty.Legend)); }
             float limit = quick ? 90f : 240f;

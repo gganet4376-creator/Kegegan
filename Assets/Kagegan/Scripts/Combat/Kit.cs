@@ -28,6 +28,8 @@ namespace Kagegan
         public virtual void OnDamaged(ref HitInfo h) { }
         public virtual void OnHitLanded(Fighter target, ref HitInfo h) { }
         public virtual void OnDeath() { }
+        /// <summary>Called when a dodge starts (acrobatic kits swap the roll for flips, add afterimages).</summary>
+        public virtual void OnDodge(Vector3 dir) { }
 
         /// <summary>Damage multiplier applied to outgoing hits (modes, buffs).</summary>
         public virtual float OutgoingMul(Move m) => 1f;
@@ -37,7 +39,7 @@ namespace Kagegan
         {
             if (i < 0 || i >= Techs.Length) return false;
             var t = Techs[i];
-            if (t == null || !t.Ready(F) || !F.CanAct) return false;
+            if (t == null || !t.Ready(F) || !F.CanAct || F.Hacked) return false;
             if (t.Use == null || !t.Use(F)) return false;
             if (!F.InfiniteChakra) F.Chakra -= t.Cost;
             t.Cd = F.NoCooldowns ? 0.2f : t.Cooldown;
@@ -47,7 +49,7 @@ namespace Kagegan
 
         public bool UseUlt()
         {
-            if (Ult == null || F.Rage < 100f || !F.CanAct) return false;
+            if (Ult == null || F.Rage < 100f || !F.CanAct || (F.Hacked && !F.IsBoss)) return false;
             if (Ult.Use == null || !Ult.Use(F)) return false;
             F.Rage = 0f;
             return true;
