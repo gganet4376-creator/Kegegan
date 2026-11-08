@@ -26,7 +26,10 @@ namespace Kagegan
         {
             StopAuto(false);
             if (autoBrain != null) { Destroy(autoBrain); autoBrain = null; }
+            // a swap sends the previous fighter's Capri back into the net
+            if (F != null && F != f && F.Kit is ReinaKit oldRk) oldRk.DespawnCapri();
             F = f; Touch = touch;
+            if (Touch != null && Touch.Buttons.TryGetValue("capri", out var capBtn)) capBtn.gameObject.SetActive(f != null && f.Kit is ReinaKit);
             TechPage = 0;
             autoReadyAt = 0f;
             if (Touch != null) Touch.OnButton = OnTouch;
@@ -52,6 +55,13 @@ namespace Kagegan
                 case "tech1": Tech(SlotToTech(1), down); break;
                 case "swap": if (down) { TechPage = 1 - TechPage; RefreshTechLabels(); Sfx.Play(SfxId.Click, 0.6f); } break;
                 case "ult": if (down) F.Press(Cmd.Ult); break;
+                case "capri":
+                    if (down && F.Kit is ReinaKit rk)
+                    {
+                        if (rk.SummonCapri()) Haptics.Light();
+                        else Sfx.Play(SfxId.Click, 0.4f, 0.7f);
+                    }
+                    break;
                 case "ctx":
                     if (!down) break;
                     if (F.CanBreakFree) F.Press(Cmd.Dodge);   // every tap fills the struggle meter
@@ -259,6 +269,11 @@ namespace Kagegan
             {
                 u.CooldownFill.fillAmount = 1f - F.Rage / 100f;
                 u.Label.text = F.Rage >= 100f ? (Mathf.Sin(Time.unscaledTime * 8f) > 0f ? "УЛЬТА!" : "УЛЬТА") : "УЛЬТА";
+            }
+            if (Touch.Capri != null && Touch.Capri.gameObject.activeSelf && F.Kit is ReinaKit rkit)
+            {
+                rkit.CapriState(out float cfill, out bool cready, out float cleft);
+                Touch.Capri.Refresh(cfill, cready, cleft, rkit.Capri != null);
             }
             if (Touch.Buttons.TryGetValue("auto", out var a))
             {

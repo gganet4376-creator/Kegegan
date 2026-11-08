@@ -160,6 +160,7 @@ namespace Kagegan
         public VirtualJoystick Stick;
         public readonly Dictionary<string, TouchButton> Buttons = new Dictionary<string, TouchButton>();
         public RectTransform Root;
+        public CapriButton Capri;
         public Action<string, bool> OnButton;
         CanvasGroup group;
 
@@ -182,6 +183,8 @@ namespace Kagegan
             new Def { id = "ult", label = "УЛЬТА", icon = "ult", pos = new Vector2(-180, 595), size = 145, color = new Color(0.82f, 0.52f, 0.1f, 1f) },
             new Def { id = "auto", label = "АВТО", icon = null, pos = new Vector2(-180, 765), size = 100, color = new Color(0.3f, 0.75f, 0.95f, 1f) },
             // context action (trip from the ground / break a hold): hidden until the situation allows it
+            // Lucy only: summon Capri (hidden for everyone else)
+            new Def { id = "capri", label = "КАПРИ", icon = "capri_face", pos = new Vector2(-790, 230), size = 135, color = new Color(1f, 0.16f, 0.33f, 1f) },
             new Def { id = "ctx", label = "Подножка", icon = null, pos = new Vector2(-410, 765), size = 160, color = new Color(1f, 0.78f, 0.25f, 1f) },
         };
 
@@ -206,6 +209,7 @@ namespace Kagegan
             if (Save.TryGetLayout("stick", out var sp)) { baseRt.anchoredPosition = sp; Stick.ResetRest(); }
 
             foreach (var d in Defs) MakeButton(d);
+            if (Buttons.TryGetValue("capri", out var cb)) { Capri = CapriButton.Attach(cb); cb.gameObject.SetActive(false); }
             ApplyScaleAlpha();
             SetContext(null);
         }

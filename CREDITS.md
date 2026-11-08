@@ -82,3 +82,8 @@
 ## Иконки (CC BY 3.0)
 Иконки с https://game-icons.net — авторы Lorc, Delapouite, Felbrigg, Skoll, GUARD13007.
 Лицензия: https://creativecommons.org/licenses/by/3.0/
+
+## Капри (призыв Люси)
+- Спрайты Капри (Vfx/capri_atlas.png, 64 кадра), разрыв (Vfx/capri_rift.png), портреты и кольцо кнопки (Icons/capri_face*.png, capri_ring.png) нарисованы процедурно скриптами проекта; сторонние картинки, фан-арт и кадры сериала не использовались.
+- Шейдер Kagegan/Capri (Shaders/KageCapri.shader) — свой.
+- Капри — фанатская интерпретация персонажа чужой франшизы; используется только некоммерчески в приватном репозитории.

@@ -6,7 +6,7 @@ namespace Kagegan.EditorTools
     /// character atlases stay 2048 px and clamped, the 4K skies keep their full 4096 px width, ground/props get trilinear + anisotropic filtering.</summary>
     public class KageganTextureImport : AssetPostprocessor
     {
-        public override uint GetVersion() => 2;
+        public override uint GetVersion() => 3;
 
         void OnPreprocessTexture()
         {
@@ -23,6 +23,17 @@ namespace Kagegan.EditorTools
                 wt.alphaIsTransparency = true;
                 wt.mipmapEnabled = true;
                 wt.filterMode = UnityEngine.FilterMode.Bilinear;
+                return;
+            }
+            if (path.Contains("/Kagegan/Resources/Kagegan/Vfx/capri_") || path.Contains("/Kagegan/Resources/Kagegan/Icons/capri_"))
+            {
+                // Capri flipbook atlas (8x8 cells of 256 px), rift and HUD portrait: clamped, alpha-correct edges, bilinear mips
+                var kt = (TextureImporter)assetImporter;
+                kt.maxTextureSize = 2048;
+                kt.mipmapEnabled = true;
+                kt.alphaIsTransparency = true;
+                kt.filterMode = UnityEngine.FilterMode.Bilinear;
+                kt.wrapMode = UnityEngine.TextureWrapMode.Clamp;
                 return;
             }
             if (path.Contains("/Kagegan/Resources/Kagegan/Chars/"))

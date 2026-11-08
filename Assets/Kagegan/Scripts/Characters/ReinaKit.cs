@@ -53,7 +53,65 @@ namespace Kagegan
                 new Technique { Name = "Системный шок", Short = "Шок", Icon = "r_shock", Cost = 35f, Cooldown = 11f, Range = 12f, Color = Hack, Use = UseShock },
                 new Technique { Name = "Нейроперегрузка", Short = "Перегруз", Icon = "r_overload", Cost = 40f, Cooldown = 18f, Range = 13f, Color = Over, Use = UseOverload },
             };
-            Ult = new Technique { Name = "Глубокое погружение", Short = "УЛЬТА", Icon = "r_ult", Color = Wire, Use = ff => { ff.StartCoroutine(UltRoutine()); return true; } };
+            Ult = new Technique { Name = "Глубокое погружение", Short = "УЛЬТА", Icon = "r_ult", Color = Wire, Use = ff => { ff.StartCoroutine(Capri != null && Capri.Present ? OverdriveRoutine() : UltRoutine()); return true; } };
+            baseUltName = Ult.Name; baseUltLine = UltLine;
+        }
+
+        // ---------- Capri (summoned daemon) ----------
+        public Capri Capri;
+        public const float CapriCost = 40f, CapriCooldown = 30f;
+        float capriReadyAt;
+        string baseUltName, baseUltLine;
+        const string OverdriveName = "Капри Овердрайв", OverdriveLine = "Рэйна: «Капри, вместе!»";
+
+        /// <summary>Button state: fill 0..1 of the cooldown, whether it can be pressed now, seconds of Capri left (0 if absent).</summary>
+        public void CapriState(out float fill, out bool ready, out float timeLeft)
+        {
+            bool active = Capri != null;
+            timeLeft = active ? Capri.TimeLeft : 0f;
+            float left = Mathf.Max(0f, capriReadyAt - Time.time);
+            fill = active ? (Capri.Present ? timeLeft / Capri.Lifetime : 1f) : 1f - Mathf.Clamp01(left / CapriCooldown);
+            ready = CanSummonCapri();
+        }
+
+        public bool CanSummonCapri()
+        {
+            var f = F;
+            return f != null && f.Alive && f.CanAct && !f.Hacked && Capri == null && Time.time >= capriReadyAt
+                && (f.InfiniteChakra || f.Chakra >= CapriCost);
+        }
+
+        public bool SummonCapri()
+        {
+            if (!CanSummonCapri()) return false;
+            var c = Capri.Summon(F, this);
+            if (c == null) return false; // art or shader missing: nothing is spent
+            Capri = c;
+            if (!F.InfiniteChakra) F.Chakra -= CapriCost;
+            capriReadyAt = float.MaxValue; // the cooldown starts when she leaves
+            return true;
+        }
+
+        public void OnCapriGone(Capri c)
+        {
+            if (Capri != c) return;
+            Capri = null;
+            capriReadyAt = Time.time + (F != null && F.NoCooldowns ? 1f : CapriCooldown);
+        }
+
+        public void DespawnCapri(bool instant = false)
+        {
+            if (Capri != null) Capri.Despawn(instant);
+        }
+
+        public override void OnDamaged(ref HitInfo h)
+        {
+            if (Capri != null) Capri.OnOwnerHurt(h.Attacker);
+        }
+
+        public override void OnDeath()
+        {
+            DespawnCapri();
         }
 
         Transform Hand => F.Rig.Bones[(int)B.HandR];
@@ -65,7 +123,19 @@ namespace Kagegan
         {
             base.Tick(dt);
             if (whip == null && F != null && F.Rig != null && Hand != null) whip = Whip.Attach(F, Wire);
+            if (Ult == null || F == null) return;
+            bool duo = Capri != null && Capri.Present;
+            Ult.Name = duo ? OverdriveName : baseUltName;
+            UltLine = duo ? OverdriveLine : baseUltLine;
+            // an AI-driven Lucy calls her too, now and then, when a fight is on
+            if (F.Brain != null && F.Brain.enabled && Capri == null && Time.time >= aiCapriAt)
+            {
+                aiCapriAt = Time.time + Random.Range(3f, 6f);
+                var e = Combat.Nearest(F.transform.position, F.Team, 12f);
+                if (e != null && Random.value < 0.5f) SummonCapri();
+            }
         }
+        float aiCapriAt;
 
         void Lash(Vector3 to, Color c, float life, float sweep)
         {
@@ -181,6 +251,7 @@ namespace Kagegan
         {
             // perfect-dodge counters get an extra wire snap
             if (h.Move != null && h.Move.Name == "counter") Lash(target.Center, Wire, 0.2f, -0.6f);
+            if (Capri != null) Capri.OnOwnerHit(target);
         }
 
         // ---------- techniques ----------
@@ -399,6 +470,120 @@ namespace Kagegan
             Destructible.ImpactAt(t.transform.position, 5f, 160f, f);
             f.ExitCinematic();
             yield return new WaitForSeconds(0.2f);
+            CameraRig.EndCinematic();
+        }
+
+        // ---------- joint ultimate: Capri Overdrive ----------
+        // wire bind -> Capri's projections -> unstable teleports -> Lucy's flurry -> Capri's final pulse -> synced pose
+        IEnumerator OverdriveRoutine()
+        {
+            var f = F;
+            var t = f.Target;
+            var cp = Capri;
+            if (t == null || !t.Alive) yield break;
+            if (cp == null || !cp.Present) { yield return UltRoutine(); yield break; }
+            cp.BeginScript();
+            f.Shout(UltLine);
+            f.EnterCinematic();
+            t.EnterCinematic();
+            f.SetInvulnerable(5f);
+            Vector3 c = t.transform.position;
+            Vector3 side = Vector3.Cross(Vector3.up, KMath.Flat(c - f.transform.position).normalized);
+            CameraRig.Cinematic(c + Vector3.up * 1.5f, side + Vector3.back * 0.3f, 7.5f, 1.6f, 4.6f);
+
+            // 1. wire bind
+            f.FaceInstant(c);
+            f.Anim.Play(Clip.Hold(PoseLib.Throw, 0.04f, 0.4f, 0.1f));
+            Sfx.Play(SfxId.Whoosh, 1f, 1.1f);
+            for (int k = 0; k < 6; k++)
+            {
+                Tether(t.Center + Random.insideUnitSphere * 0.25f);
+                if (k % 2 == 0) Fx.Electric(t.Center, Wire, 0.8f, 1);
+                yield return new WaitForSeconds(0.05f);
+            }
+            t.ApplyHack(5f);
+
+            // 2. projections: four copies of Capri ring the target
+            if (cp)
+            {
+                cp.SetGlitch(0.6f);
+                cp.PlayClip("hack");
+                cp.Projections(t.Center, 4, 1.8f, 1.6f);
+                Sfx.Play(SfxId.Energy, 0.9f, 1.4f);
+                Fx.HackStream(cp.Pos, t.Center, Capri.Red, 6, 0.4f);
+            }
+            yield return new WaitForSeconds(0.35f);
+
+            // 3. unstable teleports: Capri blinks around while the target's body stutters
+            for (int i = 0; i < 4; i++)
+            {
+                if (!t.Alive) break;
+                float a = i * 1.7f + 0.5f;
+                if (cp) { cp.PlayClip(i % 2 == 0 ? "blink" : "attack"); cp.BlinkTo(c + new Vector3(Mathf.Cos(a), 0, Mathf.Sin(a)) * 1.4f + Vector3.up * 1.3f); }
+                t.Teleport(c + new Vector3(Random.Range(-0.2f, 0.2f), 0, Random.Range(-0.2f, 0.2f)));
+                t.Flash(i % 2 == 0 ? Capri.Red : Capri.Green, 0.7f);
+                Sfx.Play(SfxId.Teleport, 0.6f, 1.2f + i * 0.1f);
+                yield return new WaitForSeconds(0.09f);
+            }
+            t.Teleport(c);
+
+            // 4. Lucy's fast hits from every side
+            for (int i = 0; i < 5; i++)
+            {
+                if (!t.Alive) break;
+                float a = i / 5f * Mathf.PI * 2f + 0.2f;
+                f.Teleport(c + new Vector3(Mathf.Cos(a), 0, Mathf.Sin(a)) * 2.2f);
+                f.FaceInstant(t.transform.position);
+                if (i % 2 == 0) Act("Melee_Hook", 2.4f, MocapLibrary.HookContact - 0.08f * 2.4f, 0.15f, Clip.Hold(PoseLib.HookR, 0.03f, 0.1f, 0.05f));
+                else Act(KickClip, 2.8f, MocapLibrary.KickContact - 0.08f * 2.8f, 0.15f, Clip.Hold(PoseLib.KickHigh, 0.03f, 0.1f, 0.05f));
+                Lash(t.Center + Random.insideUnitSphere * 0.3f, Wire, 0.2f, i % 2 == 0 ? 1f : -1f);
+                Fx.Trail(f.Center, Wire, 0.45f);
+                yield return new WaitForSeconds(0.07f);
+                DealCinematic(t, 7f);
+                Fx.Slash(t.transform, new Vector3(0, 1f, 0), new Vector3(0, a * Mathf.Rad2Deg, Random.Range(-60f, 60f)), i % 2 == 0 ? Wire : Capri.Red, 2f, 0.15f);
+                yield return new WaitForSeconds(0.07f);
+            }
+
+            // 5. Capri's final pulse
+            if (cp)
+            {
+                cp.BlinkTo(c + side * 1.2f + Vector3.up * 1.4f);
+                cp.PlayClip("burst");
+                cp.SetGlitch(1f);
+            }
+            f.Teleport(c - side * 1.6f);
+            f.FaceInstant(c);
+            f.Anim.Play(Clip.Hold(PoseLib.PalmR, 0.04f, 0.35f, 0.15f));
+            TimeFx.SlowMo(0.35f, 0.3f);
+            yield return new WaitForSeconds(0.12f);
+            Vector3 g = new Vector3(c.x, 0.1f, c.z);
+            Fx.Ring(g, Capri.Red, 0.5f, 7f, 0.5f, Quaternion.identity);
+            Fx.Ring(g + Vector3.up * 0.05f, Capri.Green, 0.4f, 5.5f, 0.45f, Quaternion.identity);
+            if (cp) Fx.Lightning(cp.Pos, t.Center, Capri.Red, 0.12f, 0.35f);
+            Fx.Lightning(Hand.position, t.Center, Wire, 0.12f, 0.35f);
+            Fx.Electric(t.Center, Capri.Red, 2.2f, 6);
+            WorldLighting.Flash(t.Center, Capri.Red * 2.5f, 10f, 0.5f);
+            Sfx.Play(SfxId.Explosion, 1f, 1.15f);
+            CameraRig.Shake(0.8f);
+            Haptics.Heavy();
+            t.ExitCinematic();
+            var h = new HitInfo { Attacker = f, Damage = 45f * f.DamageMul, Stamina = 50f, Knockback = 10f, Launch = 5f, Kind = HitKind.Ultimate, Knockdown = true, Unblockable = true, Point = t.Center, Dir = KMath.Flat(t.transform.position - f.transform.position).normalized, FxColor = Capri.Red, Shake = 0.6f, HitStop = 0.15f };
+            t.ReceiveHit(ref h);
+            Destructible.ImpactAt(t.transform.position, 5f, 160f, f);
+            yield return new WaitForSeconds(0.35f);
+
+            // 6. synced pose: Lucy and Capri side by side
+            f.Anim.Play(Clip.Hold(PoseLib.StanceSwift, 0.08f, 0.9f, 0.2f));
+            if (cp)
+            {
+                cp.BlinkTo(f.transform.position + f.transform.right * 0.9f + Vector3.up * 1.4f);
+                cp.PlayClip("duo");
+                cp.SetGlitch(0.1f);
+            }
+            CameraRig.Cinematic(f.Center + Vector3.up * 0.4f, -f.transform.forward + f.transform.right * 0.3f, 4.2f, 0.4f, 0.9f);
+            yield return new WaitForSeconds(0.9f);
+            f.ExitCinematic();
+            if (cp) cp.EndScript();
             CameraRig.EndCinematic();
         }
 
