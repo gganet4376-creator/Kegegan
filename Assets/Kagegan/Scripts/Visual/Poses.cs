@@ -211,7 +211,10 @@ namespace Kagegan
         public static readonly Pose Dodge = new Pose().H(0, -0.3f, 0).S(B.Spine, 35).S(B.Head, -20).S(B.UArmL, -60, 0, 10).S(B.LArmL, -120).S(B.UArmR, -60, 0, -10).S(B.LArmR, -120).S(B.ThighL, -65).S(B.ShinL, 100).S(B.ThighR, -30).S(B.ShinR, 90);
         public static readonly Pose Charge = new Pose().H(0, -0.18f, 0).S(B.Spine, 18).S(B.Head, 12).S(B.UArmL, -30, 0, -45).S(B.LArmL, -70).S(B.HandL, -60).S(B.UArmR, -30, 0, 45).S(B.LArmR, -70).S(B.HandR, -60)
             .S(B.ThighL, -45, 0, -20).S(B.ShinL, 70).S(B.ThighR, -45, 0, 20).S(B.ShinR, 70);
-        public static readonly Pose Roar = new Pose().H(0, -0.1f, 0).S(B.Spine, -25).S(B.Head, -30).S(B.UArmL, -40, 0, -70).S(B.LArmL, -30).S(B.UArmR, -40, 0, 70).S(B.LArmR, -30).S(B.ThighL, -25, 0, -18).S(B.ShinL, 40).S(B.ThighR, -25, 0, 18).S(B.ShinR, 40);
+        // grounded roar: wide low stance, chest thrown up, elbows bent and claws pulled down by the hips (no arms-out T shape)
+        public static readonly Pose Roar = new Pose().H(0, -0.12f, -0.02f).S(B.Spine, -14).S(B.Chest, -12).S(B.Neck, -8).S(B.Head, -22)
+            .S(B.UArmL, -22, 0, -32).S(B.LArmL, -75, 10).S(B.HandL, -35).S(B.UArmR, -22, 0, 32).S(B.LArmR, -75, -10).S(B.HandR, -35)
+            .S(B.ThighL, -28, 0, -16).S(B.ShinL, 42).S(B.FootL, -10).S(B.ThighR, -10, 0, 16).S(B.ShinR, 30).S(B.FootR, -10);
 
         // ----- zone-specific hit reactions -----
         public static readonly Pose HurtHead = new Pose().H(0, -0.03f, -0.06f).S(B.Spine, -10).S(B.Chest, -8).S(B.Neck, -15, 12).S(B.Head, -30, 18, 10)

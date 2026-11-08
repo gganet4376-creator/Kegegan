@@ -312,14 +312,14 @@ namespace Kagegan
             Sfx.Play(SfxId.Roar, 1f, 0.9f);
             CameraRig.Cinematic(Boss.Center + Vector3.up * 0.3f, KMath.Flat(Player.transform.position - pos).normalized + Vector3.up * 0.05f, 4.2f, 0.5f, 2.8f);
             Boss.EnterCinematic();
-            Boss.ForceAnimMode(AnimMode.Custom, PoseLib.Roar);
+            Boss.PlayRoar();
             Hud.Banner(Boss.DisplayName.ToUpperInvariant(), Boss.Kit.AuraColor);
             Hud.Inst.SetBoss(Boss);
             Boss.Shout(Boss.Kit.IntroLine);
             Sfx.Voice("prepare_yourself", 0.9f);
             yield return new WaitForSeconds(2.8f);
             Sfx.Voice("fight");
-            Boss.ForceAnimMode(AnimMode.Locomotion);
+            Boss.EndRoar();
             Boss.ExitCinematic();
             Boss.Brain.Active = true;
             CameraRig.EndCinematic();

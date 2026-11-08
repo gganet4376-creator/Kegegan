@@ -184,9 +184,9 @@ namespace Kagegan
         {
             settings = Screen("Settings", new Color(0.03f, 0.02f, 0.05f, 0.88f));
             UIKit.Label(UIKit.Box(settings, "T", new Vector2(0.5f, 1), new Vector2(0, -80), new Vector2(1400, 100)), "НАСТРОЙКИ", 70, UIKit.Paper, TextAnchor.MiddleCenter, FontStyle.Bold);
-            float y = -160;
+            float y = -150;
             int row = 0;
-            Func<float> nextY = () => y - (row++) * 62;
+            Func<float> nextY = () => y - (row++) * 56;
 
             SettingRow("Качество графики", () => Names.Preset((GraphicsPreset)Save.Data.graphics), d =>
             {
@@ -194,6 +194,7 @@ namespace Kagegan
                 GraphicsQuality.Apply((GraphicsPreset)Save.Data.graphics);
             }, nextY());
             SettingRow("Погода", () => Names.WeatherSetting(Save.Data.weather), d => Save.Data.weather = (Save.Data.weather + d + WeatherSystem.SettingCount) % WeatherSystem.SettingCount, nextY());
+            SettingRow("Трава (густота и дальность)", () => GrassBend.LevelName, d => { Save.Data.grassLevel = (Save.Data.grassLevel + d + 4) % 4; GrassBend.ApplyDistance(); }, nextY());
             SettingRow("Динамическое разрешение", () => Save.Data.dynamicResolution ? "Вкл" : "Выкл", d => { Save.Data.dynamicResolution = !Save.Data.dynamicResolution; GraphicsQuality.SetRenderScale(GraphicsQuality.BaseRenderScale, false); }, nextY());
             SettingRow("Частота кадров", () => Save.Data.targetFps + " FPS", d =>
             {
@@ -219,7 +220,7 @@ namespace Kagegan
 
         void SettingRow(string label, Func<string> value, Action<int> change, float y)
         {
-            var rowRt = UIKit.Box(settings, "Row", new Vector2(0.5f, 1), new Vector2(0, y), new Vector2(1300, 58));
+            var rowRt = UIKit.Box(settings, "Row", new Vector2(0.5f, 1), new Vector2(0, y), new Vector2(1300, 52));
             UIKit.Img(rowRt, new Color(1, 1, 1, 0.05f));
             UIKit.Label(UIKit.Box(rowRt, "L", new Vector2(0, 0.5f), new Vector2(30, 0), new Vector2(700, 80), new Vector2(0, 0.5f)), label, 34, Color.white, TextAnchor.MiddleLeft);
             var valueText = UIKit.Label(UIKit.Box(rowRt, "V", new Vector2(1, 0.5f), new Vector2(-260, 0), new Vector2(300, 80)), "", 34, UIKit.Gold, TextAnchor.MiddleCenter, FontStyle.Bold);

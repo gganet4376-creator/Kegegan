@@ -56,6 +56,7 @@ namespace Kagegan
             UIKit.Init();
             Sfx.Init(gameObject);
             WorldLighting.Init(gameObject);
+            GrassBend.Init(gameObject);
             gameObject.AddComponent<TimeFx>();
             gameObject.AddComponent<PerfMonitor>();
             Fx.Init(gameObject);

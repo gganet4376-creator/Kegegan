@@ -151,6 +151,47 @@ namespace Kagegan
             Col = keep;
         }
 
+        /// <summary>Small flower head: a fan of petals around a centre. Every vertex has uv.y = 1, so the wind and
+        /// trampling move it exactly like the tip of the stem it sits on (grass shader bends by uv.y).</summary>
+        public void Flower(Vector3 center, float radius, int petals, float yaw, Color32 petalCol, Color32 centreCol)
+        {
+            var keep = Col;
+            Vector3 n = Vector3.up;
+            Col = centreCol;
+            int c = AddVert(center + Vector3.up * radius * 0.15f, n, new Vector2(0.5f, 1f));
+            Col = petalCol;
+            for (int i = 0; i < petals; i++)
+            {
+                float a0 = yaw + (i - 0.32f) / petals * Mathf.PI * 2f;
+                float a1 = yaw + (i + 0.32f) / petals * Mathf.PI * 2f;
+                float am = yaw + (float)i / petals * Mathf.PI * 2f;
+                // petals cup slightly upwards, tips a bit lower than the middle
+                int v0 = AddVert(center + new Vector3(Mathf.Cos(a0), 0.25f, Mathf.Sin(a0)) * radius * 0.55f, n, new Vector2(0f, 1f));
+                int v1 = AddVert(center + new Vector3(Mathf.Cos(am), 0.1f, Mathf.Sin(am)) * radius, n, new Vector2(0.5f, 1f));
+                int v2 = AddVert(center + new Vector3(Mathf.Cos(a1), 0.25f, Mathf.Sin(a1)) * radius * 0.55f, n, new Vector2(1f, 1f));
+                T.Add(c); T.Add(v1); T.Add(v0);
+                T.Add(c); T.Add(v2); T.Add(v1);
+            }
+            Col = keep;
+        }
+
+        /// <summary>Fallen leaf lying on the ground (uv.y = 0: the wind shader leaves it still).</summary>
+        public void Leaf(Vector3 center, float length, float yaw, Color32 col)
+        {
+            var keep = Col;
+            Col = col;
+            Vector3 f = new Vector3(Mathf.Sin(yaw), 0f, Mathf.Cos(yaw)) * length * 0.5f;
+            Vector3 s = new Vector3(f.z, 0f, -f.x) * 0.45f;
+            Vector3 n = Vector3.up;
+            int a = AddVert(center - f, n, Vector2.zero);
+            int b = AddVert(center + s + Vector3.up * 0.012f, n, Vector2.zero);
+            int c = AddVert(center + f, n, Vector2.zero);
+            int d = AddVert(center - s + Vector3.up * 0.012f, n, Vector2.zero);
+            T.Add(a); T.Add(c); T.Add(b);
+            T.Add(a); T.Add(d); T.Add(c);
+            Col = keep;
+        }
+
         public void Cone(Vector3 baseCenter, Vector3 tip, float r, int seg = 6, bool capBase = true)
         {
             Vector3 dir = (tip - baseCenter).normalized;

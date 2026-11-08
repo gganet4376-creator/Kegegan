@@ -379,6 +379,7 @@ namespace Kagegan
 
         public static void Dust(Vector3 pos, float size, int count = 8)
         {
+            GrassBend.Impact(pos, 0.4f * size, 1.1f * size, 1.1f + 0.3f * size, Mathf.Clamp01(0.5f + 0.3f * size));
             if (inst == null) return;
             if (inst.dirtPs != null && size >= 0.8f)
                 for (int i = 0; i < Scaled(Mathf.Max(1, count / 4)); i++)
@@ -489,6 +490,8 @@ namespace Kagegan
 
         public static void Ring(Vector3 pos, Color color, float size0, float size1, float life, Quaternion rot)
         {
+            // a ring lying on the floor is a shockwave: it flattens the grass as it rolls outward
+            if (rot == Quaternion.identity) GrassBend.Impact(pos, size0 * 0.5f, Mathf.Min(size1 * 0.6f, 7f), Mathf.Max(0.8f, life * 2.2f), 1f);
             if (inst == null) return;
             if (rot == Quaternion.identity && inst.groundRing != null)
             {
@@ -547,6 +550,7 @@ namespace Kagegan
 
         public static void Crack(Vector3 pos, float size)
         {
+            GrassBend.Impact(pos, size * 0.5f, size * 1.2f, 2f, 1f);
             if (inst == null || !GraphicsQuality.GroundDetail && size < 2f) return;
             var r = inst.crackPool.Get();
             r.transform.SetPositionAndRotation(new Vector3(pos.x, 0.03f + Random.value * 0.01f, pos.z), Quaternion.Euler(0, Random.value * 360f, 0));

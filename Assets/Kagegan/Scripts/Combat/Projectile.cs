@@ -277,6 +277,7 @@ namespace Kagegan
 
         public static void AreaDamage(Fighter owner, Team team, Vector3 center, float radius, float damage, float knock, float launch, bool knockdown, Color color, bool absorbable = true, HitKind kind = HitKind.Technique)
         {
+            GrassBend.Impact(new Vector3(center.x, 0f, center.z), radius * 0.3f, radius, 1.6f, center.y < 2.5f ? 1f : 0.5f);
             for (int i = 0; i < Fighter.All.Count; i++)
             {
                 var f = Fighter.All[i];

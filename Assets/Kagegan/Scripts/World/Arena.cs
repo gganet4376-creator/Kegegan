@@ -307,6 +307,7 @@ namespace Kagegan
             if (Current != null) Destroy(Current.gameObject);
             Destructible.All.Clear();
             SceneryShadow.Clear();
+            blockers.Clear();
             WeatherSystem.ResetGlobals();
             var go = new GameObject("Arena_" + id);
             go.transform.SetParent(parent, false);
@@ -329,7 +330,6 @@ namespace Kagegan
             if (ModelKit.PhotoProps) a.PhotoScans();
             a.AddStaticMesh(stat, "Static");
             if (a.groundMb != null) a.AddStaticMesh(a.groundMb, "GroundPhoto", a.groundMat);
-            if (a.grassMb != null) a.AddStaticMesh(a.grassMb, "Grass", Mat.ToonWind);
             a.AddStaticMesh(a.treeMb, "Trees", Mat.ToonTree);
             switch (id)
             {
@@ -352,6 +352,8 @@ namespace Kagegan
             }
             LaneHalf = 17f;
             a.LayoutPropsForLane();
+            // grass goes in last, around everything that now stands on the ground
+            a.PlantGrass();
             a.PlayerSpawn = new Vector3(-5f, 0f, 0f);
             a.EnemySpawn = new Vector3(5f, 0f, 0f);
             a.BuildWalls(Radius);
@@ -363,7 +365,53 @@ namespace Kagegan
         }
 
         // ================= shared helpers =================
-        MeshBuilder grassMb;
+        struct GrassSpec { public int count; public float rMin, rMax; public Color c; public int seed; }
+        readonly List<GrassSpec> grassSpecs = new List<GrassSpec>();
+        // ground footprints that grass must not grow through: x, z centre and half sizes
+        static readonly List<Vector4> blockers = new List<Vector4>();
+        static bool noBlock; // building a breakable prop's own mesh at the origin: not a footprint
+
+        static void Block(Vector3 c, float hx, float hz)
+        {
+            if (!noBlock) blockers.Add(new Vector4(c.x, c.z, hx, hz));
+        }
+
+        static bool Blocked(Vector3 p, float margin)
+        {
+            for (int i = 0; i < blockers.Count; i++)
+            {
+                var b = blockers[i];
+                if (Mathf.Abs(p.x - b.x) < b.z + margin && Mathf.Abs(p.z - b.y) < b.w + margin) return true;
+            }
+            return false;
+        }
+
+        void Grass(int count, float rMin, float rMax, Color c, int seed) =>
+            grassSpecs.Add(new GrassSpec { count = count, rMin = rMin, rMax = rMax, c = c, seed = seed });
+
+        /// <summary>Builds the swaying grass mesh after every prop is in place: tufts that would grow out of rocks,
+        /// trunks, houses, crates or fences are skipped.</summary>
+        void PlantGrass()
+        {
+            if (grassSpecs.Count == 0) return;
+            foreach (var r in GetComponentsInChildren<Renderer>())
+            {
+                if (!(r is MeshRenderer) && !(r is SkinnedMeshRenderer)) continue;
+                string n = r.gameObject.name;
+                if (n == "Static" || n == "GroundPhoto" || n == "Trees" || n == "Grass") continue;
+                var b = r.bounds;
+                if (b.min.y > 0.5f || b.size.y < 0.12f) continue;   // floating things and flat decals
+                if (b.size.x > 30f || b.size.z > 30f) continue;     // ground plates, sky, water
+                float hx = b.extents.x, hz = b.extents.z;
+                // tall and narrow (trees, banners, lamp posts): only the trunk is on the ground
+                if (b.size.y > 3f && Mathf.Min(hx, hz) < 4f) hx = hz = Mathf.Min(hx, hz) * 0.25f + 0.2f;
+                blockers.Add(new Vector4(b.center.x, b.center.z, hx, hz));
+            }
+            var mb = new MeshBuilder();
+            foreach (var g in grassSpecs) GrassTufts(mb, g.count, g.rMin, g.rMax, g.c, g.seed, Id == ArenaId.Forest);
+            grassSpecs.Clear();
+            AddStaticMesh(mb, "Grass", Mat.ToonWind);
+        }
         MeshBuilder treeMb = new MeshBuilder(); // background trees, swayed by the wind shader
 
         void AddStaticMesh(MeshBuilder mb, string name) => AddStaticMesh(mb, name, Mat.Toon);
@@ -826,7 +874,7 @@ namespace Kagegan
                 }
         }
 
-        static void GrassTufts(MeshBuilder mb, int count, float rMin, float rMax, Color c, int seed)
+        static void GrassTufts(MeshBuilder mb, int count, float rMin, float rMax, Color c, int seed, bool forest)
         {
             // Low stays light for weak GPUs; High/Ultra get a dense, visibly swaying lawn
             int blades;
@@ -837,27 +885,82 @@ namespace Kagegan
                 case GraphicsPreset.High: count *= 2; blades = 9; break;
                 default: count *= 3; blades = 10; break;
             }
+            count = Mathf.Max(20, Mathf.RoundToInt(count * GrassBend.DensityMul));
+            bool low = GraphicsQuality.Current == GraphicsPreset.Low;
+            Color straw = new Color(0.72f, 0.64f, 0.36f);
+            Color[] petals =
+            {
+                new Color(0.95f, 0.85f, 0.3f), new Color(0.78f, 0.55f, 0.9f), new Color(0.95f, 0.6f, 0.7f),
+                new Color(0.55f, 0.65f, 0.95f), new Color(0.86f, 0.84f, 0.76f), new Color(0.95f, 0.5f, 0.3f)
+            };
             var rnd = new System.Random(seed);
             for (int i = 0; i < count; i++)
             {
                 float ang = (float)rnd.NextDouble() * Mathf.PI * 2f, rr = Mathf.Lerp(rMin, rMax, Mathf.Sqrt((float)rnd.NextDouble()));
                 Vector3 p = new Vector3(Mathf.Cos(ang) * rr, 0, Mathf.Sin(ang) * rr);
-                Color tint = c * (0.8f + 0.4f * (float)rnd.NextDouble());
+                float kind = (float)rnd.NextDouble();
                 float tall = (0.35f + 0.3f * (float)rnd.NextDouble()) * (GraphicsQuality.Current >= GraphicsPreset.High ? 1.3f : 1f);
-                for (int k = 0; k < blades; k++)
+                if (Blocked(p, 0.12f)) continue;
+                // patches: large slow noise mixes lush and drier grass so the field is not one flat colour
+                float patch = Mathf.PerlinNoise(p.x * 0.07f + seed, p.z * 0.07f);
+                Color tint = Color.Lerp(c, Color.Lerp(c, straw, 0.45f), Mathf.Clamp01((patch - 0.45f) * 2.2f)) * (0.8f + 0.4f * (float)rnd.NextDouble());
+                int n = blades;
+                float width = 0.045f, lean = 0.15f;
+                if (kind < 0.08f && !low)
+                {
+                    // flower clump: thin stems, one to three heads at the stem tips
+                    Color pc = petals[rnd.Next(petals.Length)] * (0.85f + 0.15f * (float)rnd.NextDouble());
+                    int heads = 1 + rnd.Next(3);
+                    for (int k = 0; k < heads; k++)
+                    {
+                        float yaw = (float)rnd.NextDouble() * Mathf.PI * 2f;
+                        Vector3 off = new Vector3(Mathf.Sin(yaw), 0, Mathf.Cos(yaw)) * 0.06f * (float)rnd.NextDouble();
+                        float h = tall * (0.9f + 0.4f * (float)rnd.NextDouble());
+                        float ln = 0.08f + 0.12f * (float)rnd.NextDouble();
+                        mb.Blade(p + off, h, 0.018f, yaw, ln, Mat.C(tint * 0.5f), Mat.C(tint * 0.95f));
+                        Vector3 tip = p + off + Vector3.up * h + new Vector3(Mathf.Sin(yaw), 0, Mathf.Cos(yaw)) * ln * h;
+                        mb.Flower(tip, 0.05f + 0.03f * (float)rnd.NextDouble(), 5 + rnd.Next(2), (float)rnd.NextDouble() * 6.28f, Mat.C(pc), Mat.C(new Color(0.95f, 0.75f, 0.25f)));
+                    }
+                    n = Mathf.Max(3, blades / 2); // a few leaves around the stems
+                }
+                else if (kind < 0.16f)
+                {
+                    // tall dry clump
+                    tint = Color.Lerp(tint, straw, 0.6f);
+                    tall *= 1.5f; n = blades + 3; lean = 0.25f;
+                }
+                else if (kind < 0.22f)
+                {
+                    // broad leafy clump, darker, low and wide like a small bush
+                    tint *= 0.78f; tall *= 0.85f; n = blades + 4; width = 0.09f; lean = 0.4f;
+                }
+                for (int k = 0; k < n; k++)
                 {
                     // blades fan out from the clump centre and arc outwards
                     float yaw = (float)rnd.NextDouble() * Mathf.PI * 2f;
                     Vector3 off = new Vector3(Mathf.Sin(yaw), 0, Mathf.Cos(yaw)) * 0.07f * (float)rnd.NextDouble();
                     float h = tall * (0.6f + 0.5f * (float)rnd.NextDouble());
                     Color tip = Color.Lerp(tint * 1.25f, new Color(0.85f, 0.85f, 0.45f), 0.12f + 0.15f * (float)rnd.NextDouble());
-                    mb.Blade(p + off, h, 0.045f + 0.025f * (float)rnd.NextDouble(), yaw, 0.15f + 0.35f * (float)rnd.NextDouble(), Mat.C(tint * 0.5f), Mat.C(tip));
+                    // roots are darker: the base of a clump sits in its own shade
+                    mb.Blade(p + off, h, width + 0.025f * (float)rnd.NextDouble(), yaw, lean + 0.35f * (float)rnd.NextDouble(), Mat.C(tint * 0.45f), Mat.C(tip));
                 }
+            }
+            if (!forest || low) return;
+            // fallen leaves in the forest: still on the ground, in warm autumn colours
+            Color[] leafCols = { new Color(0.62f, 0.38f, 0.16f), new Color(0.75f, 0.55f, 0.2f), new Color(0.5f, 0.3f, 0.15f), new Color(0.55f, 0.5f, 0.2f) };
+            int leaves = Mathf.RoundToInt(count * 0.9f);
+            for (int i = 0; i < leaves; i++)
+            {
+                float ang = (float)rnd.NextDouble() * Mathf.PI * 2f, rr = Mathf.Lerp(rMin, rMax, Mathf.Sqrt((float)rnd.NextDouble()));
+                Vector3 p = new Vector3(Mathf.Cos(ang) * rr, 0.015f + 0.004f * (float)rnd.NextDouble(), Mathf.Sin(ang) * rr);
+                if (Blocked(p, 0.05f)) continue;
+                mb.Leaf(p, 0.09f + 0.06f * (float)rnd.NextDouble(), (float)rnd.NextDouble() * 6.28f, Mat.C(leafCols[rnd.Next(leafCols.Length)] * (0.85f + 0.3f * (float)rnd.NextDouble())));
             }
         }
 
         static void Pine(MeshBuilder mb, Vector3 p, float h, Color leaf)
         {
+            Block(p, 0.4f, 0.4f);
             mb.SetColor(Mat.C(0.4f, 0.27f, 0.18f));
             mb.Limb(p, p + Vector3.up * h * 0.35f, 0.18f * h / 6f + 0.1f, 0.12f, 6, false);
             for (int i = 0; i < 3; i++)
@@ -870,6 +973,7 @@ namespace Kagegan
 
         static void LeafTree(MeshBuilder mb, Vector3 p, float h, Color leaf)
         {
+            Block(p, 0.4f, 0.4f);
             mb.SetColor(Mat.C(0.38f, 0.26f, 0.17f));
             mb.Limb(p, p + Vector3.up * h * 0.6f, 0.22f, 0.14f, 6, false);
             mb.SetColor(Mat.C(leaf));
@@ -880,6 +984,7 @@ namespace Kagegan
 
         static void Rock(MeshBuilder mb, Vector3 p, float s, Color c)
         {
+            Block(p, s * 1.05f, s * 0.9f);
             mb.SetColor(Mat.C(c));
             mb.Sphere(p + Vector3.up * s * 0.3f, new Vector3(s, s * 0.6f, s * 0.85f), 3, 6);
         }
@@ -901,6 +1006,8 @@ namespace Kagegan
         static void House(MeshBuilder mb, Vector3 p, float yaw, Vector3 size, Color wall, Color roof, Color wood)
         {
             var q = Quaternion.Euler(0, yaw, 0);
+            float cs = Mathf.Abs(Mathf.Cos(yaw * Mathf.Deg2Rad)), sn = Mathf.Abs(Mathf.Sin(yaw * Mathf.Deg2Rad));
+            Block(p, (cs * size.x + sn * size.z) * 0.5f + 0.3f, (sn * size.x + cs * size.z) * 0.5f + 0.3f);
             mb.SetColor(Mat.C(wall));
             mb.Box(p + q * new Vector3(0, size.y * 0.5f, 0), size, q);
             mb.SetColor(Mat.C(wood));
@@ -949,7 +1056,8 @@ namespace Kagegan
         Mesh SingleMesh(System.Action<MeshBuilder> build)
         {
             var mb = new MeshBuilder();
-            build(mb);
+            noBlock = true;
+            try { build(mb); } finally { noBlock = false; }
             return mb.ToMesh("prop");
         }
 
@@ -966,8 +1074,7 @@ namespace Kagegan
             Sky(new Color(0.55f, 0.75f, 0.95f), new Color(0.97f, 0.92f, 0.8f), new Color(0.9f, 0.85f, 0.7f), "sky_dojo");
             PhotoGround("dojo", new Color(0.895f, 0.75f, 0.5f), new Color(0.603f, 0.451f, 0.321f), 3.2f);
             Ground(mb, 70f, new Color(0.93f, 0.8f, 0.55f), new Color(0.86f, 0.7f, 0.45f), new Color(0.55f, 0.65f, 0.35f), 11);
-            grassMb = new MeshBuilder();
-            GrassTufts(grassMb, 260, 6f, 26f, new Color(0.45f, 0.62f, 0.25f), 3);
+            Grass(260, 6f, 26f, new Color(0.45f, 0.62f, 0.25f), 3);
             // main hall behind the arena + side buildings
             House(mb, new Vector3(-6f, 0, 24f), 0, new Vector3(16f, 4.2f, 6f), new Color(0.96f, 0.94f, 0.88f), new Color(0.48f, 0.5f, 0.55f), new Color(0.35f, 0.24f, 0.17f));
             House(mb, new Vector3(-25f, 0, 8f), 70, new Vector3(9f, 3.4f, 5f), new Color(0.96f, 0.94f, 0.88f), new Color(0.48f, 0.5f, 0.55f), new Color(0.35f, 0.24f, 0.17f));
@@ -1038,8 +1145,7 @@ namespace Kagegan
             Sky(new Color(0.45f, 0.62f, 0.75f), new Color(0.85f, 0.83f, 0.68f), new Color(0.4f, 0.5f, 0.35f), "sky_forest");
             PhotoGround("forest", new Color(0.43f, 0.485f, 0.27f), new Color(0.568f, 0.529f, 0.366f), 3.6f, 0f, 0.6f);
             Ground(mb, 70f, new Color(0.38f, 0.55f, 0.27f), new Color(0.48f, 0.42f, 0.27f), new Color(0.2f, 0.32f, 0.18f), 21);
-            grassMb = new MeshBuilder();
-            GrassTufts(grassMb, 360, 2f, 30f, new Color(0.35f, 0.58f, 0.22f), 7);
+            Grass(360, 2f, 30f, new Color(0.35f, 0.58f, 0.22f), 7);
             var rnd = new System.Random(4);
             // dense ring of background trees
             for (int i = 0; i < 46; i++)

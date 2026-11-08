@@ -48,6 +48,11 @@ Shader "Kagegan/Toon"
             half _KageWet;            // weather: rain darkens and glosses the scenery (0..1)
             half _KageSnow;           // weather: snow settles on upward faces of the scenery (0..1)
             #include "KageCasterShadow.cginc"
+            // grass trampling: feet, landings, falls and shockwaves (pushed every frame by GrassBend.cs)
+            float4 _KageBend[12];     // xyz = contact point, w = radius
+            float _KageBendK[12];     // push strength 0..1 (fades out smoothly so the grass springs back)
+            float _KageBendCount;
+            float4 _KageGrassFade;    // x = distance where grass starts sinking into the ground, y = where it is gone
 
             struct appdata
             {
@@ -81,8 +86,34 @@ Shader "Kagegan/Toon"
                 float sway = sin(t * 2.1 + ph) * 0.7 + sin(t * 3.7 + ph * 1.7) * 0.45;
                 float2 side = float2(-dir.y, dir.x);
                 float2 off = (dir * ((0.25 + gust) + sway * 0.35) + side * sway * 0.2) * amp * bend * str;
+                // trampling: blades lean away from every nearby contact point (grass only, not trees)
+                float grass = 1.0 - _WindObj;
+                if (grass > 0.5 && _KageBendCount > 0.5)
+                {
+                    float2 push = 0;
+                    for (int bi = 0; bi < 12; bi++)
+                    {
+                        if (bi >= (int)_KageBendCount) break;
+                        float4 b = _KageBend[bi];
+                        float2 dv = wpos.xz - b.xz;
+                        float dist = length(dv);
+                        float k = saturate(1.0 - dist / max(b.w, 0.01));
+                        k = k * k * (3.0 - 2.0 * k) * _KageBendK[bi] * saturate(1.6 - abs(wpos.y - b.y));
+                        push += dv / max(dist, 0.04) * k;
+                    }
+                    float pl = length(push);
+                    push *= min(pl, 1.0) / max(pl, 0.001);
+                    off = off * (1.0 - min(pl, 1.0) * 0.6) + push * 0.42 * bend;
+                }
                 float3 d = float3(off.x, 0, off.y);
                 d.y = -dot(off, off) / (2.0 * tall); // bend instead of stretching
+                // distant grass sinks into the ground (saves fill rate, no popping at the draw distance)
+                if (grass > 0.5 && _KageGrassFade.y > 0)
+                {
+                    float cd = distance(wpos.xz, _WorldSpaceCameraPos.xz);
+                    float fade = saturate((cd - _KageGrassFade.x) / max(_KageGrassFade.y - _KageGrassFade.x, 0.1));
+                    d.y -= fade * uv.y * 0.9;
+                }
                 // leaves shiver
                 float f = sin(t * 11.0 + dot(wpos, float3(3.7, 5.3, 4.1))) * (0.3 + gust) * _Flutter * str;
                 d += wn * f * 0.035 * saturate(bend * 4.0);

@@ -33,6 +33,7 @@ namespace Kagegan
         public bool safeAreaPadding = true;
         public float buttonScale = 1f;
         public float buttonAlpha = 0.85f;
+        public int grassLevel = 1;          // 0 sparse, 1 normal, 2 dense, 3 max (density + draw distance)
         public List<LayoutEntry> layout = new List<LayoutEntry>();
         public int layoutVersion;           // bumped when the default button layout changes; older custom layouts are reset
         public List<RunRecord> records = new List<RunRecord>();

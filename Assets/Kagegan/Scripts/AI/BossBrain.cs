@@ -64,7 +64,7 @@ namespace Kagegan
             yield return new WaitForSeconds(0.15f);
             F.EnterCinematic();
             F.SetInvulnerable(2.4f);
-            F.ForceAnimMode(AnimMode.Custom, PoseLib.Roar);
+            F.PlayRoar();
             Sfx.Play(SfxId.Roar, 1f, 0.8f + p * 0.1f);
             Fx.Ring(F.transform.position + Vector3.up * 0.15f, F.Kit.AuraColor, 0.5f, 12f, 0.8f, Quaternion.identity);
             Fx.Burst(F.Center, F.Kit.AuraColor, 3f, 0.6f);
@@ -76,7 +76,7 @@ namespace Kagegan
             if (p - 1 < PhaseLines.Length) F.Shout(PhaseLines[p - 1]);
             OnPhase(p);
             yield return new WaitForSeconds(1.8f);
-            F.ForceAnimMode(AnimMode.Locomotion);
+            F.EndRoar();
             F.ExitCinematic();
             F.MoveSpeed = speedBase * (1f + p * 0.1f);
             transitioning = false;

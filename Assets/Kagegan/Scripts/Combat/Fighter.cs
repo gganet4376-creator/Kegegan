@@ -1506,5 +1506,22 @@ namespace Kagegan
             Anim.Mode = m;
             if (custom != null) Anim.CustomPose = custom;
         }
+
+        /// <summary>
+        /// Boss roar for intros and phase changes. Uses the CC0 KayKit "magic summon" mocap when the rig has mocap
+        /// (a living, moving gesture), otherwise the grounded procedural roar pose. Call EndRoar() afterwards.
+        /// </summary>
+        public void PlayRoar()
+        {
+            ForceAnimMode(AnimMode.Custom, PoseLib.Roar);
+            if (!Anim.PlayMocap("KK_Ranged_Magic_Summon", 0.85f, 0f, true, -1f, 0.25f))
+                Anim.PlayMocap("Spell_Simple_Enter", 0.8f, 0f, true, -1f, 0.25f);
+        }
+
+        public void EndRoar()
+        {
+            Anim.StopAction();
+            ForceAnimMode(AnimMode.Locomotion);
+        }
     }
 }
