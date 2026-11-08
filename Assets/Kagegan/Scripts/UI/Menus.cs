@@ -209,7 +209,7 @@ namespace Kagegan
             SettingRow("Показывать FPS", () => Save.Data.showFps ? "Вкл" : "Выкл", d => Save.Data.showFps = !Save.Data.showFps, nextY());
             SettingRow("Тряска камеры", () => Mathf.RoundToInt(Save.Data.shake * 100) + "%", d => { Save.Data.shake = Mathf.Clamp(Save.Data.shake + d * 0.25f, 0f, 1.5f); CameraRig.ShakeScale = Save.Data.shake; CameraRig.Shake(0.4f); }, nextY());
             SettingRow("Отступ от краёв экрана", () => Save.Data.safeAreaPadding ? "Вкл" : "Выкл", d => Save.Data.safeAreaPadding = !Save.Data.safeAreaPadding, nextY());
-            SettingRow("Размер кнопок", () => Mathf.RoundToInt(Save.Data.buttonScale * 100) + "%", d => { Save.Data.buttonScale = Mathf.Clamp(Save.Data.buttonScale + d * 0.05f, 0.7f, 1.3f); GameManager.Inst.Touch.ApplyScaleAlpha(); }, nextY());
+            SettingRow("Размер кнопок", () => Mathf.RoundToInt(Save.Data.buttonScale * 100) + "%", d => { Save.Data.buttonScale = Mathf.Clamp(Save.Data.buttonScale + d * 0.05f, 0.7f, 1.6f); GameManager.Inst.Touch.ApplyScaleAlpha(); }, nextY());
             SettingRow("Прозрачность кнопок", () => Mathf.RoundToInt(Save.Data.buttonAlpha * 100) + "%", d => { Save.Data.buttonAlpha = Mathf.Clamp(Save.Data.buttonAlpha + d * 0.05f, 0.3f, 1f); GameManager.Inst.Touch.ApplyScaleAlpha(); }, nextY());
 
             UIKit.Button(settings, "Расположение кнопок", new Vector2(0.5f, 0), new Vector2(-560, 90), new Vector2(520, 100), ShowLayout, new Color(0.2f, 0.3f, 0.5f, 0.95f), 34);

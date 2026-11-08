@@ -16,10 +16,19 @@ namespace Kagegan
         readonly bool[] techHeld = new bool[4];
         float lockCheck;
 
+        // ---- auto battle ("Авто" button): AI fights for AutoTime seconds, then the button cools down ----
+        public const float AutoTime = 20f, AutoCooldown = 40f;
+        AutoPilotBrain autoBrain;
+        float autoUntil, autoReadyAt;
+        public bool AutoOn => autoBrain != null && autoBrain.enabled;
+
         public void Bind(Fighter f, TouchControls touch)
         {
+            StopAuto(false);
+            if (autoBrain != null) { Destroy(autoBrain); autoBrain = null; }
             F = f; Touch = touch;
             TechPage = 0;
+            autoReadyAt = 0f;
             if (Touch != null) Touch.OnButton = OnTouch;
             RefreshTechLabels();
         }
@@ -29,6 +38,8 @@ namespace Kagegan
         void OnTouch(string id, bool down)
         {
             if (F == null || TimeFx.Paused) return;
+            if (id == "auto") { if (down) ToggleAuto(); return; }
+            if (AutoOn && id != "swap") return; // the AI has the controls
             switch (id)
             {
                 case "light": if (down) F.Press(Cmd.Light); break;
@@ -42,6 +53,27 @@ namespace Kagegan
                 case "swap": if (down) { TechPage = 1 - TechPage; RefreshTechLabels(); Sfx.Play(SfxId.Click, 0.6f); } break;
                 case "ult": if (down) F.Press(Cmd.Ult); break;
             }
+        }
+
+        void ToggleAuto()
+        {
+            if (AutoOn) { StopAuto(true); Sfx.Play(SfxId.Click, 0.6f); return; }
+            if (Time.time < autoReadyAt || !F.Alive) { Sfx.Play(SfxId.Click, 0.3f, 0.6f); return; }
+            blockTouch = false;
+            for (int i = 0; i < techHeld.Length; i++) if (techHeld[i]) { techHeld[i] = false; F.SetTechHeld(i, false); }
+            if (autoBrain == null) { autoBrain = F.gameObject.AddComponent<AutoPilotBrain>(); autoBrain.Init(F); }
+            else autoBrain.enabled = true;
+            autoUntil = Time.time + AutoTime;
+            Sfx.Play(SfxId.Click, 0.8f, 1.3f);
+            Hud.Popup("АВТО-БОЙ", new Color(0.55f, 0.9f, 1f));
+        }
+
+        void StopAuto(bool startCooldown)
+        {
+            if (!AutoOn) return;
+            autoBrain.enabled = false;
+            if (F != null) { F.Brain = null; F.SetMove(Vector3.zero); F.SetBlock(false); }
+            if (startCooldown) autoReadyAt = Time.time + AutoCooldown;
         }
 
         void Tech(int i, bool down)
@@ -83,6 +115,16 @@ namespace Kagegan
         void Update()
         {
             if (F == null || !F.Alive || AutoTest.Active) return;
+            if (AutoOn)
+            {
+                if (Time.time >= autoUntil) StopAuto(true);
+                else
+                {
+                    if (CameraRig.Inst != null) CameraRig.Inst.Target = F.Target != null ? F.Target.transform : null;
+                    UpdateCooldowns();
+                    return;
+                }
+            }
             if (TimeFx.Paused) { F.SetMove(Vector3.zero); return; }
 
             // ---- movement ----
@@ -189,6 +231,22 @@ namespace Kagegan
                 u.CooldownFill.fillAmount = 1f - F.Rage / 100f;
                 u.Label.text = F.Rage >= 100f ? (Mathf.Sin(Time.unscaledTime * 8f) > 0f ? "УЛЬТА!" : "УЛЬТА") : "УЛЬТА";
             }
+            if (Touch.Buttons.TryGetValue("auto", out var a))
+            {
+                if (AutoOn)
+                {
+                    a.CooldownFill.fillAmount = 0f;
+                    a.Label.text = "СТОП " + Mathf.CeilToInt(autoUntil - Time.time);
+                    if (a.Ring != null) a.Ring.color = Color.Lerp(new Color(0.4f, 0.85f, 1f), Color.white, 0.5f + 0.5f * Mathf.Sin(Time.unscaledTime * 6f));
+                }
+                else
+                {
+                    float left = autoReadyAt - Time.time;
+                    a.CooldownFill.fillAmount = left > 0f ? left / AutoCooldown : 0f;
+                    a.Label.text = left > 0f ? Mathf.CeilToInt(left) + "с" : "АВТО";
+                    if (a.Ring != null) a.Ring.color = new Color(0.4f, 0.85f, 1f);
+                }
+            }
             if (Touch.Buttons.TryGetValue("heavy", out var h))
                 h.Label.text = F.Kit.CanFinish(F.Target) ? "ДОБИТЬ" : F.State == FState.Mount ? "Добить" : "Мощный";
             if (Touch.Buttons.TryGetValue("grab", out var g))
@@ -197,6 +255,7 @@ namespace Kagegan
 
         void OnDisable()
         {
+            StopAuto(false);
             for (int i = 0; i < techHeld.Length; i++) if (techHeld[i] && F != null) F.SetTechHeld(i, false);
             blockTouch = false;
         }

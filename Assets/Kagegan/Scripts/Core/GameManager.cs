@@ -117,7 +117,7 @@ namespace Kagegan
         {
             if (showcase != null) Destroy(showcase.gameObject);
             showcase = Roster.CreateShowcase(id, Vector3.zero, WorldRoot);
-            showcase.FaceInstant(new Vector3(0.9f, 0f, 4f));
+            showcase.FaceInstant(new Vector3(0.9f, 0f, -4f)); // towards the menu camera
             CameraRig.Inst.MenuFocus = Vector3.zero;
             Fx.Smoke(showcase.Center, 0.8f, new Color(1f, 1f, 1f, 0.5f), 6);
             showcaseTimer = 1.5f;
@@ -127,6 +127,12 @@ namespace Kagegan
         {
             if (inMenu && showcase != null)
             {
+                // keep the preview turned to the camera (moves and poses may rotate the root)
+                if (CameraRig.Inst != null && showcase.State != FState.Attack)
+                {
+                    Vector3 to = KMath.Flat(CameraRig.Inst.transform.position - showcase.transform.position);
+                    if (to.sqrMagnitude > 0.01f) showcase.transform.rotation = Quaternion.Slerp(showcase.transform.rotation, Quaternion.LookRotation(to), 1f - Mathf.Exp(-6f * Time.deltaTime));
+                }
                 // the preview character shows off moves every few seconds
                 showcaseTimer -= Time.deltaTime;
                 if (showcaseTimer <= 0f)

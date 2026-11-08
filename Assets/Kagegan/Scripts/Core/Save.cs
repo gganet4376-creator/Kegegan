@@ -34,6 +34,7 @@ namespace Kagegan
         public float buttonScale = 1f;
         public float buttonAlpha = 0.85f;
         public List<LayoutEntry> layout = new List<LayoutEntry>();
+        public int layoutVersion;           // bumped when the default button layout changes; older custom layouts are reset
         public List<RunRecord> records = new List<RunRecord>();
         public int lastCharacter;
         public int lastDifficulty;
@@ -43,6 +44,7 @@ namespace Kagegan
     public static class Save
     {
         const string Key = "kagegan_save_v1";
+        public const int LayoutVersion = 2;
         static SaveData data;
 
         public static SaveData Data
@@ -64,6 +66,7 @@ namespace Kagegan
             }
             if (data == null) data = new SaveData();
             if (data.layout == null) data.layout = new List<LayoutEntry>();
+            if (data.layoutVersion < LayoutVersion) { data.layout.Clear(); data.layoutVersion = LayoutVersion; }
             if (data.records == null) data.records = new List<RunRecord>();
         }
 

@@ -114,6 +114,8 @@ namespace Kagegan
                     wet = wetTarget = 0.15f;
                     break;
             }
+            // grass and dirt only get damp: full puddles + sky reflection read as a lake outside the asphalt city
+            if (a == null || a.Id != ArenaId.City) { wet *= 0.35f; wetTarget *= 0.35f; }
             Shader.SetGlobalFloat("_KageWet", wet);
             Shader.SetGlobalFloat("_KageSnow", snow);
             GraphicsQuality.Changed += Refresh;

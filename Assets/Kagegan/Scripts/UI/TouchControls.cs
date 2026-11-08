@@ -10,7 +10,7 @@ namespace Kagegan
     public class VirtualJoystick : MonoBehaviour, IPointerDownHandler, IDragHandler, IPointerUpHandler
     {
         public RectTransform Base, Knob;
-        public float Radius = 110f;
+        public float Radius = 145f;
         public Vector2 Value { get; private set; }
         int pointer = -99;
         Vector2 restPos;
@@ -144,20 +144,24 @@ namespace Kagegan
         public Action<string, bool> OnButton;
         CanvasGroup group;
 
+        const float StickX = 300f, StickY = 290f, StickSize = 340f;
+
         struct Def { public string id, label, icon; public Vector2 pos; public float size; public Color color; }
 
         static readonly Def[] Defs =
         {
-            new Def { id = "light", label = "Атака", icon = "light", pos = new Vector2(-165, 165), size = 210, color = new Color(0.72f, 0.14f, 0.13f, 1f) },
-            new Def { id = "heavy", label = "Мощный", icon = "heavy", pos = new Vector2(-378, 128), size = 128, color = new Color(0.52f, 0.26f, 0.12f, 1f) },
-            new Def { id = "block", label = "Блок", icon = "block", pos = new Vector2(-332, 318), size = 128, color = new Color(0.18f, 0.3f, 0.58f, 1f) },
-            new Def { id = "dodge", label = "Рывок", icon = "dodge", pos = new Vector2(-140, 378), size = 116, color = new Color(0.16f, 0.42f, 0.42f, 1f) },
-            new Def { id = "jump", label = "Прыжок", icon = "jump", pos = new Vector2(-528, 96), size = 100, color = new Color(0.24f, 0.24f, 0.52f, 1f) },
-            new Def { id = "grab", label = "Захват", icon = "grab", pos = new Vector2(-522, 246), size = 96, color = new Color(0.42f, 0.22f, 0.42f, 1f) },
-            new Def { id = "tech0", label = "Т1", icon = null, pos = new Vector2(-482, 420), size = 118, color = new Color(0.3f, 0.2f, 0.45f, 1f) },
-            new Def { id = "tech1", label = "Т2", icon = null, pos = new Vector2(-306, 502), size = 118, color = new Color(0.3f, 0.2f, 0.45f, 1f) },
-            new Def { id = "swap", label = "Смена", icon = "swap", pos = new Vector2(-618, 402), size = 76, color = new Color(0.2f, 0.2f, 0.25f, 1f) },
-            new Def { id = "ult", label = "УЛЬТА", icon = "ult", pos = new Vector2(-120, 548), size = 122, color = new Color(0.82f, 0.52f, 0.1f, 1f) },
+            // v2 layout: ~1.3x larger buttons, re-spaced so nothing overlaps on 18:9..21:9 phones
+            new Def { id = "light", label = "Атака", icon = "light", pos = new Vector2(-200, 200), size = 270, color = new Color(0.72f, 0.14f, 0.13f, 1f) },
+            new Def { id = "heavy", label = "Мощный", icon = "heavy", pos = new Vector2(-470, 140), size = 170, color = new Color(0.52f, 0.26f, 0.12f, 1f) },
+            new Def { id = "block", label = "Блок", icon = "block", pos = new Vector2(-445, 385), size = 165, color = new Color(0.18f, 0.3f, 0.58f, 1f) },
+            new Def { id = "dodge", label = "Рывок", icon = "dodge", pos = new Vector2(-175, 470), size = 150, color = new Color(0.16f, 0.42f, 0.42f, 1f) },
+            new Def { id = "jump", label = "Прыжок", icon = "jump", pos = new Vector2(-685, 115), size = 130, color = new Color(0.24f, 0.24f, 0.52f, 1f) },
+            new Def { id = "grab", label = "Захват", icon = "grab", pos = new Vector2(-695, 290), size = 125, color = new Color(0.42f, 0.22f, 0.42f, 1f) },
+            new Def { id = "tech0", label = "Т1", icon = null, pos = new Vector2(-640, 510), size = 150, color = new Color(0.3f, 0.2f, 0.45f, 1f) },
+            new Def { id = "tech1", label = "Т2", icon = null, pos = new Vector2(-405, 600), size = 150, color = new Color(0.3f, 0.2f, 0.45f, 1f) },
+            new Def { id = "swap", label = "Смена", icon = "swap", pos = new Vector2(-835, 455), size = 100, color = new Color(0.2f, 0.2f, 0.25f, 1f) },
+            new Def { id = "ult", label = "УЛЬТА", icon = "ult", pos = new Vector2(-175, 690), size = 160, color = new Color(0.82f, 0.52f, 0.1f, 1f) },
+            new Def { id = "auto", label = "АВТО", icon = null, pos = new Vector2(-640, 720), size = 130, color = new Color(0.3f, 0.75f, 0.95f, 1f) },
         };
 
         public void Build(Transform canvas)
@@ -170,11 +174,11 @@ namespace Kagegan
             var zone = UIKit.Rect(Root, "StickZone", new Vector2(0, 0), new Vector2(0.42f, 0.78f));
             var zimg = zone.gameObject.AddComponent<Image>();
             zimg.color = new Color(0, 0, 0, 0);
-            var baseRt = UIKit.Box(zone, "StickBase", new Vector2(0, 0), new Vector2(250, 240), new Vector2(260, 260));
+            var baseRt = UIKit.Box(zone, "StickBase", new Vector2(0, 0), new Vector2(StickX, StickY), new Vector2(StickSize, StickSize));
             UIKit.Img(baseRt, new Color(1f, 1f, 1f, 0.16f), UIKit.Circle);
-            var ring = UIKit.Box(baseRt, "Ring", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(260, 260));
+            var ring = UIKit.Box(baseRt, "Ring", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(StickSize, StickSize));
             UIKit.Img(ring, new Color(1f, 1f, 1f, 0.35f), UIKit.Ring);
-            var knob = UIKit.Box(baseRt, "Knob", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(120, 120));
+            var knob = UIKit.Box(baseRt, "Knob", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(StickSize * 0.46f, StickSize * 0.46f));
             UIKit.Img(knob, new Color(0.25f, 0.22f, 0.22f, 0.85f), UIKit.Circle);
             Stick = zone.gameObject.AddComponent<VirtualJoystick>();
             Stick.Setup(zone, baseRt, knob);
@@ -204,7 +208,7 @@ namespace Kagegan
             // icon in the middle, caption under it (readable at arm's length on a 6.3" screen)
             var glyph = UIKit.IconImage(rt, d.icon, new Vector2(0, d.size * 0.08f), d.size * 0.5f, new Color(1f, 1f, 1f, 0.95f));
             var capRt = UIKit.Box(rt, "Caption", new Vector2(0.5f, 0f), new Vector2(0, d.size * 0.2f), new Vector2(d.size * 1.1f, d.size * 0.26f));
-            var label = UIKit.Label(capRt, d.label, d.size > 150 ? 30 : d.size > 110 ? 23 : 20, Color.white);
+            var label = UIKit.Label(capRt, d.label, d.size > 200 ? 40 : d.size > 140 ? 31 : 27, Color.white);
             label.fontStyle = FontStyle.Bold;
             if (glyph.sprite == null) { capRt.anchoredPosition = Vector2.zero; capRt.anchorMin = capRt.anchorMax = new Vector2(0.5f, 0.5f); label.fontSize += 4; }
             var b = rt.gameObject.AddComponent<TouchButton>();
@@ -238,7 +242,7 @@ namespace Kagegan
         {
             Save.Data.layout.Clear();
             foreach (var kv in Buttons) ((RectTransform)kv.Value.transform).anchoredPosition = kv.Value.DefaultPos;
-            Stick.Base.anchoredPosition = new Vector2(250, 240);
+            Stick.Base.anchoredPosition = new Vector2(StickX, StickY);
             Stick.ResetRest();
             Save.Write();
         }

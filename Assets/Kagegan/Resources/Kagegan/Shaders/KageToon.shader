@@ -166,6 +166,7 @@ Shader "Kagegan/Toon"
 
                 half fres = 1.0 - saturate(dot(n, vdir));
                 half rim = pow(fres, 4.0) * _RimColor.a * (0.35 + band1);
+                rim *= 1.0 - 0.85 * scenery * saturate(n.y); // no milky sheen on ground seen at a grazing angle
                 lit += rim * _RimColor.rgb;
                 if (wetHere > 0)
                 {

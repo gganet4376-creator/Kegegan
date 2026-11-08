@@ -22,7 +22,7 @@ namespace Kagegan
         /// <summary>Side-on fighting-game camera along the arena lane (never orbits).</summary>
         public static bool LaneMode = true;
         public Vector3 MenuFocus;
-        public float MenuDistance = 4.2f;
+        public float MenuDistance = 3.9f;
 
         public static CameraRig Create()
         {
@@ -74,8 +74,9 @@ namespace Kagegan
         {
             if (MenuMode)
             {
-                l = MenuFocus + Vector3.up * 1.05f;
-                p = MenuFocus + new Vector3(0.9f, 1.5f, MenuDistance);
+                // same side as the battle camera (-z), looking at the arena's backdrop and sky, never at the bare camera-side rim
+                l = MenuFocus + new Vector3(-0.55f, 1.0f, 0f);
+                p = MenuFocus + new Vector3(0.6f, 1.35f, -MenuDistance);
                 return;
             }
             if (Time.unscaledTime < cineUntil)
@@ -174,13 +175,14 @@ namespace Kagegan
             Vector3 b = hasT ? Target.position : a + Vector3.right * (Player.forward.x >= 0f ? 2.5f : -2.5f);
             Vector3 mid = Vector3.Lerp(a, b, 0.5f);
             float dx = Mathf.Abs(b.x - a.x), dz = Mathf.Abs(b.z - a.z);
-            float d = Mathf.Clamp(5.4f + dx * 0.5f + dz * 0.35f, 6.4f, 11.5f);
+            // closer than before: fighters fill more of a phone screen, still pulls out for long-range fights
+            float d = Mathf.Clamp(4.3f + dx * 0.48f + dz * 0.35f, 5.1f, 10.5f);
             // air combos: rise and pull back so both fighters stay in frame
             float top = Mathf.Max(a.y, b.y);
             float lift = Mathf.Max(0f, top * 0.55f);
             d += Mathf.Max(0f, top - 1.2f) * 0.8f;
             float cx = Mathf.Clamp(mid.x, -Arena.LaneHalf + 2f, Arena.LaneHalf - 2f);
-            p = new Vector3(cx, 1.45f + d * 0.11f + lift, mid.z * 0.5f - d);
+            p = new Vector3(cx, 1.35f + d * 0.11f + lift, mid.z * 0.5f - d);
             l = new Vector3(cx, 1.1f + lift, mid.z * 0.5f + 1.5f);
         }
 
