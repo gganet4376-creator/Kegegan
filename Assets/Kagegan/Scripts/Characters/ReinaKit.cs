@@ -44,7 +44,7 @@ namespace Kagegan
             Counter = SpinKick();
             Counter.Name = "counter"; Counter.Damage = 16f; Counter.Unblockable = true; Counter.FxColor = Wire;
             MoveLib.WireGrab(this, 20f, 10f, 6f);
-            Grab.OnStart = ff => Fx.Wire(ff.Rig.Bones[(int)B.HandR], ff.transform.position + ff.transform.forward * 1.3f + Vector3.up * 1.1f, Wire, 0.22f, 0.3f);
+            Grab.OnStart = ff => Lash(ff.transform.position + ff.transform.forward * 1.3f + Vector3.up * 1.1f, Wire, 0.22f, 0.3f);
 
             Techs = new[]
             {
@@ -57,6 +57,28 @@ namespace Kagegan
         }
 
         Transform Hand => F.Rig.Bones[(int)B.HandR];
+
+        // the monowire is a physical whip in her right hand (verlet lash); the old VFX line is the fallback
+        Whip whip;
+
+        public override void Tick(float dt)
+        {
+            base.Tick(dt);
+            if (whip == null && F != null && F.Rig != null && Hand != null) whip = Whip.Attach(F, Wire);
+        }
+
+        void Lash(Vector3 to, Color c, float life, float sweep)
+        {
+            // called on the contact frame: a fast roll so the tip snaps almost at once (a real cracker breaks the sound barrier)
+            if (whip != null) whip.Strike(to, Mathf.Clamp(life * 0.8f, 0.18f, 0.32f), sweep);
+            else Fx.Wire(Hand, to, c, life, sweep);
+        }
+
+        void Tether(Vector3 to)
+        {
+            if (whip != null) whip.Hold(to);
+            else Fx.Wire(Hand, to, Wire, 0.06f, 0f);
+        }
 
         static Move WithKick(Move m)
         {
@@ -77,7 +99,7 @@ namespace Kagegan
             var m = MoveLib.Hook(true, dmg);
             m.Name = "wirelash"; m.Range = 3.2f; m.Reach = new Vector3(0, 0, 1.6f); m.Radius = 0.7f; m.Lunge = 1f;
             m.Knockback = 3.5f; m.FxColor = Wire; m.SlashEuler = new Vector3(0, 0, 75); m.Sfx = SfxId.Whoosh;
-            m.OnActive = ff => Fx.Wire(Hand, ff.transform.position + ff.transform.forward * 3f + Vector3.up * 1.05f, Wire, 0.26f, sweep);
+            m.OnActive = ff => Lash(ff.transform.position + ff.transform.forward * 3f + Vector3.up * 1.05f, Wire, 0.26f, sweep);
             return m;
         }
 
@@ -136,7 +158,7 @@ namespace Kagegan
             m.OnActive = ff =>
             {
                 Vector3 p = ff.Target != null ? ff.Target.transform.position : ff.transform.position + ff.transform.forward * 1.5f;
-                Fx.Wire(Hand, p, Wire, 0.28f, 0.2f);
+                Lash(p, Wire, 0.28f, 0.2f);
                 Fx.Slash(ff.transform, new Vector3(0, 0.8f, 0.8f), new Vector3(90, 0, 0), Wire, 2f, 0.22f);
             };
             m.OnHit = (a, v) => { Fx.Electric(v.transform.position + Vector3.up * 0.3f, Wire, 1.4f, 3); Fx.Crack(v.transform.position, 1.6f); };
@@ -158,7 +180,7 @@ namespace Kagegan
         public override void OnHitLanded(Fighter target, ref HitInfo h)
         {
             // perfect-dodge counters get an extra wire snap
-            if (h.Move != null && h.Move.Name == "counter") Fx.Wire(Hand, target.Center, Wire, 0.2f, -0.6f);
+            if (h.Move != null && h.Move.Name == "counter") Lash(target.Center, Wire, 0.2f, -0.6f);
         }
 
         // ---------- techniques ----------
@@ -174,7 +196,7 @@ namespace Kagegan
             m.OnActive = ff =>
             {
                 Vector3 p = ff.transform.position + ff.transform.forward * 4.4f + Vector3.up * 1f;
-                Fx.Wire(Hand, p, Wire, 0.32f, 1.3f);
+                Lash(p, Wire, 0.32f, 1.3f);
                 Fx.Slash(ff.transform, new Vector3(0, 1f, 2f), new Vector3(0, 0, 70), Wire, 3.6f, 0.2f);
             };
             m.OnHit = (a, v) => Fx.Electric(v.Center, Wire, 1f, 2);
@@ -199,7 +221,7 @@ namespace Kagegan
             Sfx.Play(SfxId.Whoosh, 1f, 1.3f);
             yield return new WaitForSeconds(0.12f);
             if (Interrupted(f, t)) yield break;
-            Fx.Wire(Hand, t.Center, Wire, 0.5f, 0.4f);
+            Lash(t.Center, Wire, 0.5f, 0.4f);
             yield return new WaitForSeconds(0.14f);
             if (Interrupted(f, t)) yield break;
             bool heavy = t.IsBoss || t.Weight > 1.2f;
@@ -215,7 +237,7 @@ namespace Kagegan
             {
                 if (Interrupted(f, t)) yield break;
                 mover.Teleport(Vector3.Lerp(from, to, k * k));
-                Fx.Wire(Hand, t.Center, Wire, 0.06f, 0f);
+                Tether(t.Center);
                 yield return null;
             }
             if (Interrupted(f, t)) yield break;
@@ -342,7 +364,7 @@ namespace Kagegan
                 if (i % 2 == 0) Act("Melee_Hook", 2.2f, MocapLibrary.HookContact - 0.08f * 2.2f, 0.16f, Clip.Hold(PoseLib.HookR, 0.03f, 0.1f, 0.06f));
                 else Act(KickClip, 2.6f, MocapLibrary.KickContact - 0.08f * 2.6f, 0.16f, Clip.Hold(PoseLib.KickHigh, 0.03f, 0.1f, 0.06f));
                 Fx.Trail(f.Center, Wire, 0.5f);
-                Fx.Wire(Hand, t.Center + Random.insideUnitSphere * 0.3f, Wire, 0.22f, i % 2 == 0 ? 1f : -1f);
+                Lash(t.Center + Random.insideUnitSphere * 0.3f, Wire, 0.22f, i % 2 == 0 ? 1f : -1f);
                 yield return new WaitForSeconds(0.08f);
                 DealCinematic(t, 9f);
                 Fx.Slash(t.transform, new Vector3(0, 1f, 0), new Vector3(0, a * Mathf.Rad2Deg, Random.Range(-60f, 60f)), Wire, 2.2f, 0.16f);
@@ -360,7 +382,7 @@ namespace Kagegan
             f.Anim.Play(Clip.Hold(PoseLib.SlamWind, 0.05f, 0.25f, 0.05f));
             yield return new WaitForSeconds(0.15f);
             f.Anim.Play(Clip.Hold(PoseLib.Slam, 0.04f, 0.4f, 0.2f));
-            Fx.Wire(Hand, new Vector3(c.x, 0f, c.z), Wire, 0.3f, 0.6f);
+            Lash(new Vector3(c.x, 0f, c.z), Wire, 0.3f, 0.6f);
             Fx.Wire(f.Rig.Bones[(int)B.HandL], new Vector3(c.x, 0f, c.z), Wire, 0.3f, -0.6f);
             t.Teleport(new Vector3(c.x, 0f, c.z));
             f.Teleport(new Vector3(c.x, 0f, c.z) - f.transform.forward * 1f);
@@ -400,7 +422,7 @@ namespace Kagegan
             CameraRig.Cinematic(c + Vector3.up, Vector3.Cross(Vector3.up, KMath.Flat(c - f.transform.position).normalized), 5f, 1f, 2.4f);
             f.FaceInstant(c);
             // wrap the target in wire, yank it up, spin kick through
-            for (int i = 0; i < 4; i++) { Fx.Wire(Hand, t.Center + Random.insideUnitSphere * 0.4f, Wire, 0.2f, i % 2 == 0 ? 1f : -1f); yield return new WaitForSeconds(0.07f); }
+            for (int i = 0; i < 4; i++) { Lash(t.Center + Random.insideUnitSphere * 0.4f, Wire, 0.2f, i % 2 == 0 ? 1f : -1f); yield return new WaitForSeconds(0.07f); }
             t.Teleport(c + Vector3.up * 1.8f);
             Fx.Electric(t.Center, Wire, 1.4f, 3);
             yield return new WaitForSeconds(0.18f);
