@@ -27,6 +27,22 @@ namespace Kagegan
         /// <summary>Fighters casting a capsule sun-shadow on the scenery (0 = blob shadows only).</summary>
         public static int ShadowCasters = 0;
         public static float CurrentRenderScale { get; private set; } = 1f;
+        /// <summary>How many rescue steps PerfMonitor has taken on this preset (0 = full quality).</summary>
+        public static int PerfDegrade { get; private set; }
+
+        /// <summary>
+        /// One more step of frame-rate rescue once the resolution is already at its floor:
+        /// lighter post-processing, fewer capsule shadows, then no MSAA / bloom. Returns false when nothing is left.
+        /// </summary>
+        public static bool DegradeForPerf()
+        {
+            if (Current < GraphicsPreset.High || PerfDegrade >= 3) return false;
+            PerfDegrade++;
+            if (PerfDegrade == 1) ShadowCasters = Mathf.Min(ShadowCasters, 2);
+            if (PerfDegrade == 2) QualitySettings.antiAliasing = 0;
+            PostFx.Degrade(PerfDegrade);
+            return true;
+        }
 
         static PropertyInfo urpRenderScale;
         static bool urpLookupDone;
@@ -135,6 +151,7 @@ namespace Kagegan
             if (ShadowCasters == 0) Shader.SetGlobalFloat("_KageCasterCount", 0f);
             BlobShadow.SetStrength(ShadowCasters > 0 ? 0.6f : 1f); // real shadows take over; the blob stays as contact darkening
             SetRenderScale(BaseRenderScale, true);
+            PerfDegrade = 0;
             PostFx.Apply(p);
             Changed?.Invoke();
         }
@@ -195,17 +212,31 @@ namespace Kagegan
             float target = Application.targetFrameRate > 0 ? Mathf.Min(Application.targetFrameRate, 60f) : 60f;
             float scale = GraphicsQuality.CurrentRenderScale;
             float floor = MinScale(GraphicsQuality.Current);
-            if (Fps < target * 0.88f && scale > floor + 0.001f)
+            if (Fps < target * 0.88f && scale > floor + 0.001f && stuckDrops < 3)
             {
                 goodTime = 0f;
-                // CPU-bound: the last drop didn't help, so stop throwing away sharpness for nothing
-                if (lastDropFps > 0f && Fps < lastDropFps * 1.04f) { stuckDrops++; if (stuckDrops >= 2) return; }
+                // the last drops didn't help: either CPU-bound, or the frame time sits just past a vsync step
+                // (Android snaps to 120/60/40/30), where small cuts show no change. Try the effects ladder instead.
+                if (lastDropFps > 0f && Fps < lastDropFps * 1.04f) stuckDrops++;
                 else stuckDrops = 0;
                 lastDropFps = Fps;
-                GraphicsQuality.SetRenderScale(Mathf.Max(floor, scale - 0.06f), false);
+                if (stuckDrops < 3) GraphicsQuality.SetRenderScale(Mathf.Max(floor, scale - 0.06f), false);
+            }
+            else if (Fps < target * 0.8f)
+            {
+                // resolution is at its floor (or cuts stopped helping) and the game still runs well under target:
+                // drop the expensive full-screen passes, one step every ~4.5 s
+                goodTime = 0f;
+                if (++slowChecks >= 3)
+                {
+                    slowChecks = 0;
+                    if (GraphicsQuality.DegradeForPerf()) { stuckDrops = 0; lastDropFps = 0f; }
+                }
+                return;
             }
             else if (Fps > target * 0.97f)
             {
+                slowChecks = 0;
                 goodTime += 1.5f;
                 lastDropFps = 0f; stuckDrops = 0;
                 if (goodTime >= 6f && scale < GraphicsQuality.BaseRenderScale)
@@ -216,14 +247,14 @@ namespace Kagegan
             }
         }
 
-        float lastDropFps; int stuckDrops;
+        float lastDropFps; int stuckDrops, slowChecks;
 
         static float MinScale(GraphicsPreset p)
         {
             switch (p)
             {
-                case GraphicsPreset.Ultra: return 0.85f;
-                case GraphicsPreset.High: return 0.8f;
+                case GraphicsPreset.Ultra: return 0.75f; // 0.75 of a 1440p+ panel is still sharper than High
+                case GraphicsPreset.High: return 0.7f;
                 case GraphicsPreset.Medium: return 0.65f;
                 default: return 0.5f;
             }

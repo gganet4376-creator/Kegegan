@@ -1493,7 +1493,10 @@ namespace Kagegan
             bool keepCustom = Anim.Mode == AnimMode.Custom && (State == FState.Channel || State == FState.Cinematic || State == FState.Mount);
             if (!(keepVictory || keepCustom) || mode != AnimMode.Locomotion) Anim.Mode = mode;
             if (State == FState.Mount) Anim.CustomPose = PoseLib.MountSit;
-            Anim.MoveSpeed = KMath.Flat(Velocity).magnitude;
+            Vector3 flatV = KMath.Flat(Velocity);
+            Anim.MoveSpeed = flatV.magnitude;
+            Vector3 localV = transform.InverseTransformDirection(flatV);
+            Anim.MoveLocal = new Vector2(localV.x, localV.z);
             Anim.VerticalSpeed = Velocity.y;
             Anim.InCombat = Target != null && Target.Alive;
             Anim.Tired = 1f - Stamina / MaxStamina;

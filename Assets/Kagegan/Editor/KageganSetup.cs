@@ -160,6 +160,13 @@ namespace Kagegan.EditorTools
             PlayerSettings.colorSpace = ColorSpace.Gamma;
             PlayerSettings.stripEngineCode = true;
             PlayerSettings.Android.preferredInstallLocation = AndroidPreferredInstallLocation.Auto;
+            // Swappy frame pacing: even frame times on 90/120 Hz panels instead of jittery 120/60/30 swaps
+            try
+            {
+                var fp = typeof(PlayerSettings.Android).GetProperty("optimizedFramePacing", BindingFlags.Public | BindingFlags.Static);
+                if (fp != null && fp.CanWrite) fp.SetValue(null, true);
+            }
+            catch (Exception e) { Debug.LogWarning("Kagegan: frame pacing not set (" + e.Message + ")."); }
             PlayerSettings.runInBackground = false;
             PlayerSettings.SplashScreen.show = false;
             SetActiveInputHandlingBoth();

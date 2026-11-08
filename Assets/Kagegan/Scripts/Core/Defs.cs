@@ -61,11 +61,11 @@ namespace Kagegan
             switch (d)
             {
                 case Difficulty.Novice:
-                    return new DifficultyTuning { enemyDamage = 0.7f, enemyHp = 0.8f, reaction = 0.45f, blockChance = 0.2f, parryChance = 0f, breakChance = 0f, aggression = 0.55f, attackTokens = 1, bossHp = 0.6f, bossDamage = 0.55f, bossPace = 1.7f, bossSummons = 1 };
+                    return new DifficultyTuning { enemyDamage = 0.7f, enemyHp = 0.8f, reaction = 0.45f, blockChance = 0.2f, parryChance = 0f, breakChance = 0f, aggression = 0.55f, attackTokens = 1, bossHp = 0.5f, bossDamage = 0.45f, bossPace = 2f, bossSummons = 1 };
                 case Difficulty.Warrior:
-                    return new DifficultyTuning { enemyDamage = 1f, enemyHp = 1f, reaction = 0.3f, blockChance = 0.4f, parryChance = 0.1f, breakChance = 0.15f, aggression = 0.75f, attackTokens = 2, bossHp = 0.75f, bossDamage = 0.75f, bossPace = 1.3f, bossSummons = 1 };
+                    return new DifficultyTuning { enemyDamage = 1f, enemyHp = 1f, reaction = 0.3f, blockChance = 0.4f, parryChance = 0.1f, breakChance = 0.15f, aggression = 0.75f, attackTokens = 2, bossHp = 0.6f, bossDamage = 0.6f, bossPace = 1.6f, bossSummons = 1 };
                 default:
-                    return new DifficultyTuning { enemyDamage = 1.35f, enemyHp = 1.3f, reaction = 0.18f, blockChance = 0.6f, parryChance = 0.25f, breakChance = 0.35f, aggression = 0.95f, attackTokens = 2, bossHp = 0.9f, bossDamage = 0.9f, bossPace = 1.05f, bossSummons = 2 };
+                    return new DifficultyTuning { enemyDamage = 1.35f, enemyHp = 1.3f, reaction = 0.18f, blockChance = 0.6f, parryChance = 0.25f, breakChance = 0.35f, aggression = 0.95f, attackTokens = 2, bossHp = 0.78f, bossDamage = 0.78f, bossPace = 1.25f, bossSummons = 1 };
             }
         }
     }

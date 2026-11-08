@@ -17,12 +17,17 @@ namespace Kagegan
         protected float speedBase;
         protected bool transitioning;
         protected bool busy;
+        float nextBreakAt;
 
         public override bool FinalPhase => Phase >= Thresholds.Length;
         public bool Transitioning => transitioning;
 
         public override void Setup(Fighter f, Archetype type, DifficultyTuning tune)
         {
+            // bosses hit hard and have big patterns; they should not also turtle, so they block / parry less than grunts
+            tune.blockChance *= 0.55f;
+            tune.parryChance *= 0.4f;
+            tune.reaction *= 1.25f;
             base.Setup(f, Archetype.Boss, tune);
             UsesTokens = false;
             PreferredRange = 1.5f;
@@ -41,16 +46,18 @@ namespace Kagegan
                 StartCoroutine(PhaseTransition(p));
                 return;
             }
-            if ((F.State == FState.Hitstun || F.State == FState.Juggle) && F.ComboTaken >= 4 && Random.value < Tune.breakChance + 0.25f)
+            // combo breaker: only after a long combo, at most once every few seconds (it used to fire almost every time at 4 hits)
+            if ((F.State == FState.Hitstun || F.State == FState.Juggle) && F.ComboTaken >= 6 + (Tune.breakChance < 0.1f ? 2 : 0)
+                && Time.time >= nextBreakAt)
             {
-                F.Press(Cmd.Dodge);
-                return;
+                nextBreakAt = Time.time + 0.8f; // one roll per window, not one per AI tick
+                if (Random.value < Tune.breakChance + 0.15f) { nextBreakAt = Time.time + 6f; F.Press(Cmd.Dodge); return; }
             }
             if (F.CanAct && F.Target != null && Time.time >= patternReadyAt)
             {
                 if (DoPattern(DistToTarget))
                 {
-                    patternReadyAt = Time.time + patternGap * Tune.bossPace * Mathf.Lerp(1.35f, 0.7f, Tune.aggression) * (1f - Phase * 0.1f);
+                    patternReadyAt = Time.time + patternGap * Tune.bossPace * Mathf.Lerp(1.35f, 0.7f, Tune.aggression) * (1f - Phase * 0.06f);
                     return;
                 }
             }
@@ -68,7 +75,8 @@ namespace Kagegan
             Sfx.Play(SfxId.Roar, 1f, 0.8f + p * 0.1f);
             Fx.Ring(F.transform.position + Vector3.up * 0.15f, F.Kit.AuraColor, 0.5f, 12f, 0.8f, Quaternion.identity);
             Fx.Burst(F.Center, F.Kit.AuraColor, 3f, 0.6f);
-            Combat.AreaDamage(F, F.Team, F.Center, 3.2f, 6f, 12f, 3f, true, F.Kit.AuraColor, false, HitKind.Heavy);
+            // phase roar pushes the player away (breaks their combo) but barely hurts
+            Combat.AreaDamage(F, F.Team, F.Center, 3.2f, 2f, 10f, 2f, true, F.Kit.AuraColor, false, HitKind.Heavy);
             CameraRig.Cinematic(F.Center + Vector3.up * 0.4f, (F.Target != null ? KMath.Flat(F.Target.transform.position - F.transform.position).normalized : Vector3.back) + Vector3.up * 0.1f, 4.5f, 0.4f, 1.8f);
             CameraRig.Shake(0.6f);
             Haptics.Heavy();
@@ -78,9 +86,9 @@ namespace Kagegan
             yield return new WaitForSeconds(1.8f);
             F.EndRoar();
             F.ExitCinematic();
-            F.MoveSpeed = speedBase * (1f + p * 0.1f);
+            F.MoveSpeed = speedBase * (1f + p * 0.05f);
             transitioning = false;
-            patternReadyAt = Time.time + 0.6f;
+            patternReadyAt = Time.time + 1.6f * Tune.bossPace; // breathing room after the roar
         }
 
         protected virtual void OnPhase(int p) { }

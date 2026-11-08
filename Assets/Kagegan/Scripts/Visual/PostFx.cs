@@ -64,6 +64,8 @@ namespace Kagegan
             if (!on) { if (inst != null) inst.enabled = false; return; }
 
             EnsureVolume();
+            dof.active = true;
+            bloom.active = true;
             bloom.intensity.value = ultra ? 0.65f : 0.5f;
             bloom.threshold.value = 1.25f;
             bloom.scatter.value = 0.62f;
@@ -81,6 +83,29 @@ namespace Kagegan
             smh.highlights.value = new Vector4(1.05f, 1.01f, 0.95f, 0f);
             if (inst != null) inst.enabled = true;
             SetGrade(currentGrade);
+        }
+
+        /// <summary>
+        /// Frame-rate rescue on High / Ultra (called by PerfMonitor when lowering the resolution was not enough):
+        /// 1 = no depth of field, simple bloom; 2 = MSAA off too; 3 = bloom off as well.
+        /// Reset by Apply (a preset change).
+        /// </summary>
+        public static void Degrade(int level)
+        {
+            if (!Enabled || profile == null) return;
+            if (level >= 1)
+            {
+                dof.active = false;
+                bloom.highQualityFiltering.value = false;
+                bloom.maxIterations.value = 4;
+            }
+            if (level >= 2)
+            {
+                var asset = GraphicsSettings.currentRenderPipeline as UniversalRenderPipelineAsset;
+                if (asset != null) asset.msaaSampleCount = 1;
+                if (cam != null) cam.allowMSAA = false;
+            }
+            if (level >= 3) bloom.active = false;
         }
 
         static ArenaId currentGrade = ArenaId.Dojo;
@@ -135,12 +160,15 @@ namespace Kagegan
         void LateUpdate()
         {
             if (!Enabled || dof == null || cam == null) return;
-            // keep the fighters sharp, melt the scenery behind them
-            Vector3 cp = cam.transform.position;
-            float focus = Mathf.Clamp(Mathf.Abs(cp.z) + 0.5f, 3f, 14f);
-            if (CameraRig.Inst != null && CameraRig.Inst.MenuMode) focus = CameraRig.Inst.MenuDistance;
-            dof.gaussianStart.value = focus + 7f;
-            dof.gaussianEnd.value = focus + 32f;
+            if (dof.active)
+            {
+                // keep the fighters sharp, melt the scenery behind them
+                Vector3 cp = cam.transform.position;
+                float focus = Mathf.Clamp(Mathf.Abs(cp.z) + 0.5f, 3f, 14f);
+                if (CameraRig.Inst != null && CameraRig.Inst.MenuMode) focus = CameraRig.Inst.MenuDistance;
+                dof.gaussianStart.value = focus + 7f;
+                dof.gaussianEnd.value = focus + 32f;
+            }
             kick = Mathf.MoveTowards(kick, 0f, Time.unscaledDeltaTime * 2.5f);
             chroma.intensity.value = kick * 0.6f;
         }

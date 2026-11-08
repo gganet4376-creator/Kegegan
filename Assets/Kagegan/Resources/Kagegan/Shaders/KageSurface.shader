@@ -202,9 +202,11 @@ Shader "Kagegan/Surface"
 
                 half ndl = dot(n, l);
                 half band = smoothstep(-0.12, 0.35, ndl);
-                if (_KageCasterCount > 0) band *= KageCasterShadow(i.wpos, l);
-                band *= KageSceneShadow(i.wpos, l);
-                half3 lit = albedo * lerp(_ShadowTint.rgb, half3(1, 1, 1), band) * _KageLightColor.rgb + albedo * _KageAmbient.rgb;
+                half shAll = KageSceneShadow(i.wpos, l);
+                if (_KageCasterCount > 0) shAll *= KageCasterShadow(i.wpos, l);
+                band *= shAll;
+                // shadows also block part of the sky light, so they stay readable under overcast / night lighting
+                half3 lit = albedo * lerp(_ShadowTint.rgb, half3(1, 1, 1), band) * _KageLightColor.rgb + albedo * _KageAmbient.rgb * lerp(1.0, shAll, 0.45);
                 half3 hv = normalize(l + vdir);
                 half gloss = lerp(_Gloss, 1.0, wet);
                 lit += _KageLightColor.rgb * pow(saturate(dot(n, hv)), lerp(24.0, 160.0, wet)) * gloss * band * lerp(0.25, 2.0, wet);

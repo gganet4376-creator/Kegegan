@@ -11,7 +11,7 @@ namespace Kagegan.EditorTools
     {
         const string Folder = "/Kagegan/Resources/Kagegan/Anim/";
 
-        public override uint GetVersion() => 4;
+        public override uint GetVersion() => 5;
 
         void OnPreprocessModel()
         {
@@ -39,7 +39,8 @@ namespace Kagegan.EditorTools
             bool travelToRoot = assetPath.Replace('\\', '/').Contains(Folder + "KK_");
             foreach (var c in clips)
             {
-                bool loop = c.name.EndsWith("_Loop") || c.name == "Sword_Idle";
+                bool loop = c.name.EndsWith("_Loop") || c.name == "Sword_Idle"
+                            || c.name == "Running_Strafe_Left" || c.name == "Running_Strafe_Right" || c.name == "Walking_Backwards";
                 c.loopTime = loop;
                 c.loopPose = loop;
                 c.lockRootRotation = true;

@@ -1412,8 +1412,9 @@ namespace Kagegan
             mb.Box(p + new Vector3(0, -0.25f, 0), new Vector3(3.1f, 0.5f, 3.1f));
             if (even)
             {
-                mb.SetColor(Mat.C(0.55f, 0.45f, 0.95f, 0.8f));
-                mb.Box(p + new Vector3(0, 0.005f, 0), new Vector3(3.12f, 0.02f, 0.08f));
+                // faint inlaid rune line: low glow so bloom does not turn it into a white dashed stripe
+                mb.SetColor(Mat.C(0.42f, 0.36f, 0.7f, 0.22f));
+                mb.Box(p + new Vector3(0, 0.003f, 0), new Vector3(2.6f, 0.012f, 0.06f));
             }
         }
 

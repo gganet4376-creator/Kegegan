@@ -72,9 +72,11 @@ namespace Kagegan
         Animator animator;
         PlayableGraph graph;
         AnimationMixerPlayable root, loco;
-        readonly AnimationClipPlayable[] locoClips = new AnimationClipPlayable[5];
-        readonly float[] locoW = new float[5];
-        readonly float[] locoRef = { 1f, MocapLibrary.WalkSpeed, MocapLibrary.JogSpeed, MocapLibrary.SprintSpeed, 1f };
+        readonly AnimationClipPlayable[] locoClips = new AnimationClipPlayable[8];
+        readonly bool[] locoHas = new bool[8];
+        readonly float[] locoW = new float[8];
+        // playback reference speeds (m/s); the strafe / back-step values are estimates for the KayKit loops
+        readonly float[] locoRef = { 1f, MocapLibrary.WalkSpeed, MocapLibrary.JogSpeed, MocapLibrary.SprintSpeed, 1f, 4f, 4f, 1.6f };
         AnimationClipPlayable actA, actB;
         bool aIsCurrent = true, hasA, hasB;
         float actWeight, actTarget, actFadeRate = 12f;
@@ -83,13 +85,20 @@ namespace Kagegan
         float crossW;
         public bool Ready { get; private set; }
         public float Speed;
+        /// <summary>Horizontal velocity in the fighter's own frame (x = right, y = forward), m/s.</summary>
+        public Vector2 MoveLocal;
+        Vector2 dirSm = new Vector2(0f, 1f);
         public bool Grounded = true;
         public float TimeScale = 1f;
 
         public bool ActionPlaying => actTarget > 0.5f;
         public float ActionWeight => actWeight;
 
-        static readonly string[] LocoNames = { "Idle_Loop", "Walk_Loop", "Jog_Fwd_Loop", "Sprint_Loop", "NinjaJump_Idle_Loop" };
+        // 0 idle, 1 walk, 2 jog, 3 sprint, 4 air, then directional loops (KayKit Movement Advanced, CC0):
+        // 5 strafe left, 6 strafe right, 7 walk backwards. Fighters keep facing their opponent while they move,
+        // so without these a side-step or a retreat played the forward run and the feet slid ("moonwalk").
+        static readonly string[] LocoNames = { "Idle_Loop", "Walk_Loop", "Jog_Fwd_Loop", "Sprint_Loop", "NinjaJump_Idle_Loop",
+            "KK_Running_Strafe_Left", "KK_Running_Strafe_Right", "KK_Walking_Backwards" };
 
         public bool Init(Avatar avatar)
         {
@@ -108,7 +117,9 @@ namespace Kagegan
             loco = AnimationMixerPlayable.Create(graph, LocoNames.Length);
             for (int i = 0; i < LocoNames.Length; i++)
             {
-                var clip = MocapLibrary.Get(LocoNames[i]) ?? (i == 4 ? MocapLibrary.Get("Jump_Loop") : null) ?? MocapLibrary.Get("Idle_Loop");
+                var clip = MocapLibrary.Get(LocoNames[i]) ?? (i == 4 ? MocapLibrary.Get("Jump_Loop") : null);
+                locoHas[i] = clip != null;
+                if (clip == null) clip = MocapLibrary.Get("Idle_Loop");
                 if (clip == null) { graph.Destroy(); return false; }
                 locoClips[i] = AnimationClipPlayable.Create(graph, clip);
                 locoClips[i].SetApplyFootIK(true);
@@ -172,11 +183,38 @@ namespace Kagegan
             else if (s < 4.5f) { float u = (s - 1.2f) / 3.3f; w[1] = 1f - u; w[2] = u; }
             else if (s < 7.5f) { float u = (s - 4.5f) / 3f; w[2] = 1f - u; w[3] = u; }
             else w[3] = 1f;
+
+            // ---- direction: split the moving share between forward, side-step and back-step loops ----
+            if (Grounded && s > 0.35f)
+            {
+                Vector2 d = MoveLocal / Mathf.Max(s, 0.001f);
+                dirSm = Vector2.Lerp(dirSm, d, 1f - Mathf.Exp(-10f * dt));
+            }
+            else dirSm = Vector2.Lerp(dirSm, new Vector2(0f, 1f), 1f - Mathf.Exp(-6f * dt));
+            if (Grounded)
+            {
+                float moving = 1f - w[0];
+                float fwd = Mathf.Max(0f, dirSm.y), back = Mathf.Max(0f, -dirSm.y), side = Mathf.Abs(dirSm.x);
+                int sideSlot = dirSm.x < 0f ? 5 : 6;
+                if (!locoHas[sideSlot]) { fwd += side; side = 0f; }
+                if (!locoHas[7]) { side += back * 0.5f; fwd += back * 0.5f; back = 0f; if (!locoHas[sideSlot]) { fwd += side; side = 0f; } }
+                // a fast retreat is a back-pedalling run: let the side loop carry part of it so it doesn't look like a slow walk
+                if (back > 0f && s > 3f && locoHas[sideSlot]) { float k = Mathf.Clamp01((s - 3f) / 3f) * 0.35f; side += back * k; back *= 1f - k; }
+                float sum = fwd + back + side;
+                if (sum > 0.0001f && moving > 0.0001f)
+                {
+                    fwd /= sum; back /= sum; side /= sum;
+                    for (int i = 1; i <= 3; i++) w[i] *= fwd;
+                    w[sideSlot] = moving * side;
+                    w[7] = moving * back;
+                }
+            }
+
             for (int i = 0; i < w.Length; i++)
             {
                 float cur = loco.GetInputWeight(i);
                 loco.SetInputWeight(i, Mathf.MoveTowards(cur, w[i], dt * 8f));
-                float rate = (i >= 1 && i <= 3) ? Mathf.Clamp(Mathf.Max(s, 0.3f) / locoRef[i], 0.6f, 1.45f) : 1f;
+                float rate = (i >= 1 && i <= 3) || i >= 5 ? Mathf.Clamp(Mathf.Max(s, 0.3f) / locoRef[i], 0.6f, i >= 5 ? 1.8f : 1.45f) : 1f;
                 locoClips[i].SetSpeed(rate * TimeScale);
                 // manual wrap so loops keep cycling even if the import loop flag is missing
                 var c = locoClips[i].GetAnimationClip();

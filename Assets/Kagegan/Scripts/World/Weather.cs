@@ -145,7 +145,7 @@ namespace Kagegan
                     break;
                 case WeatherType.Snow:
                     Snow();
-                    snow = 0.3f; snowTarget = 0.85f;
+                    snow = 0.2f; snowTarget = 0.55f; // a dusting, not a white sheet over the whole arena
                     break;
                 case WeatherType.Fog:
                     Mist(new Color(0.85f, 0.87f, 0.9f, 0.32f), 22);
@@ -356,29 +356,59 @@ namespace Kagegan
             }
         }
 
-        /// <summary>Low drifting mist from the CC0 smoke-puff atlas.</summary>
+        static Texture2D mistTex;
+
+        /// <summary>
+        /// Soft cloud blot made in code: radial falloff times smooth value noise, fully transparent at the edges.
+        /// (The old smoke-puff atlas had solid white centres and one straight-edged frame; at 14 m it read as white sheets.)
+        /// </summary>
+        static Texture2D MistTexture()
+        {
+            if (mistTex != null) return mistTex;
+            const int N = 128;
+            var t = new Texture2D(N, N, TextureFormat.RGBA32, false) { name = "MistSoft", wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
+            var px = new Color32[N * N];
+            for (int y = 0; y < N; y++)
+                for (int x = 0; x < N; x++)
+                {
+                    float u = (x + 0.5f) / N * 2f - 1f, v = (y + 0.5f) / N * 2f - 1f;
+                    float r = Mathf.Sqrt(u * u + v * v);
+                    float fall = Mathf.Clamp01(1f - r);
+                    fall = fall * fall * (3f - 2f * fall);           // smooth to exactly zero at the rim
+                    float n = 0.55f * Mathf.PerlinNoise(x * 0.045f + 3.1f, y * 0.045f + 7.7f)
+                            + 0.3f * Mathf.PerlinNoise(x * 0.11f + 11.3f, y * 0.11f + 1.9f)
+                            + 0.15f * Mathf.PerlinNoise(x * 0.23f + 5.2f, y * 0.23f + 9.4f);
+                    float a = fall * Mathf.Clamp01(n * 1.35f - 0.15f) * 0.75f; // never fully opaque
+                    px[y * N + x] = new Color32(255, 255, 255, (byte)(a * 255f));
+                }
+            t.SetPixels32(px);
+            t.Apply(false, true);
+            mistTex = t;
+            return t;
+        }
+
+        /// <summary>Low drifting ground mist behind the fighters (soft procedural blots, thin and wide).</summary>
         void Mist(Color c, int count)
         {
-            var tex = Resources.Load<Texture2D>("Kagegan/Vfx/puff_white");
-            if (tex == null) return;
-            tex.wrapMode = TextureWrapMode.Clamp;
             float life = 24f;
-            var mm = Mat.FxTex(tex, false, "Mist");
+            var mm = Mat.FxTex(MistTexture(), false, "Mist");
             mm.SetFloat("_Lit", 1f);   // mist takes the scene's light colour (dark at night, warm at dusk)
-            mm.SetFloat("_Soft", 1f);  // and melts into the ground and walls instead of cutting through them
-            var m = Layer("Mist", follow, new Vector3(0f, 1.2f, 8f), count / life, life, mm);
+            mm.SetFloat("_Soft", 1f);  // fades out near the camera so it never fills the screen
+            c.a *= 0.55f;              // many thin layers instead of a few dense sheets
+            // starts behind the lane (the camera looks along +Z): nothing drifts between the camera and the fighters
+            var m = Layer("Mist", follow, new Vector3(0f, 0.9f, 17f), count / life, life, mm);
             var main = m.main;
             main.prewarm = true;
-            main.startSize = new ParticleSystem.MinMaxCurve(7f, 14f);
+            main.startSize = new ParticleSystem.MinMaxCurve(5f, 9f);
             main.startColor = c;
             main.startRotation = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
-            Box(m, new Vector3(60f, 1.5f, 30f));
-            Velocity(m, new Vector3(0.3f, 0f, -0.1f), new Vector3(0.8f, 0.05f, 0.2f));
-            var col = m.colorOverLifetime; col.enabled = true; col.color = Fade(0.2f, 0.8f);
-            var tsa = m.textureSheetAnimation; tsa.enabled = true; tsa.numTilesX = 2; tsa.numTilesY = 2;
-            tsa.frameOverTime = new ParticleSystem.MinMaxCurve(0f); tsa.startFrame = new ParticleSystem.MinMaxCurve(0f, 3.999f);
-            var rot = m.rotationOverLifetime; rot.enabled = true; rot.z = new ParticleSystem.MinMaxCurve(-0.05f, 0.05f);
-            m.GetComponent<ParticleSystemRenderer>().maxParticleSize = 2f;
+            Box(m, new Vector3(56f, 1f, 16f));
+            Velocity(m, new Vector3(0.3f, 0f, -0.05f), new Vector3(0.7f, 0.03f, 0.1f));
+            var col = m.colorOverLifetime; col.enabled = true; col.color = Fade(0.25f, 0.75f);
+            var rot = m.rotationOverLifetime; rot.enabled = true; rot.z = new ParticleSystem.MinMaxCurve(-0.04f, 0.04f);
+            var r = m.GetComponent<ParticleSystemRenderer>();
+            r.maxParticleSize = 0.6f; // cap the screen coverage: a close blot can never become a full-screen wall
+            r.sortMode = ParticleSystemSortMode.Distance;
             m.Play();
         }
     }

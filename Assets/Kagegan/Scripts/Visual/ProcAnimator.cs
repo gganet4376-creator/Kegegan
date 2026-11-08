@@ -21,6 +21,8 @@ namespace Kagegan
         public Pose HurtPose;          // zone-specific hit-stun pose chosen by the Fighter
         public AnimMode Mode;
         public float MoveSpeed;      // m/s horizontal
+        public Vector2 MoveLocal;    // horizontal velocity in the fighter's frame (x = right, y = forward)
+        Vector2 moveDirSm = new Vector2(0f, 1f);
         public float VerticalSpeed;
         public bool InCombat;
         public float Tired;          // 0..1, deeper breathing
@@ -248,6 +250,7 @@ namespace Kagegan
             if (dt <= 0f) return;
             var bones = Rig.Bones;
             Mocap.Speed = MoveSpeed;
+            Mocap.MoveLocal = MoveLocal;
             Mocap.Grounded = Mode != AnimMode.Air && Mode != AnimMode.Juggled;
             Mocap.TimeScale = TimeScale;
             int n = (int)B.EyeL;
@@ -405,7 +408,12 @@ namespace Kagegan
             float legAmp = maxAmp * speedK;
             float legLen = 0.84f * Rig.Look.height * Rig.transform.localScale.y;
             float stride = RunStyle == RunStyle.Glide ? 2.2f : Mathf.Max(0.35f, 2f * legLen * Mathf.Sin(legAmp * Mathf.Deg2Rad) * 1.1f);
-            runPhase += dt * MoveSpeed / stride * Mathf.PI;
+            // travel direction relative to where the fighter faces (they keep facing the opponent while side-stepping / retreating)
+            Vector2 md = MoveSpeed > 0.35f ? MoveLocal / MoveSpeed : new Vector2(0f, 1f);
+            moveDirSm = Vector2.Lerp(moveDirSm, md, 1f - Mathf.Exp(-10f * dt));
+            float dirBack = Mathf.Clamp01(-moveDirSm.y), dirSide = Mathf.Clamp(moveDirSm.x, -1f, 1f);
+            // walking backwards plays the cycle in reverse so the feet push the body the right way
+            runPhase += dt * MoveSpeed / stride * Mathf.PI * (moveDirSm.y < -0.2f ? -1f : 1f);
             float s = Mathf.Sin(runPhase), c = Mathf.Cos(runPhase);
             var p = runPose;
             float kneeAmp = (RunStyle == RunStyle.Glide ? 20f : 75f) * Mathf.Lerp(0.6f, 1f, speedK);
@@ -435,6 +443,18 @@ namespace Kagegan
                      .S(B.UArmL, 45f * s, 0, -10).S(B.LArmL, -75).S(B.UArmR, -45f * s, 0, 10).S(B.LArmR, -75);
                     p.H(0, -0.08f + 0.05f * Mathf.Abs(s), 0);
                     break;
+            }
+            if (dirBack > 0.01f || Mathf.Abs(dirSide) > 0.01f)
+            {
+                // side-step: hips turn into the travel direction while chest and head stay on the opponent
+                float sideK = dirSide * (1f - dirBack);
+                p.R[(int)B.Hips].y += sideK * 38f;
+                p.R[(int)B.Chest].y -= sideK * 26f;
+                p.R[(int)B.Head].y -= sideK * 12f;
+                // retreat: stand taller, no forward dive, guard hands stay up
+                p.R[(int)B.Spine].x *= Mathf.Lerp(1f, 0.2f, dirBack);
+                p.R[(int)B.Head].x *= Mathf.Lerp(1f, 0.3f, dirBack);
+                p.R[(int)B.Hips].x -= dirBack * 4f;
             }
             p.Invalidate();
 
