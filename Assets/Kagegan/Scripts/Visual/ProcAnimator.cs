@@ -441,7 +441,7 @@ namespace Kagegan
             if (PlaySteps)
             {
                 float half = Mathf.Floor(runPhase / Mathf.PI);
-                if (half != lastStepHalf) { lastStepHalf = half; Sfx.Play(SfxId.Step, 0.25f); }
+                if (half != lastStepHalf) { lastStepHalf = half; Sfx.Step(transform.position, 0.3f); }
             }
         }
 

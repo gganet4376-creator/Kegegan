@@ -104,6 +104,8 @@ namespace Kagegan
                 string key = ((SfxId)i).ToString().ToLowerInvariant();
                 if (groups.TryGetValue(key, out var list) && list.Count > 0) variants[i] = list.ToArray();
             }
+            foreach (var key in new[] { "stepgrass", "stepstone", "stepsnow" })
+                if (groups.TryGetValue(key, out var list) && list.Count > 0) surfaceSteps[key] = list.ToArray();
         }
 
         // ---------- synthesis helpers ----------
@@ -226,6 +228,40 @@ namespace Kagegan
             v.pitch = pitch * (0.94f + 0.12f * Random01());
             v.panStereo = Mathf.Clamp(pan, -0.8f, 0.8f);
             v.PlayOneShot(clip, Mathf.Clamp01(volume) * Save.Data.sfx);
+        }
+
+        readonly System.Collections.Generic.Dictionary<string, AudioClip[]> surfaceSteps = new System.Collections.Generic.Dictionary<string, AudioClip[]>();
+        int lastSurfaceStep;
+
+        /// <summary>Footstep that sounds like the ground of the current arena: grass in the forest, stone in the city
+        /// and at the moon temple, snow while it snows. The dojo's sandy yard keeps the default step.</summary>
+        public static void Step(Vector3 world, float volume)
+        {
+            if (inst == null) return;
+            string key = null;
+            var a = Arena.Current;
+            if (a != null)
+            {
+                if (a.WeatherKind == WeatherType.Snow) key = "stepsnow";
+                else if (a.Id == ArenaId.Forest) key = "stepgrass";
+                else if (a.Id == ArenaId.City || a.Id == ArenaId.MoonTemple) key = "stepstone";
+            }
+            if (key == null || !inst.surfaceSteps.TryGetValue(key, out var vars)) { PlayAt(SfxId.Step, world, volume); return; }
+            int k = Random.Range(0, vars.Length);
+            if (vars.Length > 1 && k == inst.lastSurfaceStep) k = (k + 1) % vars.Length;
+            inst.lastSurfaceStep = k;
+            float pan = 0f;
+            var cam = CameraRig.Inst != null ? CameraRig.Inst.Cam : null;
+            if (cam != null)
+            {
+                pan = (cam.WorldToViewportPoint(world).x - 0.5f) * 1.2f;
+                volume *= Mathf.Clamp(1.4f - (world - cam.transform.position).magnitude / 30f, 0.35f, 1f);
+            }
+            var v = inst.voices[inst.nextVoice];
+            inst.nextVoice = (inst.nextVoice + 1) % inst.voices.Length;
+            v.pitch = 0.94f + 0.12f * Random01();
+            v.panStereo = Mathf.Clamp(pan, -0.8f, 0.8f);
+            v.PlayOneShot(vars[k], Mathf.Clamp01(volume) * Save.Data.sfx);
         }
 
         /// <summary>Positional helper: pans the sound by where it happens on screen and attenuates with distance.</summary>
