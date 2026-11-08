@@ -470,7 +470,8 @@ namespace Kagegan
         void HitCheck(Move m)
         {
             if (m.Damage <= 0f && m.Kind != HitKind.Grab) return;
-            Vector3 a = Rig.BonePos(B.Chest);
+            Vector3 chest = Rig.BonePos(B.Chest);
+            Vector3 a = chest;
             if (m.Kind == HitKind.Light || m.Kind == HitKind.Heavy)
             {
                 switch (m.Bone)
@@ -489,6 +490,9 @@ namespace Kagegan
                 if (f == this || !f.Alive || f.Team == Team || hitList.Contains(f)) continue;
                 if ((f.State == FState.Knockdown || f.State == FState.GetUp) && !m.HitsDowned) continue;
                 float d = KMath.SegmentSegmentDistance(a, b, f.transform.position + Vector3.up * 0.25f, f.transform.position + Vector3.up * (f.Height - 0.15f));
+                // point-blank: an enemy pressed against the attacker sits between chest and elbow/knee
+                if (d > m.Radius + f.BodyRadius && a != chest)
+                    d = Mathf.Min(d, KMath.SegmentSegmentDistance(chest, a, f.transform.position + Vector3.up * 0.25f, f.transform.position + Vector3.up * (f.Height - 0.15f)));
                 if (d > m.Radius + f.BodyRadius) continue;
 
                 // attack clash: both fighters are in active frames and their strikes meet

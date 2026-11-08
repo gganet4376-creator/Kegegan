@@ -70,6 +70,8 @@ namespace Kagegan
             foreach (var renderer in renderers)
             {
                 if (renderer == null) continue;
+                // fully visible again: drop the block so SRP batching/instancing works as before
+                if (fade >= 1f) { renderer.SetPropertyBlock(null); continue; }
                 renderer.GetPropertyBlock(block);
                 block.SetFloat(FadeId, fade);
                 renderer.SetPropertyBlock(block);
