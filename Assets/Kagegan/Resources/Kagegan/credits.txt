@@ -38,6 +38,7 @@
 - "Universal Animation Library 2" (Standard) — Quaternius — https://quaternius.com — анимации ударов, блока, подъёма, прыжков
 - "Character Animations 1.1" (Rig_Medium: CombatMelee, CombatRanged, MovementAdvanced, General) — Kay Lousberg (KayKit), CC0 — https://kaylousberg.itch.io/kaykit-character-animations — www.kaylousberg.com — удары ногой, уклонения, бросок и выстрел Рэйны
 - Текстура монопровода Рэйны (Vfx/monowire.png) — создана для проекта, принадлежит проекту
+- Символы взлома Рэйны (Vfx/hack_glyphs.png) — пиксельный шрифт, создан для проекта, принадлежит проекту
 - "Stylized Nature MegaKit" (Standard) — Quaternius — https://quaternius.com — деревья, камни, кусты, трава, цветы
 - "Particle Pack" — Kenney — https://kenney.nl/assets/particle-pack — искры, огонь, электричество, земля; мягкие частицы, капли и круги дождя, следы-подпалины (soft_dot, rain_streak, ring_thin, scorch)
 - "Impact Sounds" — Kenney — https://kenney.nl/assets/impact-sounds — удары, блок, приземление, разрушение, шаги (трава, камень, снег)

@@ -246,6 +246,7 @@ namespace Kagegan
                 var v = ff.Target;
                 if (v == null || !v.Alive) return;
                 Fx.Lightning(ff.Rig.BonePos(B.HandR), v.Center, Hack, 0.1f, 0.3f);
+                Fx.HackStream(ff.Rig.BonePos(B.HandR), v.Center, Hack, 10);
                 Fx.Electric(v.Center, Hack, 1.4f, 4);
                 Sfx.Play(SfxId.Energy, 1f, 1.4f);
                 var h = new HitInfo { Attacker = ff, Damage = 16f * ff.DamageMul, Stamina = 20f, Knockback = 0.5f, Hitstun = 0.7f, Kind = HitKind.Technique, Unblockable = true, Parryable = false, Point = v.Center, Dir = ff.transform.forward, FxColor = Hack, Shake = 0.25f, HitStop = 0.06f };
@@ -257,7 +258,13 @@ namespace Kagegan
                 }
             });
             m.Mocap = ShootClip; m.MocapContact = 0.26f; // palm stays thrust out from 0.14 to 0.47 s of the clip
-            m.OnTick = (ff, u) => { if (ff.InStartup && Random.value < 0.4f) Fx.Electric(ff.Rig.BonePos(B.HandR), Hack, 0.4f, 1); };
+            m.OnTick = (ff, u) =>
+            {
+                if (!ff.InStartup) return;
+                if (Random.value < 0.4f) Fx.Electric(ff.Rig.BonePos(B.HandR), Hack, 0.4f, 1);
+                // code spins up around the casting hand before the upload
+                if (Random.value < 0.5f) Fx.Glyph(ff.Rig.BonePos(B.HandR) + Random.insideUnitSphere * 0.25f, Vector3.up * 0.4f, Hack, 0.1f, 0.35f);
+            };
             f.StartMove(m);
             f.Shout("Рэйна: «Системный шок.»");
             return true;
@@ -280,6 +287,7 @@ namespace Kagegan
                     if (v == null || !v.Alive || v.Team == ff.Team || v.Team == Team.Neutral) continue;
                     if (KMath.Flat(v.transform.position - ff.transform.position).magnitude > 13f) continue;
                     Fx.Lightning(ff.Center, v.Center, Over, 0.08f, 0.35f);
+                    Fx.HackStream(ff.Center, v.Center, Over, 5, 0.35f);
                     // goes through the normal hit path: dodges, invulnerability, armor, stats and KO all apply
                     var h = new HitInfo
                     {
@@ -315,7 +323,12 @@ namespace Kagegan
             CameraRig.Cinematic(c + Vector3.up * 1.6f, view + Vector3.back * 0.25f, 7f, 1.5f, 3.4f);
             f.Anim.Play(Clip.Hold(PoseLib.Charge, 0.05f, 0.45f, 0.1f));
             Sfx.Play(SfxId.Charge, 1f, 1.3f);
-            for (int k = 0; k < 8; k++) { Fx.Electric(f.Center + Random.insideUnitSphere * 0.5f, Wire, 0.7f, 1); yield return new WaitForSeconds(0.04f); }
+            for (int k = 0; k < 8; k++)
+            {
+                Fx.Electric(f.Center + Random.insideUnitSphere * 0.5f, Wire, 0.7f, 1);
+                if (k % 2 == 0) Fx.HackStream(f.Center, t.Center, Hack, 4, 0.3f); // Deep Link: jacking into the target first
+                yield return new WaitForSeconds(0.04f);
+            }
             t.ApplyHack(5f);
 
             // wires from every direction while Reina blinks around the target

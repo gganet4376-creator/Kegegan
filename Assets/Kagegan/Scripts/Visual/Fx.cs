@@ -14,7 +14,7 @@ namespace Kagegan
         ParticleSystem sparks, smoke, fire, debris, glow, leaves;
         Material wireMat; // textured monowire (razor core, discharge filaments, energy packets); scrolls hand -> tip
         // flipbook / textured systems built from imported CC0 VFX textures (null when a texture is missing)
-        ParticleSystem slashFlip, hitStar, hitBurst, electric, flames, dirtPs;
+        ParticleSystem slashFlip, hitStar, hitBurst, electric, flames, dirtPs, glyphs;
         ParticleSystem ringGold, ringEnergy, ringVoid, ringLightning, ringFire, fireBurst, explosionFlip, groundRing, puffWhite, puffBlack, puffFire, flashPs;
         readonly List<Anim> anims = new List<Anim>(64);
         Pool<MeshRenderer> ringPool, slashPool, crackPool, spherePool;
@@ -23,7 +23,7 @@ namespace Kagegan
         MaterialPropertyBlock mpb;
         static readonly int IdColor = Shader.PropertyToID("_Color");
 
-        enum Kind { Ring, Slash, Crack, Bolt, Sphere, Wire }
+        enum Kind { Ring, Slash, Crack, Bolt, Sphere, Wire, Scan }
 
         class Anim
         {
@@ -140,6 +140,20 @@ namespace Kagegan
                 wireMat.mainTextureScale = new Vector2(0.55f, 1f); // one texture repeat every ~1.8 m of wire
             }
             wirePool = new Pool<LineRenderer>(MakeWire, 6);
+            // netrunner data glyphs (hex digits / code symbols, 4x4 sheet): upright, constant size, flicker out
+            glyphs = MakeFlip("Glyphs", "hack_glyphs", 4, 4, 0, true, 160, false);
+            if (glyphs != null)
+            {
+                var gm = glyphs.main; gm.startRotation = new ParticleSystem.MinMaxCurve(0f);
+                var glim = glyphs.limitVelocityOverLifetime; glim.enabled = false;
+                var grol = glyphs.rotationOverLifetime; grol.enabled = false;
+                var gsol = glyphs.sizeOverLifetime; gsol.size = new ParticleSystem.MinMaxCurve(1f, new AnimationCurve(new Keyframe(0, 1.25f), new Keyframe(0.12f, 1f), new Keyframe(1, 0.9f)));
+                var gcol = glyphs.colorOverLifetime;
+                var gg = new Gradient();
+                gg.SetKeys(new[] { new GradientColorKey(Color.white, 0), new GradientColorKey(Color.white, 1) },
+                           new[] { new GradientAlphaKey(0f, 0f), new GradientAlphaKey(1f, 0.06f), new GradientAlphaKey(0.85f, 0.6f), new GradientAlphaKey(0.3f, 0.8f), new GradientAlphaKey(0.6f, 0.86f), new GradientAlphaKey(0f, 1f) });
+                gcol.color = gg;
+            }
         }
 
         ParticleSystem MakePS(string name, Material m, int max, float gravity, bool stretch)
@@ -435,6 +449,51 @@ namespace Kagegan
                 EmitF(inst.electric, pos + Random.insideUnitSphere * size * 0.3f, Vector3.zero, Color.Lerp(Color.white, c, 0.5f), size * Random.Range(0.7f, 1.2f), Random.Range(0.08f, 0.16f));
         }
 
+        /// <summary>One floating data glyph (hex digit / code symbol), always upright.</summary>
+        public static void Glyph(Vector3 pos, Vector3 vel, Color c, float size, float life)
+        {
+            if (inst == null || inst.glyphs == null) return;
+            EmitF(inst.glyphs, pos, vel, Color.Lerp(Color.white, c, 0.7f), size, life, 0f);
+        }
+
+        /// <summary>Quickhack upload: a stream of data glyphs flies from the netrunner's hand into the target.</summary>
+        public static void HackStream(Vector3 from, Vector3 to, Color c, int count, float travel = 0.28f)
+        {
+            if (inst == null) return;
+            int n = Scaled(count);
+            Vector3 d = to - from;
+            for (int i = 0; i < n; i++)
+            {
+                // staggered along the path so the stream reads as packets in flight, not one clump
+                float k = Random.value * 0.6f;
+                Vector3 p = from + d * k + Random.insideUnitSphere * 0.12f;
+                float life = travel * (1f - k) + Random.Range(0.02f, 0.08f);
+                Glyph(p, (to - p) / Mathf.Max(0.05f, life), c, Random.Range(0.11f, 0.17f), life);
+            }
+            if (inst.glyphs == null) Electric(to, c, 0.6f, 1);
+        }
+
+        /// <summary>Hacked status: glyphs rise around the fighter's body.</summary>
+        public static void HackAura(Vector3 feet, float height, Color c, int count = 1)
+        {
+            if (inst == null) return;
+            for (int i = 0; i < count; i++)
+            {
+                Vector2 ring = Random.insideUnitCircle.normalized * Random.Range(0.3f, 0.5f);
+                Vector3 p = feet + new Vector3(ring.x, Random.Range(0.2f, height * 0.9f), ring.y);
+                Glyph(p, new Vector3(0f, Random.Range(0.35f, 0.7f), 0f), c, Random.Range(0.09f, 0.14f), Random.Range(0.45f, 0.8f));
+            }
+        }
+
+        /// <summary>Scan ring sweeping up a fighter's body (follows them while they move).</summary>
+        public static void Scan(Transform target, float height, float radius, Color color, float life = 0.45f)
+        {
+            if (inst == null || target == null) return;
+            var r = inst.ringPool.Get();
+            r.transform.SetPositionAndRotation(target.position, Quaternion.identity);
+            inst.anims.Add(new Anim { kind = Kind.Scan, c = r, life = life, size0 = radius, size1 = height, color = color, follow = target, from = target.position });
+        }
+
         public static void Glow(Vector3 pos, Color c, float size, float life)
         {
             if (inst == null) return;
@@ -620,11 +679,16 @@ namespace Kagegan
             Vector3 side = Vector3.Cross(Vector3.up, dir / Mathf.Max(0.01f, len));
             if (side.sqrMagnitude < 0.01f) side = Vector3.right;
             float bend = sweep * len * 0.22f * (u < 0.35f ? 1f - u / 0.35f : (u - 0.35f) * 1.4f);
+            // a whip wave runs from the hand to the tip, perpendicular to the swing, and dies down after the snap
+            Vector3 lift = Vector3.Cross(dir / Mathf.Max(0.01f, len), side);
+            float waveAmp = len * 0.045f * (u < 0.35f ? 1f : Mathf.Max(0f, 1f - (u - 0.35f) * 2.2f));
             for (int i = 0; i < WireSegs; i++)
             {
-                float k = (float)i / (WireSegs - 1) * ext;
-                float arc = Mathf.Sin(k / Mathf.Max(0.01f, ext) * Mathf.PI);
-                Vector3 p = a + dir * k + side * bend * arc + Vector3.up * (-0.08f * len * arc * (1f - ext));
+                float t = (float)i / (WireSegs - 1);
+                float k = t * ext;
+                float arc = Mathf.Sin(t * Mathf.PI);
+                float wave = Mathf.Sin((t * 1.6f - u * 4.5f) * Mathf.PI * 2f) * arc * waveAmp;
+                Vector3 p = a + dir * k + side * bend * arc + lift * wave + Vector3.up * (-0.08f * len * arc * (1f - ext));
                 lr.SetPosition(i, p);
             }
         }
@@ -669,6 +733,20 @@ namespace Kagegan
                         r.SetPropertyBlock(mpb);
                         break;
                     }
+                    case Kind.Scan:
+                    {
+                        // body scan: a thin ring sweeps from the feet to the head of the hacked fighter
+                        var r = (MeshRenderer)a.c;
+                        Vector3 basePos = a.follow != null ? a.follow.position : a.from;
+                        float e = u * u * (3f - 2f * u);
+                        r.transform.position = basePos + Vector3.up * Mathf.Lerp(0.05f, a.size1, e);
+                        r.transform.localScale = Vector3.one * a.size0 * (1f + 0.12f * Mathf.Sin(u * Mathf.PI));
+                        float sf = Mathf.Sin(u * Mathf.PI);
+                        c *= sf * (0.8f + 0.2f * Random.value);
+                        mpb.SetColor(IdColor, c);
+                        r.SetPropertyBlock(mpb);
+                        break;
+                    }
                     case Kind.Crack:
                     {
                         var r = (MeshRenderer)a.c;
@@ -694,6 +772,7 @@ namespace Kagegan
                         {
                             a.size1 = 1f;
                             Electric(tip, c, 0.55f, 1);
+                            Sfx.Play(SfxId.Clash, 0.35f, 2.1f); // the whip-crack when the filament goes taut
                             Glow(tip, Color.Lerp(Color.white, c, 0.5f), 0.9f, 0.12f);
                             int n = Scaled(6);
                             for (int k = 0; k < n; k++)
@@ -717,7 +796,8 @@ namespace Kagegan
                 {
                     switch (a.kind)
                     {
-                        case Kind.Ring: ringPool.Release((MeshRenderer)a.c); break;
+                        case Kind.Ring:
+                        case Kind.Scan: ringPool.Release((MeshRenderer)a.c); break;
                         case Kind.Sphere: spherePool.Release((MeshRenderer)a.c); break;
                         case Kind.Slash: slashPool.Release((MeshRenderer)a.c); break;
                         case Kind.Crack: crackPool.Release((MeshRenderer)a.c); break;
@@ -739,7 +819,7 @@ namespace Kagegan
             inst.ringPool.ReleaseAll(); inst.slashPool.ReleaseAll(); inst.crackPool.ReleaseAll(); inst.spherePool.ReleaseAll(); inst.boltPool.ReleaseAll(); inst.wirePool.ReleaseAll();
             inst.sparks.Clear(); inst.smoke.Clear(); inst.fire.Clear(); inst.debris.Clear(); inst.glow.Clear();
             foreach (var ps in new[] { inst.ringGold, inst.ringEnergy, inst.ringVoid, inst.ringLightning, inst.ringFire, inst.fireBurst, inst.explosionFlip, inst.groundRing, inst.puffWhite, inst.puffBlack, inst.puffFire, inst.flashPs,
-                                       inst.slashFlip, inst.hitStar, inst.hitBurst, inst.electric, inst.flames, inst.dirtPs })
+                                       inst.slashFlip, inst.hitStar, inst.hitBurst, inst.electric, inst.flames, inst.dirtPs, inst.glyphs })
                 if (ps != null) ps.Clear();
         }
 

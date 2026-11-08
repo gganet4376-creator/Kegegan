@@ -834,6 +834,8 @@ namespace Kagegan
             if (IsBoss) seconds *= 0.45f; // bosses keep fighting: short lock only
             HackedUntil = Mathf.Max(HackedUntil, Time.time + seconds);
             Flash(new Color(0.55f, 1f, 0.35f));
+            Fx.Scan(transform, Height, BodyRadius + 0.25f, new Color(0.55f, 1f, 0.35f), 0.5f);
+            Fx.HackAura(transform.position, Height, new Color(0.55f, 1f, 0.35f), 4);
             if (IsPlayer) Hud.Popup("ВЗЛОМ", new Color(0.55f, 1f, 0.35f));
         }
 
@@ -842,6 +844,7 @@ namespace Kagegan
             if (!Alive) return;
             if (IsBoss) { seconds *= 0.5f; slow = Mathf.Lerp(slow, 1f, 0.5f); }
             OverloadUntil = Mathf.Max(OverloadUntil, Time.time + seconds);
+            Fx.Scan(transform, Height, BodyRadius + 0.3f, new Color(1f, 0.3f, 0.75f), 0.55f);
             ApplyDrain(source, IsBoss ? 3f : 6f, seconds, slow);
         }
 
@@ -850,6 +853,9 @@ namespace Kagegan
             if (!Hacked && !Overloaded) return;
             if (Random.value < (GraphicsQuality.Current >= GraphicsPreset.High ? 0.18f : 0.08f))
                 Fx.Electric(Center + Random.insideUnitSphere * 0.45f, Overloaded ? new Color(1f, 0.3f, 0.75f) : new Color(0.55f, 1f, 0.35f), 0.5f, 1);
+            // hacked fighters leak data: glyphs drift up around the body (rate in glyphs per second, frame-rate independent)
+            if (Random.value < Time.deltaTime * 6f * GraphicsQuality.ParticleMul)
+                Fx.HackAura(transform.position, Height, Overloaded ? new Color(1f, 0.3f, 0.75f) : new Color(0.55f, 1f, 0.35f));
         }
 
         // ================== death ==================
