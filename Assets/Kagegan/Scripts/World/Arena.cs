@@ -759,18 +759,18 @@ namespace Kagegan
         }
 
         // ---- ground ----
-        // High/Ultra: photo-textured ground (Poly Haven, CC0) in its own mesh with the Surface shader
+        // photo-textured ground (Poly Haven, CC0) in its own mesh with the Surface shader (lite variant on Low/Medium)
         MeshBuilder groundMb;
         Material groundMat;
 
-        /// <summary>Photo ground for High/Ultra. photo = texture set in Resources/Kagegan/Ground (ground_&lt;photo&gt;_diff/_nor),
+        /// <summary>Photo ground (full on High/Ultra, lite on Low/Medium). photo = texture set in Resources/Kagegan/Ground (ground_&lt;photo&gt;_diff/_nor),
         /// mean = that photo's average colour (so it can be tinted towards the arena palette).</summary>
         void PhotoGround(string photo, Color palette, Color mean, float tile, float wet = 0f, float tintAmount = 0.7f)
         {
-            if (!Mat.PhotoSurfaces) return;
+            if (!Mat.GroundTextures) return;
             var diff = Resources.Load<Texture2D>("Kagegan/Ground/ground_" + photo + "_diff");
-            var nor = Resources.Load<Texture2D>("Kagegan/Ground/ground_" + photo + "_nor");
-            groundMat = Mat.Surface("Ground_" + photo, diff, nor, Mat.TintTowards(palette, mean, tintAmount), tile, 1f, wet);
+            var nor = Mat.PhotoSurfaces ? Resources.Load<Texture2D>("Kagegan/Ground/ground_" + photo + "_nor") : null; // lite ground skips the normal map
+            groundMat = Mat.GroundSurface("Ground_" + photo, diff, nor, Mat.TintTowards(palette, mean, tintAmount), tile, 1f, wet);
             if (groundMat != null) groundMb = new MeshBuilder();
         }
 
@@ -1232,12 +1232,12 @@ namespace Kagegan
         readonly List<Group> sectors = new List<Group>();
         readonly List<Group> risers = new List<Group>();
 
-        Material tileMat; // photo stone (High/Ultra) or null for the toon tiles
+        Material tileMat; // photo stone (lite on Low/Medium) or null for the toon tiles
 
         public void Build()
         {
-            if (Mat.PhotoSurfaces)
-                tileMat = Mat.Surface("MoonTiles", Resources.Load<Texture2D>("Kagegan/Ground/ground_moon_diff"), Resources.Load<Texture2D>("Kagegan/Ground/ground_moon_nor"),
+            if (Mat.GroundTextures)
+                tileMat = Mat.GroundSurface("MoonTiles", Resources.Load<Texture2D>("Kagegan/Ground/ground_moon_diff"), Mat.PhotoSurfaces ? Resources.Load<Texture2D>("Kagegan/Ground/ground_moon_nor") : null,
                     Mat.TintTowards(new Color(0.82f, 0.82f, 0.905f), new Color(0.399f, 0.335f, 0.28f), 0.6f), 3.2f, 0.6f);
             var inner = new MeshBuilder();
             var sectorMb = new MeshBuilder[8];

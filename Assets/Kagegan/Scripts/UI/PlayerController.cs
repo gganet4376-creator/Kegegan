@@ -55,7 +55,7 @@ namespace Kagegan
                 case "ctx":
                     if (!down) break;
                     if (F.CanBreakFree) F.Press(Cmd.Dodge);   // every tap fills the struggle meter
-                    else F.TryTrip();
+                    else if (!F.TryTrip()) F.TryMountNearby();
                     break;
             }
         }
@@ -280,7 +280,8 @@ namespace Kagegan
                 h.Label.text = F.Kit.CanFinish(F.Target) ? "ДОБИТЬ" : F.State == FState.Mount ? "Добить" : "Мощный";
             if (Touch.Buttons.TryGetValue("grab", out var g))
                 g.Label.text = F.CanMountTarget ? "Верхом" : "Захват";
-            Touch.SetContext(AutoOn ? null : F.CanBreakFree ? "Вырваться" : F.CanTrip ? "Подножка" : null);
+            Touch.SetContext(AutoOn ? null : F.CanBreakFree ? "Вырваться" : F.CanTrip ? "Подножка"
+                : F.MountCandidate != null ? "Лечь и бить" : null);
         }
 
         void OnDisable()

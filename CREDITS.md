@@ -64,6 +64,9 @@
 - Дождь — kresiek-the-furry, «AMB Rain Loop 1» и «AMB Rain Loop 2», CC0 — https://opengameart.org/content/amb-rain-loop-1 , https://opengameart.org/content/amb-rain-loop-2 (обрезано до бесшовных петель amb_rain / amb_rain_heavy)
 Лицензия CC BY 3.0: https://creativecommons.org/licenses/by/3.0/
 
+## Магические круги (CC0)
+- Luke.RUSTLTD, «Summoning circles», CC0 — https://opengameart.org/content/summoning-circles (circle4/6/7 → rune_circle4/6/7: инвертированы, добавлено свечение; зоны атак босса)
+
 ## Шрифт (SIL Open Font License 1.1)
 - Russo One — Jovanny Lemonad — https://fonts.google.com/specimen/Russo+One (лицензия: Resources/Kagegan/Fonts/OFL.txt)
 

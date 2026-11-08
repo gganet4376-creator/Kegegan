@@ -1172,10 +1172,41 @@ namespace Kagegan
 
         public bool CanMountTarget => IsPlayer && CanMount(Target);
 
-        bool CanMount(Fighter t)
+        bool CanMount(Fighter t, float range = 2.2f)
         {
-            return t != null && t.Alive && t.Team != Team && t.State == FState.Knockdown && Grounded && State != FState.Mount
-                   && KMath.Flat(t.transform.position - transform.position).magnitude < 2.2f;
+            return t != null && t.Alive && t.Team != Team && t.Team != Team.Neutral && t.State == FState.Knockdown && t.pinnedBy == null
+                   && Grounded && State != FState.Mount && CanAct
+                   && KMath.Flat(t.transform.position - transform.position).magnitude < range;
+        }
+
+        /// <summary>The closest knocked-down enemy the player can pounce on from here (the pounce arc covers a few metres).</summary>
+        public Fighter MountCandidate
+        {
+            get
+            {
+                if (!IsPlayer || State == FState.Mount || !Grounded || !CanAct) return null;
+                Fighter best = null;
+                float bd = 3.6f;
+                for (int i = 0; i < All.Count; i++)
+                {
+                    var o = All[i];
+                    if (o == null || o == this || !CanMount(o, bd)) continue;
+                    bd = KMath.Flat(o.transform.position - transform.position).magnitude;
+                    best = o;
+                }
+                return best;
+            }
+        }
+
+        /// <summary>Context button: jump onto the nearest downed enemy and start pounding.</summary>
+        public bool TryMountNearby()
+        {
+            var t = MountCandidate;
+            if (t == null) return false;
+            Target = t;
+            transform.rotation = Quaternion.LookRotation(KMath.Flat(t.transform.position - transform.position).normalized + transform.forward * 0.001f);
+            BeginMount(t);
+            return true;
         }
 
         void BeginMount(Fighter t)

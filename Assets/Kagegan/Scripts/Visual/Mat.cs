@@ -89,6 +89,26 @@ namespace Kagegan
             return m;
         }
 
+        /// <summary>Ground and floor tiles are photo-textured on every preset: Low/Medium get the cheap "lite" variant
+        /// (albedo only: no normal map, anti-tiling, puddle ripples or sky reflection), High/Ultra the full one.</summary>
+        public static bool GroundTextures => surfaceShader != null && surfaceShader.isSupported;
+
+        /// <summary>Ground material: the full Surface on High/Ultra, the lite variant below. Null if the shader is unavailable.</summary>
+        public static Material GroundSurface(string name, Texture2D albedo, Texture2D normal, Color tint, float tile, float antiTile = 0f, float wet = 0f)
+        {
+            if (!GroundTextures || albedo == null) return null;
+            bool lite = !PhotoSurfaces;
+            var m = new Material(surfaceShader) { name = name + (lite ? "_Lite" : ""), enableInstancing = true };
+            m.SetTexture("_MainTex", albedo);
+            if (normal != null && !lite) m.SetTexture("_BumpMap", normal);
+            m.SetColor("_Color", tint);
+            m.SetFloat("_ObjUV", tile);
+            m.SetFloat("_AntiTile", lite ? 0f : antiTile);
+            m.SetFloat("_Wet", wet);
+            if (lite) m.EnableKeyword("KAGE_SURF_LITE");
+            return m;
+        }
+
         /// <summary>Tint that pulls a photo texture's average colour towards the arena palette (amount 0..1).</summary>
         public static Color TintTowards(Color palette, Color textureMean, float amount)
         {

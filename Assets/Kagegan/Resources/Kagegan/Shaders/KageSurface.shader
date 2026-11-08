@@ -1,4 +1,4 @@
-// Photo-textured surfaces for the High and Ultra presets: arena ground, moon temple tiles and the
+// Photo-textured surfaces (full on High/Ultra; KAGE_SURF_LITE = albedo-only ground on Low/Medium): arena ground, moon temple tiles and the
 // photoscanned Poly Haven props. Same global lighting, fog and dynamic lights as Kagegan/Toon, but with
 // albedo + normal maps, a softer light ramp, anti-tiling and (City) wet asphalt with puddles that
 // mirror the sky and rain ripples.
@@ -46,6 +46,7 @@ Shader "Kagegan/Surface"
             #pragma vertex vert
             #pragma fragment frag
             #pragma multi_compile_instancing
+            #pragma multi_compile_local __ KAGE_SURF_LITE
             #pragma target 3.0
 
             float4 _KageLightDir;
@@ -106,6 +107,9 @@ Shader "Kagegan/Surface"
             void SampleSurf(float2 uv, out half4 alb, out half3 nt)
             {
                 alb = tex2D(_MainTex, uv);
+            #if defined(KAGE_SURF_LITE)
+                nt = half3(0, 0, 1); // Low/Medium: one texture fetch, flat normal
+            #else
                 nt = UnpackNormal(tex2D(_BumpMap, uv));
                 if (_AntiTile > 0)
                 {
@@ -115,6 +119,7 @@ Shader "Kagegan/Surface"
                     nt = lerp(nt, UnpackNormal(tex2D(_BumpMap, uv2)), m);
                 }
                 nt.xy *= _BumpScale;
+            #endif
             }
 
             half3 SkyLookup(half3 r)
@@ -162,6 +167,9 @@ Shader "Kagegan/Surface"
                 // wet asphalt: a damp sheen everywhere, puddles where the noise dips, rain rings inside them
                 half puddle = 0, wet = 0;
                 half wetAmt = max(_Wet, _KageWet * saturate(gn.y * 1.5 + 0.35)); // walls dry faster than floors
+            #if defined(KAGE_SURF_LITE)
+                if (wetAmt > 0) { wet = 0.4 * wetAmt; albedo *= lerp(1.0, 0.6, wet); } // just darken: no puddles or ripples
+            #else
                 if (wetAmt > 0)
                 {
                     float2 p = i.wpos.xz;
@@ -181,6 +189,7 @@ Shader "Kagegan/Surface"
                     half3 calm = normalize(lerp(n, gn, 0.85));
                     n = normalize(lerp(n, calm, puddle) + half3(dv.x, 0, dv.y) / max(d, 0.01) * ring * 0.12 * puddle);
                 }
+            #endif
 
                 // settled snow: fills the up-facing parts first (normal map gives it drifts), hides puddles
                 if (_KageSnow > 0)
@@ -215,12 +224,14 @@ Shader "Kagegan/Surface"
                     }
                 }
 
+            #if !defined(KAGE_SURF_LITE)
                 if (wetAmt > 0)
                 {
                     half fres = 0.04 + 0.96 * pow(1.0 - saturate(dot(n, vdir)), 5.0);
                     half3 refl = SkyLookup(reflect(-vdir, n));
                     lit = lerp(lit, refl, saturate(fres * lerp(0.35, 1.0, puddle) * wet + puddle * 0.25));
                 }
+            #endif
 
                 half glow = max(_KageGlow, 1.0);
                 half3 col = lerp(lit, i.color.rgb * 1.35 * glow, i.color.a); // glowing inlays, same brightness as Toon

@@ -112,7 +112,7 @@ namespace Kagegan
             puffFire = MakeFlip("PuffFire", "puff_fire", 2, 2, 0, true, 200, false);
             flashPs = MakeFlip("Flash", "flash", 2, 2, 0, true, 60, false);
             // hand-painted CC0 sheets: slash arcs (6 frames x 5 styles) and hit stars that burst and fade on their own
-            slashFlip = MakeFlip("Slash", "slash_sheet", 6, 5, 6, true, 24, false, true);
+            slashFlip = MakeFlip("Slash", "slash_sheet", 6, 3, 6, true, 24, false, true); // rows 0-2: crescent arcs only (the spiky rows read as white paper)
             hitStar = MakeFlip("HitStar", "hit_star", 4, 4, 16, true, 40, false);
             hitBurst = MakeFlip("HitBurst", "hit_burst", 4, 4, 16, true, 24, false);
             // Kenney particle pack (CC0): electric arcs, wispy flames, flying dirt, star sparks, radial glow
@@ -521,6 +521,13 @@ namespace Kagegan
             inst.anims.Add(new Anim { kind = Kind.Sphere, c = r, life = life, size0 = size * 0.3f, size1 = size, color = color });
         }
 
+        /// <summary>Saturated, slightly dimmed tint so additive arcs keep the move colour instead of washing out to white.</summary>
+        static Color SlashTint(Color c)
+        {
+            Color t = Color.Lerp(Color.white, c, 0.82f);
+            return new Color(t.r, t.g, t.b, 0.75f);
+        }
+
         /// <summary>Crescent swing trail in front of the attacker.</summary>
         public static void Slash(Transform owner, Vector3 localOffset, Vector3 euler, Color color, float size, float life = 0.18f)
         {
@@ -530,7 +537,7 @@ namespace Kagegan
                 // painted swing arc; mirrored when the fighter faces left on the side-on camera
                 Vector3 p = owner.TransformPoint(localOffset);
                 float rot = euler.z + (owner.forward.x < 0f ? 180f : 0f) + Random.Range(-15f, 15f);
-                EmitF(inst.slashFlip, p, owner.forward * 0.8f, Color.Lerp(Color.white, color, 0.5f), size * 1.7f, Mathf.Max(0.22f, life * 1.6f), rot);
+                EmitF(inst.slashFlip, p, owner.forward * 0.8f, SlashTint(color), size * 1.7f, Mathf.Max(0.22f, life * 1.6f), rot);
                 return;
             }
             var r = inst.slashPool.Get();
@@ -781,12 +788,34 @@ namespace Kagegan
             return mb.ToMesh("burst");
         }
 
+        /// <summary>Debris chunk: a jagged, flat-shaded shard (a lumpy octahedron) with light baked into the faces,
+        /// so flying and settled bits read as broken rock/wood instead of flat unlit cubes.</summary>
         static Mesh CubeMesh()
         {
             var mb = new MeshBuilder();
-            mb.SetColor(new Color32(255, 255, 255, 255));
-            mb.Box(Vector3.zero, Vector3.one);
-            return mb.ToMesh("cube");
+            Vector3[] p =
+            {
+                new Vector3(0.55f, 0.05f, 0.1f), new Vector3(-0.5f, -0.05f, -0.12f),
+                new Vector3(0.05f, 0.34f, -0.08f), new Vector3(-0.1f, -0.3f, 0.06f),
+                new Vector3(0.12f, 0.02f, 0.48f), new Vector3(-0.06f, 0.08f, -0.52f),
+            };
+            int[] f = { 0,2,4, 2,1,4, 1,3,4, 3,0,4, 2,0,5, 1,2,5, 3,1,5, 0,3,5 };
+            Vector3 light = new Vector3(0.35f, 0.85f, 0.25f).normalized;
+            for (int i = 0; i < f.Length; i += 3)
+            {
+                Vector3 a = p[f[i]], b = p[f[i + 1]], c = p[f[i + 2]];
+                Vector3 n = Vector3.Cross(b - a, c - a).normalized;
+                if (Vector3.Dot(n, a + b + c) < 0f) { var t = b; b = c; c = t; n = -n; }
+                byte v = (byte)(255f * Mathf.Lerp(0.5f, 1f, Vector3.Dot(n, light) * 0.5f + 0.5f));
+                var col = new Color32(v, v, v, 255);
+                int s = mb.V.Count;
+                foreach (var q in new[] { a, b, c })
+                {
+                    mb.V.Add(q); mb.N.Add(n); mb.C.Add(col); mb.UV.Add(Vector2.zero); mb.Bone.Add(0);
+                }
+                mb.T.Add(s); mb.T.Add(s + 1); mb.T.Add(s + 2);
+            }
+            return mb.ToMesh("chunk");
         }
     }
 }
