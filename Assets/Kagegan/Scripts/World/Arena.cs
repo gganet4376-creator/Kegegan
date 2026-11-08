@@ -792,7 +792,12 @@ namespace Kagegan
                     Vector3 p = new Vector3(Mathf.Cos(ang) * rr, 0, Mathf.Sin(ang) * rr);
                     float n = Mathf.PerlinNoise(p.x * 0.09f + seed, p.z * 0.09f);
                     Color c = Color.Lerp(a, b, n);
-                    if (rr > Radius + 2f) { c = Color.Lerp(c, edge, Mathf.Clamp01((rr - Radius - 2f) / 10f)); p.y = Mathf.Max(0, (rr - Radius - 6f) * 0.25f) * (0.6f + n); }
+                    if (rr > Radius + 2f)
+                    {
+                        c = Color.Lerp(c, edge, Mathf.Clamp01((rr - Radius - 2f) / 10f));
+                        // the rim rises into hills; a sunken floor (moon temple abyss) stays flat so it never pokes above the arena
+                        if (yOffset == 0f) p.y = Mathf.Max(0, (rr - Radius - 6f) * 0.25f) * (0.6f + n);
+                    }
                     p.y += yOffset;
                     if (photo) c = new Color(0.5f * c.r / Mathf.Max(0.05f, mid.r), 0.5f * c.g / Mathf.Max(0.05f, mid.g), 0.5f * c.b / Mathf.Max(0.05f, mid.b));
                     mb.V.Add(p); mb.N.Add(Vector3.up); mb.C.Add(Mat.C(c)); mb.UV.Add(Vector2.zero); mb.Bone.Add(0);
