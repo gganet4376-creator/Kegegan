@@ -148,6 +148,32 @@ namespace Kagegan
             if (d > 4f && d < 9f && r < 0.9f) { F.StartMove(F.Kit.DashAttack); return true; }
             return false;
         }
+
+        // the serpent never trades blows for long: it slips away after being hit and circles at mid range
+        protected override void Style(float d)
+        {
+            if (JustRecovered && d < 3.5f && Random.value < 0.6f)
+            {
+                moveDir = -DirToTarget + Vector3.Cross(Vector3.up, DirToTarget) * strafeSign;
+                F.SetMove(moveDir);
+                F.Press(Cmd.Dodge);
+                retreatUntil = Time.time + 0.7f;
+                return;
+            }
+            if (F.State != FState.Idle || Time.time < retreatUntil) return;
+            var t = F.Target;
+            if (d < 2.8f && t.State != FState.Hitstun && t.State != FState.Juggle && Random.value < 0.14f)
+            {
+                retreatUntil = Time.time + Random.Range(0.4f, 0.8f);
+                return;
+            }
+            if (d > 3.5f && d < 8f)
+            {
+                // slithering arc around the target instead of walking straight in
+                if (Random.value < 0.04f) strafeSign = -strafeSign;
+                moveDir = (Vector3.Cross(Vector3.up, DirToTarget) * strafeSign * 0.85f + DirToTarget * 0.35f).normalized;
+            }
+        }
     }
 
     // ======================================================================================
@@ -309,6 +335,8 @@ namespace Kagegan
             {
                 var k = (ThunderKit)F.Kit;
                 k.StormArmor = true;
+                if (k.Heavy != null) k.Heavy.Armor = true;
+                if (k.DashAttack != null) k.DashAttack.Armor = true;
                 F.DamageReduction = 0.2f;
                 F.SuperArmor = true;
                 // the city crumbles around the arena
@@ -334,6 +362,18 @@ namespace Kagegan
             if (Phase >= 1 && d > 3f && Tech(2)) return true;
             if (d > 3f && d < 8f) { F.StartMove(F.Kit.DashAttack); return true; }
             return false;
+        }
+
+        // Raiden never backs off: he charges straight in, closes distance with a flash step and breaks guards with throws
+        protected override void Style(float d)
+        {
+            var t = F.Target;
+            if (!F.CanAct || F.State == FState.Attack) return;
+            if (Time.time < retreatUntil) retreatUntil = 0f;
+            if (d > PreferredRange + 0.4f) moveDir = DirToTarget;
+            if (Phase >= 1 && d > 7f && Random.value < 0.2f && Tech(2)) return;
+            if (t.State == FState.Block && d < 2f && Random.value < 0.45f) { F.Press(Cmd.Grab); return; }
+            if (JustRecovered && d < 2.5f && Random.value < 0.5f) F.Press(Cmd.Heavy); // answers a combo with a heavy swing
         }
     }
 
@@ -554,6 +594,20 @@ namespace Kagegan
             if (d > 4f && Tech(0)) return true;
             if (d > 6f && Tech(4)) return true;
             return false;
+        }
+
+        // Seigetsu fights from range: backs away while casting and teleports out when cornered or after a combo
+        protected override void Style(float d)
+        {
+            var t = F.Target;
+            bool pressed = d < 2.4f && (t.State == FState.Attack || JustRecovered);
+            if (pressed && F.CanAct && Random.value < 0.4f + Phase * 0.1f && Tech(2)) return;
+            if (F.State != FState.Idle || Time.time < retreatUntil) return;
+            if (d < 5f && t.State != FState.Hitstun && t.State != FState.Juggle && t.State != FState.Knockdown && Random.value < 0.55f)
+            {
+                if (Random.value < 0.03f) strafeSign = -strafeSign;
+                moveDir = (-DirToTarget * 0.75f + Vector3.Cross(Vector3.up, DirToTarget) * strafeSign * 0.6f).normalized;
+            }
         }
     }
 }

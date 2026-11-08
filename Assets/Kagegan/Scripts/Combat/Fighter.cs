@@ -10,7 +10,7 @@ namespace Kagegan
     public class FighterStats
     {
         public float damageDealt, damageTaken;
-        public int hitsLanded, hitsTaken, parries, perfectDodges, maxCombo, kills, absorbs, finishers;
+        public int hitsLanded, hitsTaken, parries, perfectDodges, counters, maxCombo, kills, absorbs, finishers;
     }
 
     /// <summary>
@@ -54,6 +54,7 @@ namespace Kagegan
         public bool InActiveFrames => State == FState.Attack && CurMove != null && MoveTime >= CurMove.Startup && MoveTime < CurMove.Startup + CurMove.Active;
         public bool InStartup => State == FState.Attack && CurMove != null && MoveTime < CurMove.Startup;
         bool activeFired;
+        bool hitConfirm; // the current move has landed on someone
         bool swingSfxDone; // the whoosh leads the contact so the swing is heard before the impact
         // swept hit check: where the strike tip was on the previous checked frame of this move
         Vector3 prevTip;
@@ -266,7 +267,7 @@ namespace Kagegan
 
         void DoLight()
         {
-            if (CounterReady && Kit.Counter != null && Grounded) { counterUntil = 0f; StartMove(Kit.Counter); return; }
+            if (CounterReady && Kit.Counter != null && Grounded) { BeginCounter(); return; }
             if (!Grounded)
             {
                 var ac = Kit.AirChain;
@@ -287,10 +288,40 @@ namespace Kagegan
         {
             if (IsPlayer && Kit.CanFinish(Target)) { StartCoroutine(RunFinisher(Target)); return; }
             if (!Grounded) { if (Kit.AirFinisher != null) StartMove(Kit.AirFinisher); return; }
-            if (CounterReady && Kit.Counter != null) { counterUntil = 0f; StartMove(Kit.Counter); return; }
+            if (CounterReady && Kit.Counter != null) { BeginCounter(); return; }
             if (chain == Kit.LightChain && Time.time < chainOpenUntil && chainIndex >= 1 && Kit.Launcher != null) { StartMove(Kit.Launcher); return; }
             if (Kit.DashAttack != null && KMath.Flat(Velocity).magnitude > MoveSpeed * 0.8f) { StartMove(Kit.DashAttack); return; }
             if (Kit.Heavy != null) StartMove(Kit.Heavy);
+        }
+
+        // ================== counter-attack ==================
+        Fighter counterVictim; // who left the opening (dodged or parried attacker, guard-broken defender)
+        bool counterStrike;    // the current move is a counter: bonus damage on its first hit
+
+        void BeginCounter()
+        {
+            counterUntil = 0f;
+            var v = counterVictim;
+            counterVictim = null;
+            if (v != null && v.Alive && v != this)
+            {
+                Vector3 to = KMath.Flat(v.transform.position - transform.position);
+                float d = to.magnitude;
+                if (d > 1.6f && d < 5.5f && (IsPlayer || IsBoss))
+                {
+                    // step through the opening: appear at the victim's flank, already facing them
+                    float side = Vector3.Dot(v.transform.right, -to) >= 0f ? 1f : -1f;
+                    Vector3 spot = v.transform.position + v.transform.right * side * 1.05f - v.transform.forward * 0.25f;
+                    Fx.Smoke(Center, 0.5f, new Color(0.75f, 0.85f, 1f, 0.45f), 5);
+                    Teleport(spot);
+                    Fx.Smoke(Center, 0.5f, new Color(0.75f, 0.85f, 1f, 0.45f), 5);
+                }
+                Target = v;
+                FaceInstant(v.transform.position);
+            }
+            StartMove(Kit.Counter);
+            counterStrike = true;
+            Sfx.Play(SfxId.Whoosh, 0.7f, 1.25f);
         }
 
         void DoJump()
@@ -341,6 +372,8 @@ namespace Kagegan
             float k = Mathf.Clamp01(stateTimer / 0.32f);
             Vector3 v = dodgeDir * MoveSpeed * 2.3f * (0.4f + k);
             Velocity.x = v.x; Velocity.z = v.z;
+            // the tail of the dodge (after the invulnerable part) can be cut short by an attack
+            if (stateTimer < 0.08f && (buffered == Cmd.Light || buffered == Cmd.Heavy)) stateTimer = 0f;
             if (stateTimer <= 0f) { SetState(FState.Idle); ConsumeBuffer(); }
         }
 
@@ -373,6 +406,8 @@ namespace Kagegan
             chain = fromChain;
             chainIndex = index;
             chainOpenUntil = 0f;
+            counterStrike = false;
+            hitConfirm = false;
             SetState(FState.Attack);
             float speed = Kit != null ? Kit.SpeedMul : 1f;
             bool mocapPlayed = false;
@@ -442,6 +477,12 @@ namespace Kagegan
                 if (State != FState.Attack || CurMove != m) return;
             }
 
+            // hit-confirm: a strike that connected can be cancelled into a dodge, technique or ultimate right after its active frames
+            if (hitConfirm && t >= m.Startup + m.Active && (buffered == Cmd.Dodge || buffered == Cmd.Tech || buffered == Cmd.Ult))
+            {
+                chainOpenUntil = Time.time + 0.35f;
+                EndMove(); ConsumeBuffer(); return;
+            }
             if (t >= m.Total * m.CancelAt && t >= m.Startup + m.Active)
             {
                 chainOpenUntil = Time.time + 0.35f;
@@ -540,9 +581,21 @@ namespace Kagegan
                 if (dir.sqrMagnitude < 0.01f) dir = transform.forward;
                 var h = HitInfo.FromMove(this, m, b, dir);
                 h.Damage *= DamageMul * (Kit != null ? Kit.OutgoingMul(m) : 1f);
+                bool isCounter = counterStrike;
+                if (isCounter) { h.Damage *= 1.5f; h.Hitstun *= 1.3f; h.Unblockable = true; }
                 var res = f.ReceiveHit(ref h);
                 if (res == HitResult.Hit || res == HitResult.Armored)
                 {
+                    hitConfirm = true;
+                    if (isCounter)
+                    {
+                        counterStrike = false;
+                        Stats.counters++;
+                        TimeFx.HitStop(0.09f);
+                        CameraRig.Shake(0.22f);
+                        Fx.Hit(h.Point, new Color(1f, 0.85f, 0.4f), true);
+                        if (IsPlayer) { Haptics.Medium(); Hud.Popup("КОНТРУДАР!", new Color(1f, 0.8f, 0.3f)); }
+                    }
                     Anim.Recoil(m.Kind == HitKind.Light ? 0.4f : 0.9f);
                     m.OnHit?.Invoke(this, f);
                     if (m.Launch > 0f && Grounded) chaseUntil = Time.time + 0.7f;
@@ -593,6 +646,7 @@ namespace Kagegan
                 {
                     Stats.perfectDodges++;
                     counterUntil = Time.time + 1.1f;
+                    counterVictim = h.Attacker;
                     TimeFx.SlowMo(0.45f, 0.3f);
                     Fx.Smoke(Center, 0.6f, new Color(0.7f, 0.85f, 1f, 0.5f), 6);
                     Sfx.Play(SfxId.Teleport, 0.7f);
@@ -617,6 +671,7 @@ namespace Kagegan
                 {
                     Stats.parries++;
                     counterUntil = Time.time + 0.9f;
+                    counterVictim = h.Attacker;
                     Fx.Parry(h.Point);
                     Sfx.PlayAt(SfxId.Parry, h.Point, 1f);
                     TimeFx.HitStop(0.12f);
@@ -646,8 +701,23 @@ namespace Kagegan
                 {
                     Stamina = 0f;
                     Stun(1.2f);
+                    // the guard shatters: arms flung open, staggering back, and the attacker gets a free counter
+                    Anim.PlayMocap("Idle_Shield_Break", 1f, 0f, true, 1.15f, 0.05f);
+                    Anim.Glance(1.4f, -1f);
+                    knock = h.Dir * 3.2f / Weight;
                     Fx.Hit(Center, new Color(0.6f, 0.8f, 1f), true);
+                    Fx.Parry(Center + transform.forward * 0.3f);
+                    Fx.Smoke(transform.position, 0.8f, new Color(0.85f, 0.85f, 0.9f, 0.5f), 8);
                     Sfx.Play(SfxId.HeavyHit, 0.8f, 1.3f);
+                    Sfx.PlayAt(SfxId.Parry, Center, 0.7f);
+                    TimeFx.HitStop(0.1f);
+                    CameraRig.Shake(0.25f);
+                    if (IsPlayer) { Haptics.Medium(); Hud.FlashStamina(); }
+                    if (h.Attacker != null && h.Attacker != this)
+                    {
+                        h.Attacker.counterVictim = this;
+                        h.Attacker.GrantCounter(1.2f);
+                    }
                     if (IsPlayer || (h.Attacker != null && h.Attacker.IsPlayer)) Hud.Popup("ЗАЩИТА ПРОБИТА", new Color(1f, 0.5f, 0.3f));
                 }
                 return HitResult.Blocked;

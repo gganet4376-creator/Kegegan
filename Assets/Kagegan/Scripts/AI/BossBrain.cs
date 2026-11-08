@@ -62,7 +62,18 @@ namespace Kagegan
                 }
             }
             base.Think();
+            bool hurt = F.State == FState.Hitstun || F.State == FState.Juggle || F.State == FState.Knockdown || F.State == FState.GetUp || F.State == FState.Stunned;
+            JustRecovered = wasHurt && !hurt && F.CanAct;
+            wasHurt = hurt;
+            if (!transitioning && !busy && F.Target != null) Style(DistToTarget);
         }
+
+        /// <summary>Per-boss movement character applied on top of the shared brain (spacing, evasion, pressure).</summary>
+        protected virtual void Style(float d) { }
+
+        /// <summary>True on the first think after the boss recovers from a hit, a knockdown or a stun.</summary>
+        protected bool JustRecovered;
+        bool wasHurt;
 
         IEnumerator PhaseTransition(int p)
         {

@@ -28,6 +28,9 @@ namespace Kagegan
         float lastDealt;
 
         public static void Popup(string text, Color c) { if (inst != null) inst.ShowPopup(text, c); }
+        float staminaFlash;
+        /// <summary>Guard broken: the stamina bar flashes red.</summary>
+        public static void FlashStamina() { if (inst != null) inst.staminaFlash = 1f; }
         public static void Banner(string text, Color c) { if (inst != null) inst.ShowBanner(text, c); }
         public static void Line(string text) { if (inst != null) inst.ShowLine(text); }
         public static Hud Inst => inst;
@@ -173,6 +176,8 @@ namespace Kagegan
                 hpLag.fillAmount = Mathf.MoveTowards(hpLag.fillAmount, p.HpFrac, dt * 0.35f);
                 if (hpLag.fillAmount < hp.fillAmount) hpLag.fillAmount = hp.fillAmount;
                 stamina.fillAmount = p.Stamina / p.MaxStamina;
+                staminaFlash = Mathf.Max(0f, staminaFlash - dt * 0.8f);
+                stamina.color = staminaFlash > 0f ? Color.Lerp(new Color(0.55f, 0.85f, 0.3f), new Color(1f, 0.25f, 0.2f), staminaFlash * Mathf.PingPong(Time.unscaledTime * 8f, 1f) * 0.6f + staminaFlash * 0.4f) : new Color(0.55f, 0.85f, 0.3f);
                 chakra.fillAmount = p.Chakra / p.MaxChakra;
                 rage.fillAmount = p.Rage / 100f;
                 rage.color = p.Rage >= 100f ? Color.Lerp(new Color(1f, 0.6f, 0.1f), Color.white, Mathf.PingPong(Time.unscaledTime * 3f, 1f)) : new Color(1f, 0.6f, 0.1f);
