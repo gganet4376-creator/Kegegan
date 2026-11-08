@@ -76,6 +76,19 @@ namespace Kagegan
     }
 
     /// <summary>Round touch button with press feedback, cooldown radial and drag support for the layout editor.</summary>
+    /// <summary>Breathing ring used by the tutorial to point at a control.</summary>
+    public class HighlightPulse : MonoBehaviour
+    {
+        Image img;
+        void Awake() { img = GetComponent<Image>(); }
+        void Update()
+        {
+            float s = Mathf.Repeat(Time.unscaledTime * 1.3f, 1f);
+            transform.localScale = Vector3.one * (1f + s * 0.35f);
+            if (img != null) img.color = new Color(1f, 0.82f, 0.3f, 1f - s);
+        }
+    }
+
     public class TouchButton : MonoBehaviour, IPointerDownHandler, IPointerUpHandler, IDragHandler
     {
         public string Id;
@@ -274,6 +287,30 @@ namespace Kagegan
         }
 
         public void SetVisible(bool v) { Root.gameObject.SetActive(v); }
+
+        RectTransform highlight;
+
+        /// <summary>Tutorial: a pulsing gold ring around a button ("stick" = the joystick); null hides it.</summary>
+        public void Highlight(string id)
+        {
+            RectTransform target = null;
+            if (id == "stick") target = Stick != null ? Stick.Base : null;
+            else if (id != null && Buttons.TryGetValue(id, out var b)) target = (RectTransform)b.transform;
+            if (target == null) { if (highlight != null) highlight.gameObject.SetActive(false); return; }
+            if (highlight == null)
+            {
+                highlight = UIKit.Box(Root, "Highlight", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(100, 100));
+                var img = UIKit.Img(highlight, new Color(1f, 0.82f, 0.3f, 1f), UIKit.Ring);
+                img.raycastTarget = false;
+                highlight.gameObject.AddComponent<HighlightPulse>();
+            }
+            highlight.SetParent(target, false);
+            highlight.anchorMin = highlight.anchorMax = new Vector2(0.5f, 0.5f);
+            highlight.anchoredPosition = Vector2.zero;
+            highlight.sizeDelta = target.sizeDelta * 1.25f;
+            highlight.SetAsLastSibling();
+            highlight.gameObject.SetActive(true);
+        }
 
         /// <summary>Shows the context button with the given caption (pulsing), or hides it when caption is null.</summary>
         public void SetContext(string caption)

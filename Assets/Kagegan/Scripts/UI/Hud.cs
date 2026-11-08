@@ -35,6 +35,111 @@ namespace Kagegan
         public static void Line(string text) { if (inst != null) inst.ShowLine(text); }
         public static Hud Inst => inst;
 
+        // ---- move names (techniques / ultimates), combo tiers, tutorial hints ----
+        RectTransform moveRt, enemyMoveRt, hintRt;
+        CanvasGroup moveGroup, enemyMoveGroup, hintGroup;
+        Text moveText, enemyMoveText, comboTier, hintText;
+        Image moveStripe, enemyMoveStripe, hintBg;
+        Vector2 moveBase, enemyMoveBase;
+        float moveT, enemyMoveT, moveDur, enemyMoveDur, hintAlpha, hintDoneT;
+        bool hintOn;
+        int lastTier = -1;
+
+        /// <summary>Caption with the name of a technique or ultimate as it is cast (player: left, boss: right).</summary>
+        public static void MoveName(string name, Color c, bool enemy, bool ult)
+        {
+            if (inst == null || inst.moveRt == null) return;
+            float dur = ult ? 2.2f : 1.5f;
+            var text = enemy ? inst.enemyMoveText : inst.moveText;
+            var stripe = enemy ? inst.enemyMoveStripe : inst.moveStripe;
+            text.text = ult ? name.ToUpperInvariant() : name;
+            text.fontSize = ult ? 58 : 46;
+            text.color = ult ? Color.Lerp(c, Color.white, 0.35f) : Color.white;
+            stripe.color = new Color(c.r, c.g, c.b, 0.95f);
+            if (enemy) { inst.enemyMoveT = inst.enemyMoveDur = dur; }
+            else { inst.moveT = inst.moveDur = dur; }
+        }
+
+        /// <summary>Tutorial hint at the bottom of the screen; null hides it.</summary>
+        public static void Hint(string text)
+        {
+            if (inst == null || inst.hintRt == null) return;
+            inst.hintOn = text != null;
+            if (text != null) { inst.hintText.text = text; inst.hintDoneT = 0f; }
+        }
+
+        /// <summary>The current hint was followed: it flashes green before the next one.</summary>
+        public static void HintDone()
+        {
+            if (inst == null || inst.hintRt == null) return;
+            inst.hintDoneT = 1f;
+            Sfx.Play(SfxId.Click, 0.6f, 1.3f);
+        }
+
+        void BuildCaptions()
+        {
+            comboTier = UIKit.Label(UIKit.Box(comboRt, "Tier", new Vector2(0.5f, 0f), new Vector2(0, -6), new Vector2(420, 50)), "", 34, Color.white, TextAnchor.MiddleCenter, FontStyle.BoldAndItalic);
+            comboTier.gameObject.AddComponent<Outline>().effectColor = new Color(0f, 0f, 0f, 0.7f);
+            comboText.gameObject.AddComponent<Outline>().effectColor = new Color(0f, 0f, 0f, 0.6f);
+            MakeCaption(new Vector2(-470, -20), false, out moveRt, out moveGroup, out moveText, out moveStripe);
+            MakeCaption(new Vector2(0, 0), true, out enemyMoveRt, out enemyMoveGroup, out enemyMoveText, out enemyMoveStripe);
+            // boss caption: top centre under the boss bar, clear of the right-hand button column
+            enemyMoveRt.anchorMin = enemyMoveRt.anchorMax = new Vector2(0.5f, 1f);
+            enemyMoveRt.sizeDelta = new Vector2(620, 96);
+            enemyMoveRt.anchoredPosition = new Vector2(0, -400);
+            foreach (RectTransform c in enemyMoveRt) if (c.name == "Band") c.sizeDelta = new Vector2(620, 84);
+            moveBase = moveRt.anchoredPosition; enemyMoveBase = enemyMoveRt.anchoredPosition;
+
+            // top centre, between the joystick side and the button column
+            hintRt = UIKit.Box(Root, "Hint", new Vector2(0.5f, 1f), new Vector2(-100, -300), new Vector2(820, 112));
+            hintGroup = hintRt.gameObject.AddComponent<CanvasGroup>();
+            hintGroup.blocksRaycasts = false; hintGroup.interactable = false;
+            hintBg = UIKit.Img(hintRt, new Color(0.04f, 0.05f, 0.08f, 0.78f));
+            var edge = UIKit.Box(hintRt, "Edge", new Vector2(0.5f, 1f), new Vector2(0, -2), new Vector2(820, 4));
+            UIKit.Img(edge, UIKit.Gold);
+            hintText = UIKit.Label(hintRt, "", 32, UIKit.Paper, TextAnchor.MiddleCenter, FontStyle.Bold);
+            hintText.raycastTarget = false;
+            hintGroup.alpha = 0f;
+        }
+
+        void MakeCaption(Vector2 pos, bool right, out RectTransform rt, out CanvasGroup g, out Text t, out Image stripe)
+        {
+            rt = UIKit.Box(Root, right ? "EnemyMoveName" : "MoveName", new Vector2(0.5f, 0.5f), pos, new Vector2(760, 96));
+            g = rt.gameObject.AddComponent<CanvasGroup>();
+            g.blocksRaycasts = false; g.interactable = false; g.alpha = 0f;
+            // ink brush band: dark slanted bar with a coloured edge on the outer side
+            var band = UIKit.Box(rt, "Band", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(760, 84));
+            UIKit.Img(band, new Color(0.03f, 0.03f, 0.05f, 0.72f));
+            band.localRotation = Quaternion.Euler(0, 0, right ? -2.5f : 2.5f);
+            var s = UIKit.Box(rt, "Stripe", new Vector2(right ? 1f : 0f, 0.5f), new Vector2(right ? -6 : 6, 0), new Vector2(12, 92));
+            stripe = UIKit.Img(s, Color.white);
+            s.localRotation = band.localRotation;
+            t = UIKit.Label(rt, "", 46, Color.white, right ? TextAnchor.MiddleRight : TextAnchor.MiddleLeft, FontStyle.BoldAndItalic);
+            t.rectTransform.offsetMin = new Vector2(34, 0); t.rectTransform.offsetMax = new Vector2(-34, 0);
+            t.gameObject.AddComponent<Outline>().effectColor = new Color(0f, 0f, 0f, 0.8f);
+            t.raycastTarget = false;
+        }
+
+        void AnimateCaption(RectTransform rt, CanvasGroup g, Vector2 basePos, float t, float dur, bool right, float dt)
+        {
+            if (t <= 0f) { if (g.alpha != 0f) g.alpha = 0f; return; }
+            float age = dur - t;
+            float a = Mathf.Clamp01(age / 0.14f);
+            float e = 1f - (1f - a) * (1f - a) * (1f - a);           // ease-out cubic
+            float drift = age * 14f;                                 // slow drift while it is on screen
+            rt.anchoredPosition = basePos + new Vector2((right ? 1f : -1f) * ((1f - e) * 160f - drift), 0f);
+            rt.localScale = new Vector3(1f + (1f - e) * 0.25f, 1f - (1f - e) * 0.15f, 1f);
+            g.alpha = Mathf.Min(e, Mathf.Clamp01(t * 3f));
+        }
+
+        static readonly string[] TierNames = { "", "ХОРОШО", "ОТЛИЧНО", "ПОТРЯСАЮЩЕ", "НЕВЕРОЯТНО" };
+        static readonly Color[] TierColors =
+        {
+            new Color(1f, 0.84f, 0.35f), new Color(1f, 0.84f, 0.35f), new Color(1f, 0.62f, 0.2f),
+            new Color(1f, 0.38f, 0.22f), new Color(1f, 0.3f, 0.55f)
+        };
+        static int TierOf(int combo) => combo >= 35 ? 4 : combo >= 20 ? 3 : combo >= 10 ? 2 : combo >= 5 ? 1 : 0;
+
         public void Build(Transform canvas, System.Action onPause)
         {
             inst = this;
@@ -88,6 +193,7 @@ namespace Kagegan
             comboText = UIKit.Label(comboRt, "", 62, UIKit.Gold, TextAnchor.MiddleCenter, FontStyle.BoldAndItalic);
             popupText = UIKit.Label(UIKit.Box(Root, "Popup", new Vector2(0.5f, 0.5f), new Vector2(0, 230), new Vector2(1200, 80)), "", 50, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
             bannerText = UIKit.Label(UIKit.Box(Root, "Banner", new Vector2(0.5f, 0.5f), new Vector2(0, 60), new Vector2(1600, 140)), "", 86, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
+            BuildCaptions();
             lineText = UIKit.Label(UIKit.Box(Root, "Line", new Vector2(0.5f, 1), new Vector2(0, -230), new Vector2(1300, 50)), "", 32, UIKit.Paper, TextAnchor.MiddleCenter, FontStyle.Bold);
             fpsText = UIKit.Label(UIKit.Box(Root, "Fps", new Vector2(1, 1), new Vector2(-120, -30), new Vector2(220, 40)), "", 26, new Color(0.7f, 1f, 0.7f), TextAnchor.MiddleRight);
             // detailed profiler block (settings: "Показывать FPS" = "Подробно"), top-right under the boss bar
@@ -186,15 +292,26 @@ namespace Kagegan
 
                 // combo
                 int combo = p.ComboDealt;
+                int tier = TierOf(combo);
                 if (combo >= 2)
                 {
                     comboText.text = combo + " УДАРОВ";
-                    if (combo != lastCombo) { comboShow = 1f; comboRt.localScale = Vector3.one * 1.25f; }
+                    if (combo != lastCombo) { comboShow = 1f; comboRt.localScale = Vector3.one * (tier > lastTier && tier > 0 ? 1.5f : 1.25f); }
+                    if (tier != lastTier)
+                    {
+                        comboTier.text = TierNames[tier];
+                        if (tier > lastTier && tier > 0) Sfx.Play(SfxId.Clash, 0.35f, 1.2f + tier * 0.08f);
+                        lastTier = tier;
+                    }
                 }
+                else if (combo == 0) lastTier = -1;
                 lastCombo = combo;
                 comboRt.localScale = Vector3.Lerp(comboRt.localScale, Vector3.one, dt * 10f);
                 comboShow -= dt * 0.6f;
-                comboText.color = new Color(UIKit.Gold.r, UIKit.Gold.g, UIKit.Gold.b, Mathf.Clamp01(comboShow * 2f));
+                float ca = Mathf.Clamp01(comboShow * 2f);
+                var cc = TierColors[Mathf.Max(0, lastTier)];
+                comboText.color = new Color(cc.r, cc.g, cc.b, ca);
+                comboTier.color = new Color(1f, 1f, 1f, ca);
 
                 // struggle meter
                 bool struggling = p.CanBreakFree;
@@ -239,6 +356,17 @@ namespace Kagegan
             }
 
             popupT -= dt; bannerT -= dt; lineT -= dt;
+            if (moveRt != null)
+            {
+                moveT -= dt; enemyMoveT -= dt;
+                AnimateCaption(moveRt, moveGroup, moveBase, moveT, moveDur, false, dt);
+                AnimateCaption(enemyMoveRt, enemyMoveGroup, enemyMoveBase, enemyMoveT, enemyMoveDur, true, dt);
+                hintAlpha = Mathf.MoveTowards(hintAlpha, hintOn ? 1f : 0f, dt * 4f);
+                hintGroup.alpha = hintAlpha;
+                hintDoneT = Mathf.Max(0f, hintDoneT - dt * 1.6f);
+                hintBg.color = Color.Lerp(new Color(0.04f, 0.05f, 0.08f, 0.78f), new Color(0.12f, 0.45f, 0.2f, 0.85f), hintDoneT);
+                hintRt.localScale = Vector3.one * (1f + 0.02f * Mathf.Sin(Time.unscaledTime * 4f) * (hintOn ? 1f : 0f) + hintDoneT * 0.05f);
+            }
             popupText.canvasRenderer.SetAlpha(Mathf.Clamp01(popupT * 3f));
             bannerText.canvasRenderer.SetAlpha(Mathf.Clamp01(bannerT * 2f));
             lineText.canvasRenderer.SetAlpha(Mathf.Clamp01(lineT * 2f));

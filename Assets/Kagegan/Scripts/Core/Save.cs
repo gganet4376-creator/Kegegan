@@ -40,6 +40,7 @@ namespace Kagegan
         public List<RunRecord> records = new List<RunRecord>();
         public int lastCharacter;
         public int lastDifficulty;
+        public bool tutorialDone;           // first-fight hints were shown (settings can turn them back on)
     }
 
     /// <summary>Offline save stored as JSON in PlayerPrefs.</summary>

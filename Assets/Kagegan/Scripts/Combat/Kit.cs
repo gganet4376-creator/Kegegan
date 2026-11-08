@@ -44,6 +44,7 @@ namespace Kagegan
             if (!F.InfiniteChakra) F.Chakra -= t.Cost;
             t.Cd = F.NoCooldowns ? 0.2f : t.Cooldown;
             Sfx.Play(SfxId.Charge, 0.35f, 1.4f);
+            if ((F.IsPlayer || F.IsBoss) && !string.IsNullOrEmpty(t.Name)) Hud.MoveName(t.Name, t.Color, !F.IsPlayer, false);
             return true;
         }
 
@@ -52,6 +53,7 @@ namespace Kagegan
             if (Ult == null || F.Rage < 100f || !F.CanAct || (F.Hacked && !F.IsBoss)) return false;
             if (Ult.Use == null || !Ult.Use(F)) return false;
             F.Rage = 0f;
+            if ((F.IsPlayer || F.IsBoss) && !string.IsNullOrEmpty(Ult.Name)) Hud.MoveName(Ult.Name, Ult.Color, !F.IsPlayer, true);
             return true;
         }
 

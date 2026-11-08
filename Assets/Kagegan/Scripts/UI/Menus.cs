@@ -186,7 +186,7 @@ namespace Kagegan
             UIKit.Label(UIKit.Box(settings, "T", new Vector2(0.5f, 1), new Vector2(0, -80), new Vector2(1400, 100)), "НАСТРОЙКИ", 70, UIKit.Paper, TextAnchor.MiddleCenter, FontStyle.Bold);
             float y = -150;
             int row = 0;
-            Func<float> nextY = () => y - (row++) * 56;
+            Func<float> nextY = () => y - (row++) * 54;
 
             SettingRow("Качество графики", () => Names.Preset((GraphicsPreset)Save.Data.graphics), d =>
             {
@@ -204,6 +204,7 @@ namespace Kagegan
                 Save.Data.targetFps = opts[Mathf.Clamp(i, 0, opts.Length - 1)];
                 Application.targetFrameRate = Save.Data.targetFps;
             }, nextY());
+            SettingRow("Обучение в бою", () => Save.Data.tutorialDone ? "Пройдено" : "Показать", d => { Save.Data.tutorialDone = !Save.Data.tutorialDone; }, nextY());
             SettingRow("Виброотдача", () => Save.Data.vibration ? "Вкл" : "Выкл", d => { Save.Data.vibration = !Save.Data.vibration; if (Save.Data.vibration) Haptics.Medium(); }, nextY());
             SettingRow("Музыка", () => Mathf.RoundToInt(Save.Data.music * 100) + "%", d => { Save.Data.music = Mathf.Clamp01(Save.Data.music + d * 0.1f); Sfx.RefreshVolume(); }, nextY());
             SettingRow("Звуки", () => Mathf.RoundToInt(Save.Data.sfx * 100) + "%", d => { Save.Data.sfx = Mathf.Clamp01(Save.Data.sfx + d * 0.1f); Sfx.Play(SfxId.Hit); }, nextY());

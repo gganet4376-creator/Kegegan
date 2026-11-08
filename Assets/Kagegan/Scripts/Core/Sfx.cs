@@ -359,16 +359,53 @@ namespace Kagegan
             ambFade = null;
         }
 
+        // ---------- tension: the end of a round pushes the music ----------
+        float intensityTarget, intensity, intensitySetAt = -10f;
+        float heartbeatAt;
+
+        /// <summary>
+        /// 0..1 tension of the fight, set every frame by the battle (low health, a boss in its last phase).
+        /// The music gets louder and slightly faster and, near the end, a heartbeat thumps under it.
+        /// Falls back to calm by itself when nobody sets it (menus, results).
+        /// </summary>
+        public static void Intensity(float v)
+        {
+            if (inst == null) return;
+            inst.intensityTarget = Mathf.Clamp01(v);
+            inst.intensitySetAt = Time.unscaledTime;
+        }
+
         void Update()
         {
+            float dt = Time.unscaledDeltaTime;
+            if (Time.unscaledTime - intensitySetAt > 0.4f) intensityTarget = 0f;
+            // rises fast, settles slowly, so a single heal does not snap the track back
+            intensity = Mathf.MoveTowards(intensity, intensityTarget, dt * (intensityTarget > intensity ? 0.8f : 0.25f));
+            float boost = 1f + intensity * 0.3f;
+            music.pitch = musicB.pitch = 1f + intensity * 0.05f;
+            float target = Mathf.Min(1f, Save.Data.music * 0.6f * boost);
             if (musicFade < 1f)
             {
-                musicFade = Mathf.Min(1f, musicFade + Time.unscaledDeltaTime / 1.2f);
-                float target = Save.Data.music * 0.6f;
+                musicFade = Mathf.Min(1f, musicFade + dt / 1.2f);
                 music.volume = target * musicFade;
                 musicB.volume = target * (1f - musicFade);
                 if (musicFade >= 1f) musicB.Stop();
             }
+            else if (music.isPlaying) music.volume = target;
+            // heartbeat: two low thumps, quicker the worse it gets
+            if (intensity > 0.55f && Time.timeScale > 0.01f && Time.unscaledTime >= heartbeatAt)
+            {
+                float v = (intensity - 0.55f) / 0.45f;
+                heartbeatAt = Time.unscaledTime + Mathf.Lerp(1.05f, 0.62f, v);
+                StartCoroutine(Heartbeat(0.25f + 0.3f * v));
+            }
+        }
+
+        System.Collections.IEnumerator Heartbeat(float vol)
+        {
+            Play(SfxId.Land, vol, 0.42f);
+            yield return new WaitForSecondsRealtime(0.17f);
+            Play(SfxId.Land, vol * 0.7f, 0.38f);
         }
 
         public static void PlayMusic(int theme)

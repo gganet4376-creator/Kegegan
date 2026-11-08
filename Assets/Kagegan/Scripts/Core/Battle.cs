@@ -117,6 +117,83 @@ namespace Kagegan
                 if (dummy != null && !dummy.Alive) StartCoroutine(RespawnDummy());
             }
             Hud.Inst?.SetEnemyCount(Mode == BattleMode.Training ? "" : (Boss != null && Boss.Alive ? "" : "Врагов осталось: " + EnemiesLeft));
+            if (Mode != BattleMode.Training) Sfx.Intensity(Tension());
+        }
+
+        /// <summary>How close the round is to its end: the player near death, or a boss in its last phase / last sliver of health.</summary>
+        float Tension()
+        {
+            float t = 0f;
+            if (Player != null && Player.Alive) t = Mathf.Clamp01((0.35f - Player.HpFrac) / 0.25f);
+            if (Boss != null && Boss.Alive)
+            {
+                var bb = Boss.Brain as BossBrain;
+                if (bb != null && bb.FinalPhase) t = Mathf.Max(t, 0.5f);
+                t = Mathf.Max(t, Mathf.Clamp01((0.3f - Boss.HpFrac) / 0.2f));
+            }
+            return t;
+        }
+
+        // ===================== first-fight tutorial =====================
+        struct Step { public string text, button; public System.Func<bool> done; }
+
+        /// <summary>
+        /// Shown once, in the first wave of the first Boss Rush: one hint at a time with the matching button highlighted,
+        /// each cleared by doing it (or skipped after a while). Settings can turn it back on.
+        /// </summary>
+        IEnumerator Tutorial()
+        {
+            yield return new WaitForSeconds(2.8f);
+            var p = Player;
+            if (p == null) yield break;
+            var touch = GameManager.Inst != null ? GameManager.Inst.Touch : null;
+            Vector3 start = p.transform.position;
+            int hits0 = 0;
+            float blockTime = 0f;
+            var steps = new[]
+            {
+                new Step { text = "Джойстик слева — передвижение", button = "stick", done = () => KMath.Flat(p.transform.position - start).magnitude > 2.5f },
+                new Step { text = "«Атака» — серия ударов: жми несколько раз подряд", button = "light", done = () => p.Stats.hitsLanded >= hits0 + 3 },
+                new Step { text = "«Мощный» — тяжёлый удар, сбивает с ног", button = "heavy", done = () => p.State == FState.Attack && p.CurMove != null && p.CurMove == p.Kit.Heavy },
+                new Step { text = "«Рывок» — уклонение. Рывок в момент удара врага даёт контрудар", button = "dodge", done = () => p.State == FState.Dodge },
+                new Step { text = "Удерживай «Блок», чтобы защищаться (тратит выносливость)", button = "block", done = () => { blockTime = p.State == FState.Block ? blockTime + Time.deltaTime : 0f; return blockTime > 0.4f; } },
+                new Step { text = "Т1 / Т2 — техники, расходуют чакру (синяя полоса)", button = "tech0", done = () => { foreach (var t in p.Kit.Techs) if (t != null && t.Cd > 0f) return true; return false; } },
+            };
+            foreach (var s in steps)
+            {
+                if (s.button == "light") hits0 = p.Stats.hitsLanded;
+                Hud.Hint(s.text);
+                touch?.Highlight(s.button);
+                float timer = 0f;
+                bool ok = false;
+                while (timer < 15f)
+                {
+                    if (!Running || p == null || !p.Alive) { EndTutorial(touch); yield break; }
+                    if (s.done()) { ok = true; break; }
+                    timer += Time.deltaTime;
+                    yield return null;
+                }
+                if (ok) { Hud.HintDone(); yield return new WaitForSeconds(0.9f); }
+            }
+            Hud.Hint("Копи ярость ударами — когда шкала полна, жми «УЛЬТА»");
+            touch?.Highlight(null);
+            Save.Data.tutorialDone = true;
+            Save.Write();
+            yield return new WaitForSeconds(4f);
+            Hud.Hint(null);
+            // the first time the rage bar fills, point at the ultimate button
+            while (Running && p != null && p.Alive && p.Rage < 100f) yield return null;
+            if (!Running || p == null || !p.Alive) { EndTutorial(touch); yield break; }
+            Hud.Hint("Ярость полна — «УЛЬТА»!");
+            touch?.Highlight("ult");
+            for (float t = 0f; t < 10f && Running && p != null && p.Rage >= 100f; t += Time.deltaTime) yield return null;
+            EndTutorial(touch);
+        }
+
+        static void EndTutorial(TouchControls touch)
+        {
+            Hud.Hint(null);
+            touch?.Highlight(null);
         }
 
         void SpawnPlayer(Vector3 pos)
@@ -150,6 +227,7 @@ namespace Kagegan
                 {
                     Hud.Banner(g == 0 ? "ВОЛНА " + (Wave + 1) : "ПОДКРЕПЛЕНИЕ!", new Color(1f, 0.85f, 0.5f));
                     if (g == 0) StartCoroutine(Announce(Wave == 2 ? "final_round" : "round_" + (Wave + 1), "fight"));
+                    if (g == 0 && Wave == 0 && !Save.Data.tutorialDone) StartCoroutine(Tutorial());
                     else Sfx.Voice("ready", 0.8f);
                     foreach (var m in groups[g]) pending.Enqueue(m);
                     yield return StartCoroutine(FightUntilClear());
@@ -429,6 +507,7 @@ namespace Kagegan
         public void Cleanup()
         {
             StopAllCoroutines();
+            EndTutorial(GameManager.Inst != null ? GameManager.Inst.Touch : null);
             ClearEnemies();
             if (Player != null) Destroy(Player.gameObject);
             if (dummy != null) Destroy(dummy.gameObject);
