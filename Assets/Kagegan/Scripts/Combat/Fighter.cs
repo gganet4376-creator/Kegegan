@@ -1592,6 +1592,12 @@ namespace Kagegan
             if ((flags & CollisionFlags.Above) != 0 && Velocity.y > 0f) Velocity.y = 0f;
             if ((flags & CollisionFlags.Sides) != 0 && knock.magnitude > 7f)
             {
+                // leave a crater where the body met the wall (not on another fighter)
+                if (Physics.Raycast(Center, knock.normalized, out var wh, BodyRadius + 1.2f, ~0, QueryTriggerInteraction.Ignore) && wh.collider.GetComponent<Fighter>() == null)
+                {
+                    Fx.WallCrack(wh.point, wh.normal, Mathf.Clamp(knock.magnitude * 0.16f, 1.1f, 2.2f));
+                    Sfx.PlayAt(SfxId.HeavyHit, wh.point, 0.6f, 0.75f);
+                }
                 Destructible.ImpactAt(Center + knock.normalized * 0.6f, 1.2f, knock.magnitude * 6f, null);
                 CameraRig.Shake(0.2f);
                 knock *= 0.3f;
@@ -1610,6 +1616,7 @@ namespace Kagegan
                 Fx.Dust(transform.position, slamming ? 1.6f : 1f, slamming ? 14 : 7);
                 Sfx.Play(SfxId.Land, 0.9f);
                 if (slamming) { Fx.Crack(transform.position, 2.2f); CameraRig.Shake(0.35f); Destructible.ImpactAt(transform.position, 2f, 40f, null); }
+                else if (knockdownOnLand || State == FState.Dead) Fx.Scuff(transform.position - KMath.Flat(knock).normalized * 0.4f, 1.3f);
                 if (State == FState.Dead) return;
                 if (knockdownOnLand || slamming)
                 {

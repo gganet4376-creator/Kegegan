@@ -46,7 +46,11 @@ Shader "Kagegan/Surface"
             #pragma vertex vert
             #pragma fragment frag
             #pragma multi_compile_instancing
-            #pragma multi_compile_local __ KAGE_SURF_LITE
+            #pragma multi_compile_local __ KAGE_SURF_LITE KAGE_SURF_MID
+            // Medium = the lite surface plus cheap puddles that mirror the sky (no normal map, no ripples)
+            #if defined(KAGE_SURF_MID)
+                #define KAGE_SURF_LITE 1
+            #endif
             #pragma target 3.0
 
             float4 _KageLightDir;
@@ -169,7 +173,19 @@ Shader "Kagegan/Surface"
                 half puddle = 0, wet = 0;
                 half wetAmt = max(_Wet, _KageWet * saturate(gn.y * 1.5 + 0.35)); // walls dry faster than floors
             #if defined(KAGE_SURF_LITE)
+              #if defined(KAGE_SURF_MID)
+                if (wetAmt > 0)
+                {
+                    // one noise octave picks the puddles; inside them the surface turns flat and glassy
+                    float pn = Noise(i.wpos.xz * 0.17);
+                    puddle = smoothstep(0.52, 0.6, pn) * wetAmt * saturate(gn.y * 2.0 - 1.0);
+                    wet = max(puddle, 0.4 * wetAmt);
+                    albedo *= lerp(1.0, 0.55, wet);
+                    n = normalize(lerp(n, gn, puddle));
+                }
+              #else
                 if (wetAmt > 0) { wet = 0.4 * wetAmt; albedo *= lerp(1.0, 0.6, wet); } // just darken: no puddles or ripples
+              #endif
             #else
                 if (wetAmt > 0)
                 {
@@ -228,7 +244,7 @@ Shader "Kagegan/Surface"
                     }
                 }
 
-            #if !defined(KAGE_SURF_LITE)
+            #if !defined(KAGE_SURF_LITE) || defined(KAGE_SURF_MID)
                 if (wetAmt > 0)
                 {
                     half fres = 0.04 + 0.96 * pow(1.0 - saturate(dot(n, vdir)), 5.0);

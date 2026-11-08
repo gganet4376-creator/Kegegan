@@ -615,7 +615,33 @@ namespace Kagegan
             r.transform.SetPositionAndRotation(new Vector3(pos.x, 0.03f + Random.value * 0.01f, pos.z), Quaternion.Euler(0, Random.value * 360f, 0));
             r.transform.localScale = Vector3.one * size;
             inst.anims.Add(new Anim { kind = Kind.Crack, c = r, life = 7f, size0 = size, size1 = size, color = Color.white });
+            inst.liveCracks++;
         }
+
+        /// <summary>Crater on a wall or pillar where a fighter was smashed into it, with plaster dust falling off.</summary>
+        public static void WallCrack(Vector3 pos, Vector3 normal, float size)
+        {
+            if (inst == null) return;
+            Dust(pos, size * 0.8f, GraphicsQuality.GroundDetail ? 8 : 4);
+            if (!GraphicsQuality.GroundDetail || inst.liveCracks >= 10) return;
+            var r = inst.crackPool.Get();
+            r.transform.SetPositionAndRotation(pos + normal * 0.03f, Quaternion.FromToRotation(Vector3.up, normal) * Quaternion.Euler(0, Random.value * 360f, 0));
+            r.transform.localScale = Vector3.one * size;
+            inst.anims.Add(new Anim { kind = Kind.Crack, c = r, life = 7f, size0 = size, size1 = size, color = Color.white });
+            inst.liveCracks++;
+        }
+
+        /// <summary>Small scuff where a body hit the floor: dust plus a faint mark that fades.</summary>
+        public static void Scuff(Vector3 pos, float size)
+        {
+            if (inst == null || !GraphicsQuality.GroundDetail || inst.liveCracks >= 8) return;
+            var r = inst.crackPool.Get();
+            r.transform.SetPositionAndRotation(new Vector3(pos.x, 0.025f + Random.value * 0.01f, pos.z), Quaternion.Euler(0, Random.value * 360f, 0));
+            r.transform.localScale = new Vector3(size, 1f, size * 0.6f);
+            inst.anims.Add(new Anim { kind = Kind.Crack, c = r, life = 4.5f, size0 = size, size1 = size, color = new Color(1f, 1f, 1f, 0.55f) });
+            inst.liveCracks++;
+        }
+        int liveCracks;
 
         public static void Lightning(Vector3 from, Vector3 to, Color color, float width = 0.12f, float life = 0.25f)
         {
@@ -800,7 +826,7 @@ namespace Kagegan
                         case Kind.Scan: ringPool.Release((MeshRenderer)a.c); break;
                         case Kind.Sphere: spherePool.Release((MeshRenderer)a.c); break;
                         case Kind.Slash: slashPool.Release((MeshRenderer)a.c); break;
-                        case Kind.Crack: crackPool.Release((MeshRenderer)a.c); break;
+                        case Kind.Crack: crackPool.Release((MeshRenderer)a.c); liveCracks = Mathf.Max(0, liveCracks - 1); break;
                         case Kind.Bolt: boltPool.Release((LineRenderer)a.c); break;
                         case Kind.Wire: wirePool.Release((LineRenderer)a.c); break;
                     }

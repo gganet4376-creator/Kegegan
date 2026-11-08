@@ -51,6 +51,7 @@ Shader "Kagegan/Toon"
             half _KageWet;            // weather: rain darkens and glosses the scenery (0..1)
             half _KageSnow;           // weather: snow settles on upward faces of the scenery (0..1)
             #include "KageCasterShadow.cginc"
+            #include "KageSway.cginc"
             // grass trampling: feet, landings, falls and shockwaves (pushed every frame by GrassBend.cs)
             float4 _KageBend[12];     // xyz = contact point, w = radius
             float _KageBendK[12];     // push strength 0..1 (fades out smoothly so the grass springs back)
@@ -63,6 +64,7 @@ Shader "Kagegan/Toon"
                 float3 normal : NORMAL;
                 fixed4 color : COLOR;
                 float2 uv : TEXCOORD0;
+                float2 uv2 : TEXCOORD1;   // fighters: hair / cloth sway weight
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
@@ -151,6 +153,7 @@ Shader "Kagegan/Toon"
                 UNITY_SETUP_INSTANCE_ID(v);
                 UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(o);
                 o.wpos = mul(unity_ObjectToWorld, v.vertex).xyz;
+                if (_CharFx > 0) o.wpos = KageSway(o.wpos, v.uv2);
                 half3 wn = UnityObjectToWorldNormal(v.normal);
                 if (_Wind > 0)
                 {
@@ -284,6 +287,7 @@ Shader "Kagegan/Toon"
                 UNITY_SETUP_INSTANCE_ID(v);
                 UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(o);
                 float3 wpos = mul(unity_ObjectToWorld, v.vertex).xyz;
+                if (_CharFx > 0) wpos = KageSway(wpos, v.uv2);
                 if (_Wind > 0)
                 {
                     half gust;

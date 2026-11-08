@@ -115,10 +115,12 @@ namespace Kagegan
             mb.Limb(new Vector3(0, 0.06f, 0), new Vector3(0, 0.02f, 0), 0.155f * w, 0.155f * w, 8, false, 0.78f);
             if (L.robe)
             {
+                int robeStart = mb.Mark;
                 mb.SetColor(top);
                 mb.Cone(new Vector3(0, -0.78f * h, 0), new Vector3(0, 0.25f, 0), 0.36f * w, 10, true);
                 mb.SetColor(accent);
                 mb.Limb(new Vector3(0, -0.74f * h, 0), new Vector3(0, -0.78f * h, 0), 0.355f * w, 0.36f * w, 10, false);
+                mb.SwayDown(robeStart, -0.3f * h, 0.48f * h, 0.45f); // the hem swings, the waist stays put
             }
 
             // torso
@@ -139,13 +141,17 @@ namespace Kagegan
             if (L.cape)
             {
                 mb.SetColor(top2);
+                int capeStart = mb.Mark;
                 mb.Box(new Vector3(0, -0.2f * h, -0.14f * w), new Vector3(0.36f * w, 0.75f * h, 0.025f), Quaternion.Euler(8, 0, 0));
+                mb.SwayDown(capeStart, 0.175f * h, 0.75f * h, 1f);
             }
             if (L.scarf)
             {
                 mb.SetColor(accent);
                 mb.Limb(new Vector3(0, 0.18f * h, 0), new Vector3(0, 0.2f * h, 0), 0.11f, 0.1f, 8, false);
+                int scarfStart = mb.Mark;
                 mb.Box(new Vector3(0.05f, 0.02f * h, -0.14f), new Vector3(0.08f, 0.32f, 0.02f), Quaternion.Euler(15, 0, 10));
+                mb.SwayDown(scarfStart, 0.02f * h + 0.16f, 0.32f, 0.9f);
             }
 
             // neck + head
@@ -177,8 +183,10 @@ namespace Kagegan
                 mb.SetColor(Mat.C(0.75f, 0.78f, 0.82f, 0.1f));
                 mb.Box(new Vector3(0, 0.19f, 0.124f), new Vector3(0.1f, 0.04f, 0.012f));
                 mb.SetColor(top2);
+                int tailsStart = mb.Mark;
                 mb.Box(new Vector3(0.03f, 0.15f, -0.14f), new Vector3(0.03f, 0.14f, 0.01f), Quaternion.Euler(20, 0, 15));
                 mb.Box(new Vector3(-0.03f, 0.14f, -0.14f), new Vector3(0.03f, 0.16f, 0.01f), Quaternion.Euler(25, 0, -10));
+                mb.SwayDown(tailsStart, 0.22f, 0.16f, 0.6f); // headband tails
             }
             if (L.horns)
             {
@@ -249,6 +257,7 @@ namespace Kagegan
                 bind[i] = Bones[i].worldToLocalMatrix * transform.localToWorldMatrix;
             }
             var mesh = mb.ToSkinnedMesh("Fighter", boneToRoot, bind, JointWeight);
+            hasSway = mb.HasSway;
             SetupRenderer(mesh, Mat.Toon, L);
         }
 
@@ -332,8 +341,10 @@ namespace Kagegan
                     return;
                 case HairStyle.Slick:
                     mb.Sphere(new Vector3(0, 0.162f, -0.03f), new Vector3(0.125f, 0.1f, 0.13f), 5, 10);
+                    int slick = mb.Mark;
                     for (int i = 0; i < 4; i++)
                         mb.Cone(new Vector3(-0.05f + i * 0.035f, 0.2f, -0.06f), new Vector3(-0.07f + i * 0.045f, 0.1f, -0.22f * len), 0.035f, 5);
+                    mb.SwayOut(slick, new Vector3(0, 0.165f, -0.03f), 0.13f, 0.12f, 0.3f);
                     return;
                 case HairStyle.Short:
                     mb.Sphere(new Vector3(0, 0.165f, -0.02f), new Vector3(0.128f, 0.1f, 0.13f), 5, 10);
@@ -345,7 +356,8 @@ namespace Kagegan
             mb.Sphere(new Vector3(0, 0.168f, -0.025f), new Vector3(0.132f, 0.1f, 0.13f), 5, 10);
             if (L.hairStyle == HairStyle.Spiky || L.hairStyle == HairStyle.LongSpiky)
             {
-                // spikes radiating up and back
+                // spikes radiating up and back (their tips bob a little)
+                int spikes = mb.Mark;
                 for (int i = 0; i < 9; i++)
                 {
                     float a = (i / 8f - 0.5f) * 2.4f;
@@ -353,6 +365,7 @@ namespace Kagegan
                     Vector3 b = new Vector3(Mathf.Sin(a) * 0.09f, 0.2f, -0.03f);
                     mb.Cone(b, b + dir * (0.15f + 0.04f * (i % 3)) * len, 0.045f, 5);
                 }
+                mb.SwayOut(spikes, new Vector3(0, 0.17f, -0.02f), 0.14f, 0.16f, 0.25f);
                 // bangs over forehead
                 for (int i = 0; i < 4; i++)
                 {
@@ -362,25 +375,35 @@ namespace Kagegan
             }
             if (L.hairStyle == HairStyle.LongSpiky)
             {
+                int locks = mb.Mark;
                 for (int i = 0; i < 7; i++)
                 {
                     float x = -0.1f + i * 0.033f;
                     mb.Cone(new Vector3(x, 0.15f, -0.08f), new Vector3(x * 2.2f, -0.45f * len - (i % 2) * 0.08f, -0.2f), 0.06f, 5);
                 }
+                mb.SwayDown(locks, 0.12f, 0.6f * len, 1f);
             }
             if (L.hairStyle == HairStyle.LongStraight || L.hairStyle == HairStyle.LongWhite)
             {
                 // straight curtain down the back + side locks
+                int curtain = mb.Mark;
                 mb.Box(new Vector3(0, -0.2f * len + 0.1f, -0.12f), new Vector3(0.24f, 0.62f * len, 0.05f), Quaternion.Euler(6, 0, 0));
+                mb.SwayDown(curtain, 0.12f, 0.62f * len, 0.9f);
+                int sideLocks = mb.Mark;
                 mb.Box(new Vector3(-0.115f, 0.0f, 0.04f), new Vector3(0.03f, 0.32f, 0.08f));
                 mb.Box(new Vector3(0.115f, 0.0f, 0.04f), new Vector3(0.03f, 0.32f, 0.08f));
+                mb.SwayDown(sideLocks, 0.12f, 0.3f, 0.3f);
                 for (int i = 0; i < 3; i++)
                 {
                     float x = -0.04f + i * 0.04f;
                     mb.Cone(new Vector3(x, 0.22f, 0.07f), new Vector3(x, 0.15f, 0.13f), 0.035f, 5);
                 }
                 if (L.hairStyle == HairStyle.LongWhite)
+                {
+                    int tail = mb.Mark;
                     mb.Cone(new Vector3(0, 0.0f, -0.13f), new Vector3(0, -1.25f * len, -0.3f), 0.15f, 8);
+                    mb.SwayDown(tail, 0.0f, 1.25f * len, 1.1f);
+                }
             }
         }
 
@@ -455,6 +478,42 @@ namespace Kagegan
                 var m = model.MeshFor(GraphicsQuality.Current);
                 if (Smr.sharedMesh != m) Smr.sharedMesh = m;
             }
+        }
+
+        // ================== hair / cloth sway ==================
+        // The skinned mesh carries a per-vertex sway weight (uv2); the shaders push weighted vertices by _KageSway,
+        // a world offset that trails the body's motion through a damped spring (lag, overshoot, settle).
+        static readonly int IdSway = Shader.PropertyToID("_KageSway");
+        bool hasSway, swayInit;
+        Vector3 swayPrev, swayVel, swayOff, swayOffVel;
+
+        void LateUpdate()
+        {
+            if (!hasSway || Smr == null || mpb == null || !Smr.isVisible) return;
+            float dt = Mathf.Min(Time.deltaTime, 0.05f);
+            if (dt <= 0f) return;
+            Vector3 p = Bones[(int)B.Chest].position;
+            if (!swayInit) { swayPrev = p; swayInit = true; }
+            Vector3 v = (p - swayPrev) / dt;
+            swayPrev = p;
+            if (v.sqrMagnitude > 900f) v = Vector3.zero; // teleports and warps are not motion
+            swayVel = Vector3.Lerp(swayVel, v, 1f - Mathf.Exp(-dt * 10f));
+            Vector3 target = -swayVel * 0.045f;
+            target.y *= 0.6f;
+            target = Vector3.ClampMagnitude(target, 0.32f);
+            // hair and capes hang behind the body: never swing them far through the torso
+            Vector3 fwd = transform.forward; fwd.y = 0f;
+            if (fwd.sqrMagnitude > 1e-4f)
+            {
+                fwd.Normalize();
+                float into = Vector3.Dot(target, fwd);
+                if (into > 0.06f) target -= fwd * (into - 0.06f);
+            }
+            swayOffVel += ((target - swayOff) * 60f - swayOffVel * 7f) * dt;
+            swayOff += swayOffVel * dt;
+            float flutter = 0.006f + Mathf.Min(swayVel.magnitude, 10f) * 0.0025f;
+            mpb.SetVector(IdSway, new Vector4(swayOff.x, swayOff.y, swayOff.z, flutter));
+            Smr.SetPropertyBlock(mpb);
         }
 
         public void SetFlash(float amount, Color color)

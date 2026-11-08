@@ -16,6 +16,10 @@ namespace Kagegan
         public readonly List<Vector2> UV = new List<Vector2>(2048);
         public readonly List<int> T = new List<int>(6144);
         public readonly List<int> Bone = new List<int>(2048);
+        /// <summary>uv2: x = how freely the vertex sways (hair, capes), y = 7 marks a sway weight (0 elsewhere).</summary>
+        public readonly List<Vector2> UV2 = new List<Vector2>(2048);
+        public bool HasSway { get; private set; }
+        public int Mark => V.Count;
 
         public Matrix4x4 M = Matrix4x4.identity;
         public int CurrentBone;
@@ -30,6 +34,7 @@ namespace Kagegan
             N.Add(M.MultiplyVector(n).normalized);
             C.Add(Col);
             UV.Add(uv);
+            UV2.Add(Vector2.zero);
             Bone.Add(CurrentBone);
             return V.Count - 1;
         }
@@ -287,6 +292,7 @@ namespace Kagegan
             m.SetNormals(N);
             m.SetColors(C);
             m.SetUVs(0, UV);
+            if (HasSway) m.SetUVs(1, UV2);
             m.SetTriangles(T, 0);
             m.RecalculateBounds();
             return m;
@@ -309,9 +315,31 @@ namespace Kagegan
             return m;
         }
 
+        /// <summary>Hanging cloth or hair added since <paramref name="start"/>: sway grows from 0 at topY (bone space) to maxW one reach below.</summary>
+        public void SwayDown(int start, float topY, float reach, float maxW)
+        {
+            for (int i = start; i < V.Count; i++)
+                SetSway(i, Mathf.Clamp01((topY - V[i].y) / reach) * maxW);
+        }
+
+        /// <summary>Strands sticking out (spikes): sway grows with the distance from the head beyond <paramref name="inner"/>.</summary>
+        public void SwayOut(int start, Vector3 center, float inner, float reach, float maxW)
+        {
+            for (int i = start; i < V.Count; i++)
+                SetSway(i, Mathf.Clamp01(((V[i] - center).magnitude - inner) / reach) * maxW);
+        }
+
+        void SetSway(int i, float w)
+        {
+            if (w <= UV2[i].x) return;
+            UV2[i] = new Vector2(w, 7f);
+            HasSway = true;
+        }
+
         public void Clear()
         {
-            V.Clear(); N.Clear(); C.Clear(); UV.Clear(); T.Clear(); Bone.Clear();
+            V.Clear(); N.Clear(); C.Clear(); UV.Clear(); UV2.Clear(); T.Clear(); Bone.Clear();
+            HasSway = false;
             M = Matrix4x4.identity; CurrentBone = 0;
         }
     }

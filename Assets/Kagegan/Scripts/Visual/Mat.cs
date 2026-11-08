@@ -105,7 +105,8 @@ namespace Kagegan
             m.SetFloat("_ObjUV", tile);
             m.SetFloat("_AntiTile", lite ? 0f : antiTile);
             m.SetFloat("_Wet", wet);
-            if (lite) m.EnableKeyword("KAGE_SURF_LITE");
+            // Medium keeps the lite fetch count but mirrors the sky in puddles; Low only darkens wet ground
+            if (lite) m.EnableKeyword(GraphicsQuality.Current == GraphicsPreset.Medium ? "KAGE_SURF_MID" : "KAGE_SURF_LITE");
             return m;
         }
 

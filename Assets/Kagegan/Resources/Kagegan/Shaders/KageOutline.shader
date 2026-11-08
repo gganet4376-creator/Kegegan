@@ -18,12 +18,13 @@ Shader "Kagegan/Outline"
             #pragma fragment frag
             #pragma multi_compile_instancing
             #include "UnityCG.cginc"
+            #include "KageSway.cginc"
 
             fixed4 _OutlineColor;
             float _Width;
             float _KageOutlineScale;
 
-            struct appdata { float4 vertex : POSITION; float3 normal : NORMAL; UNITY_VERTEX_INPUT_INSTANCE_ID };
+            struct appdata { float4 vertex : POSITION; float3 normal : NORMAL; float2 uv2 : TEXCOORD1; UNITY_VERTEX_INPUT_INSTANCE_ID };
             struct v2f { float4 pos : SV_POSITION; UNITY_VERTEX_OUTPUT_STEREO };
 
             v2f vert (appdata v)
@@ -31,7 +32,7 @@ Shader "Kagegan/Outline"
                 v2f o;
                 UNITY_SETUP_INSTANCE_ID(v);
                 UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(o);
-                o.pos = UnityObjectToClipPos(v.vertex);
+                o.pos = UnityWorldToClipPos(KageSway(mul(unity_ObjectToWorld, v.vertex).xyz, v.uv2)); // follows swaying hair / capes
                 float3 nView = mul((float3x3)UNITY_MATRIX_V, UnityObjectToWorldNormal(v.normal));
                 float2 off = mul((float2x2)UNITY_MATRIX_P, nView.xy);
                 float len = max(length(off), 1e-4);
