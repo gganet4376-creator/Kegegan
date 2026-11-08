@@ -149,7 +149,20 @@ namespace Kagegan
             var rnd = new System.Random(41);
             bool low = GraphicsQuality.Current == GraphicsPreset.Low;
             float x = -44f;
-            while (x < 44f)
+            // The MegaKit buildings are 18-45k triangles with 12 materials each: fine on High/Ultra, but on Low/Medium
+            // they alone cost ~60 draw calls. There the street uses the light Kenney blocks (1 material, ~1.5k tris).
+            bool heavy = GraphicsQuality.Current >= GraphicsPreset.High;
+            if (!heavy && ModelKit.Has("KC_building-a"))
+            {
+                string[] blocks = { "KC_building-a", "KC_building-c", "KC_building-f", "KC_building-h" };
+                while (x < 44f)
+                {
+                    float w = 11f + (float)rnd.NextDouble() * 3f;
+                    ModelKit.Spawn(blocks[rnd.Next(blocks.Length)], root, new Vector3(x + w * 0.5f, 0, 22f + (float)rnd.NextDouble() * 3f), 15f + (float)rnd.NextDouble() * 9f, 180f);
+                    x += w + 5f + (float)rnd.NextDouble() * 4f;
+                }
+            }
+            while (heavy && x < 44f)
             {
                 string b = ModelKit.Buildings[rnd.Next(ModelKit.Buildings.Length)];
                 float h = b == "Building_Large_2" ? 28f : b == "Building_Medium_2_001" ? 25f : 17f;
@@ -764,8 +777,8 @@ namespace Kagegan
             Color c; int count;
             switch (Id)
             {
-                case ArenaId.City: c = new Color(0.35f, 0.33f, 0.4f, 0.85f); count = 22; break;
-                case ArenaId.MoonTemple: c = new Color(0.45f, 0.38f, 0.7f, 0.35f); count = 14; break;
+                case ArenaId.City: c = new Color(0.35f, 0.33f, 0.4f, 0.85f); count = 13; break;
+                case ArenaId.MoonTemple: c = new Color(0.45f, 0.38f, 0.7f, 0.35f); count = 9; break;
                 case ArenaId.Forest: c = new Color(0.95f, 0.95f, 0.92f, 0.7f); count = 16; break;
                 default: c = new Color(1f, 1f, 1f, 0.8f); count = 14; break;
             }
@@ -779,7 +792,8 @@ namespace Kagegan
             }
             // evening / night: clouds take the sky colour instead of glowing white
             if (todSky != Color.white) { float al = c.a; c *= Color.Lerp(todSky, Color.white, 0.25f); c.a = al; }
-            count = Mathf.RoundToInt(count * Mathf.Max(0.5f, GraphicsQuality.WeatherMul));
+            // huge alpha quads: each one is a full-screen-sized layer of overdraw, so Ultra gets no extra clouds
+            count = Mathf.RoundToInt(count * Mathf.Clamp(GraphicsQuality.WeatherMul, 0.5f, 1f));
             var go = new GameObject("Clouds");
             go.transform.SetParent(transform, false);
             go.transform.position = new Vector3(0f, 55f, 0f);
@@ -807,7 +821,7 @@ namespace Kagegan
             tex.wrapMode = TextureWrapMode.Clamp;
             r.sharedMaterial = Mat.FxTex(tex, false, "Clouds");
             r.sharedMaterial.renderQueue = 1500; // behind the arena, in front of the sky dome
-            r.maxParticleSize = 3f;
+            r.maxParticleSize = 1.1f; // a cloud may not grow past the screen: big sky overdraw was the City/Moon fps drop
             ps.Play();
         }
 

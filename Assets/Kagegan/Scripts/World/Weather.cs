@@ -140,7 +140,7 @@ namespace Kagegan
                     wet = 0.3f; wetTarget = 0.85f;
                     break;
                 case WeatherType.Storm:
-                    Rain(480f, 1.3f);
+                    Rain(340f, 1.3f); // was 480: with splashes, drops and far curtains the storm alone cost ~4 ms on phones
                     Mist(new Color(0.55f, 0.58f, 0.66f, 0.22f), 10);
                     wet = 0.6f; wetTarget = 1f;
                     break;
@@ -295,7 +295,7 @@ namespace Kagegan
             }
 
             // splashes: small rings that open on the ground (flat, facing up)
-            var splash = Layer("RainSplash", follow, new Vector3(0f, 0.04f, 4f), rate * 0.45f, 0.35f, Mat.FxTex(Mat.Ring, false, "RainSplash"));
+            var splash = Layer("RainSplash", follow, new Vector3(0f, 0.04f, 4f), rate * 0.32f, 0.35f, Mat.FxTex(Mat.Ring, false, "RainSplash"));
             var sm = splash.main;
             sm.startSize = new ParticleSystem.MinMaxCurve(0.12f, 0.3f);
             sm.startColor = new Color(0.85f, 0.88f, 0.95f, 0.55f);
@@ -323,7 +323,7 @@ namespace Kagegan
         {
             Vector4 w = Shader.GetGlobalVector("_KageWind");
             var flake = Mat.FxTex(Mat.SoftDot, false, "Snow");
-            var s = Layer("Snow", follow, new Vector3(0f, 13f, 6f), 150f, 11f, flake);
+            var s = Layer("Snow", follow, new Vector3(0f, 13f, 6f), 95f, 10f, flake); // ~1000 live flakes, not 2300
             var main = s.main;
             main.startSize = new ParticleSystem.MinMaxCurve(0.05f, 0.13f);
             main.startColor = new Color(1f, 1f, 1f, 0.9f);
@@ -331,7 +331,7 @@ namespace Kagegan
             Box(s, new Vector3(50f, 1f, 36f));
             Velocity(s, new Vector3(w.x * 0.6f - 0.3f, -1.5f, w.y * 0.4f - 0.3f), new Vector3(w.x * 0.9f + 0.3f, -0.9f, w.y * 0.6f + 0.3f));
             var col = s.colorOverLifetime; col.enabled = true; col.color = Fade(0.05f, 0.9f);
-            if (GraphicsQuality.Current >= GraphicsPreset.Medium)
+            if (GraphicsQuality.Current >= GraphicsPreset.High)
             {
                 // flakes tumble on the air instead of falling in straight lines
                 var n = s.noise;
@@ -339,7 +339,7 @@ namespace Kagegan
                 n.strength = 0.7f;
                 n.frequency = 0.35f;
                 n.scrollSpeed = 0.2f;
-                n.quality = GraphicsQuality.Current >= GraphicsPreset.High ? ParticleSystemNoiseQuality.Medium : ParticleSystemNoiseQuality.Low;
+                n.quality = ParticleSystemNoiseQuality.Low; // noise per flake is CPU heavy; Low still reads as tumbling
             }
             s.Play();
 
