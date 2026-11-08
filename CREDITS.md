@@ -63,7 +63,7 @@
 
 ## Небо 4K, текстуры земли и фотосканы (CC0, Poly Haven, для High/Ultra)
 - Небо 4K: те же панорамы в разрешении 4K — https://polyhaven.com/hdris
-- Земля: sandy_gravel_02 (додзё), forrest_ground_01 (лес), asphalt_02 (город), monastery_stone_floor (лунный храм) — https://polyhaven.com/textures
+- Земля: sandy_gravel_02 (додзё), forrest_ground_01 (лес), asphalt_02 (город), monastery_stone_floor (лунный храм), snow_02 (зимнее додзё) — https://polyhaven.com/textures
 - Модели: rock_07, rock_09, tree_stump_01, stone_fire_pit, moon_rock_01, moon_rock_03, moon_rock_05 — https://polyhaven.com/models
 
 ## Погода: звуки дождя и грома
@@ -77,6 +77,7 @@
 
 ## Шрифт (SIL Open Font License 1.1)
 - Russo One — Jovanny Lemonad — https://fonts.google.com/specimen/Russo+One (лицензия: Resources/Kagegan/Fonts/OFL.txt)
+- Yuji Boku — Copyright 2021 The Yuji Project Authors (https://github.com/Kinutafontfactory/Yuji) — https://fonts.google.com/specimen/Yuji+Boku (иероглифы добивания отрисованы в Vfx/kanji_atlas.png; лицензия OFL 1.1: Resources/Kagegan/Fonts/OFL.txt)
 
 ## Иконки (CC BY 3.0)
 Иконки с https://game-icons.net — авторы Lorc, Delapouite, Felbrigg, Skoll, GUARD13007.

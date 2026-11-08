@@ -125,9 +125,17 @@ namespace Kagegan
             occTimer -= Time.unscaledDeltaTime;
             if (occTimer > 0f) return;
             occTimer = 0.08f;
-            CameraOccluder.CheckLine(transform.position, Player.position + Vector3.up * 1.1f);
-            if (Target != null && Target != Player)
-                CameraOccluder.CheckLine(transform.position, Target.position + Vector3.up * 1.1f);
+            // feet, body and head of both fighters: a low bush or a hanging branch must not cover any part of them
+            CheckFighter(Player);
+            if (Target != null && Target != Player) CheckFighter(Target);
+        }
+
+        void CheckFighter(Transform f)
+        {
+            Vector3 from = transform.position;
+            CameraOccluder.CheckLine(from, f.position + Vector3.up * 0.25f);
+            CameraOccluder.CheckLine(from, f.position + Vector3.up * 1.1f);
+            CameraOccluder.CheckLine(from, f.position + Vector3.up * 1.85f);
         }
 
         void LateUpdate()
@@ -160,14 +168,15 @@ namespace Kagegan
             Vector3 mid = Vector3.Lerp(a, b, 0.5f);
             float dx = Mathf.Abs(b.x - a.x), dz = Mathf.Abs(b.z - a.z);
             // closer than before: fighters fill more of a phone screen, still pulls out for long-range fights
-            float d = Mathf.Clamp(4.3f + dx * 0.48f + dz * 0.35f, 5.1f, 10.5f);
+            // a little lower and closer: the fighters stand tall against the backdrop, the horizon sits near mid-screen
+            float d = Mathf.Clamp(4.0f + dx * 0.48f + dz * 0.35f, 4.7f, 10.2f);
             // air combos: rise and pull back so both fighters stay in frame
             float top = Mathf.Max(a.y, b.y);
             float lift = Mathf.Max(0f, top * 0.55f);
             d += Mathf.Max(0f, top - 1.2f) * 0.8f;
             float cx = Mathf.Clamp(mid.x, -Arena.LaneHalf + 2f, Arena.LaneHalf - 2f);
-            p = new Vector3(cx, 1.35f + d * 0.11f + lift, mid.z * 0.5f - d);
-            l = new Vector3(cx, 1.1f + lift, mid.z * 0.5f + 1.5f);
+            p = new Vector3(cx, 1.12f + d * 0.1f + lift, mid.z * 0.5f - d);
+            l = new Vector3(cx, 1.02f + lift, mid.z * 0.5f + 1.5f);
         }
 
         /// <summary>Camera-relative movement on the ground plane.</summary>

@@ -209,6 +209,7 @@ namespace Kagegan
         void CleanupBattle()
         {
             if (Battle != null) { Battle.Cleanup(); Destroy(Battle.gameObject); Battle = null; }
+            FinisherFx.Cancel();
             Projectile.ClearAll(); Beam.ClearAll(); Hazard.ClearAll(); Fx.ClearAll();
             Hud.SetBoss(null);
             for (int i = Fighter.All.Count - 1; i >= 0; i--)

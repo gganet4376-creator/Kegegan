@@ -239,6 +239,27 @@ namespace Kagegan
             if (doubleSided) { T.Add(s); T.Add(s + 2); T.Add(s + 1); T.Add(s); T.Add(s + 3); T.Add(s + 2); }
         }
 
+        /// <summary>Flat cut-out facing -z (the lane camera): bottom edge at y0, top edge through pts (x, top y), at depth z.</summary>
+        public void Silhouette(List<Vector2> pts, float z, float y0, Vector3 normal)
+        {
+            if (pts.Count < 2) return;
+            Vector3 n = normal.normalized;
+            int s = V.Count;
+            float x0 = pts[0].x, w = Mathf.Max(0.01f, pts[pts.Count - 1].x - x0);
+            for (int i = 0; i < pts.Count; i++)
+            {
+                float u = (pts[i].x - x0) / w;
+                AddVert(new Vector3(pts[i].x, y0, z), n, new Vector2(u, 0f));
+                AddVert(new Vector3(pts[i].x, pts[i].y, z), n, new Vector2(u, 1f));
+            }
+            for (int i = 0; i < pts.Count - 1; i++)
+            {
+                int a = s + i * 2;
+                T.Add(a); T.Add(a + 1); T.Add(a + 3);
+                T.Add(a); T.Add(a + 3); T.Add(a + 2);
+            }
+        }
+
         /// <summary>Upward-facing ring strip on the XZ plane (shockwaves, magic circles).</summary>
         public void RingXZ(Vector3 center, float inner, float outer, int seg, Color32 innerCol, Color32 outerCol)
         {

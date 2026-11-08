@@ -24,13 +24,14 @@ namespace Kagegan
         float retireAt;
         static WeatherType lastAuto = (WeatherType)(-1);
 
-        /// <summary>Weather for an arena from the player's setting. battle = false (training, menu) keeps "auto" clear.</summary>
+        /// <summary>Weather for an arena from the player's setting. battle = false (training): "auto" gives the winter dojo.</summary>
         public static WeatherType Choose(ArenaId id, bool battle)
         {
             int s = Save.Data != null ? Save.Data.weather : 0;
             if (s >= 2) return (WeatherType)Mathf.Clamp(s - 2, 0, 4);
             if (s == 1) return (WeatherType)Random.Range(0, 5);
-            if (!battle) return WeatherType.Clear;
+            // training: the winter dojo (falling snow, white ground), unless the player picked a weather
+            if (!battle) return id == ArenaId.Dojo && s == 0 ? WeatherType.Snow : WeatherType.Clear;
             // auto: the ruined city always has its storm, the rest roll a weighted chance;
             // one re-roll if it repeats the previous fight, so consecutive fights look different
             if (id == ArenaId.City) return lastAuto = WeatherType.Storm;
@@ -146,6 +147,7 @@ namespace Kagegan
                 case WeatherType.Snow:
                     Snow();
                     snow = 0.2f; snowTarget = 0.55f; // a dusting, not a white sheet over the whole arena
+                    if (a != null && a.Winter) snow = snowTarget = 0.9f; // the winter dojo is built snowed in
                     break;
                 case WeatherType.Fog:
                     Mist(new Color(0.85f, 0.87f, 0.9f, 0.32f), 22);

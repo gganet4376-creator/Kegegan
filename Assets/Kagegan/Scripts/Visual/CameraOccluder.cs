@@ -49,8 +49,9 @@ namespace Kagegan
 
         void LateUpdate()
         {
-            float target = Time.unscaledTime < holdUntil ? 0.22f : 1f;
-            float next = Mathf.MoveTowards(fade, target, Time.unscaledDeltaTime * (target < fade ? 8f : 4f));
+            // fully hidden while it stands between the camera and a fighter: nothing may cover the fight
+            float target = Time.unscaledTime < holdUntil ? 0f : 1f;
+            float next = Mathf.MoveTowards(fade, target, Time.unscaledDeltaTime * (target < fade ? 10f : 4f));
             SetFade(next);
             if (fade == 1f && target == 1f) enabled = false;
         }

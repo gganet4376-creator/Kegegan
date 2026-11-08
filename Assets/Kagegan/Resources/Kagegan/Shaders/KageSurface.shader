@@ -58,6 +58,7 @@ Shader "Kagegan/Surface"
             float4 _KageDynPos[4];
             float4 _KageDynCol[4];
             half _KageGlow;
+            half _KageInk, _KageEnvMute;
             sampler2D _KageSkyTex;     // the arena's sky panorama (top 55% of an equirect image)
             fixed4 _KageSkyTint;
             half _KageWet;             // weather: rain soaks every photo surface (0..1)
@@ -241,7 +242,13 @@ Shader "Kagegan/Surface"
 
                 float fogDist = length(i.wpos - _WorldSpaceCameraPos.xyz);
                 half fog = saturate((fogDist - _KageFogParams.x) / max(0.01, _KageFogParams.y - _KageFogParams.x)) * _KageFogParams.z;
+                if (_KageEnvMute > 0)
+                {
+                    half lum = dot(col, half3(0.299, 0.587, 0.114));
+                    col = lerp(col, lerp(col, lum.xxx * half3(1.02, 1.0, 0.96), 0.55), _KageEnvMute * (1.0 - i.color.a));
+                }
                 col = lerp(col, _KageFogColor.rgb, fog);
+                if (_KageInk > 0) col = lerp(col, half3(0.97, 0.95, 0.9), _KageInk);
                 return fixed4(col, 1);
             }
             ENDCG

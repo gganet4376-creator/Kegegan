@@ -35,6 +35,8 @@ Shader "Kagegan/Toon"
             half _Flash, _CharFx, _Emit, _Fade, _Wind, _WindObj, _GrassContact, _VColor, _Cutoff, _WindHeight, _Flutter;
             float4 _KageWind;         // xy = wind direction on the ground, z = strength, w = speed
             half _KageGlow;           // emission multiplier (HDR presets)
+            half _KageInk;            // 1 for the finisher impact frame: paper world, ink fighters
+            half _KageEnvMute;        // 0..1 desaturation of scenery so the fighters pop
             sampler2D _MainTex;
             float4 _MainTex_ST;
 
@@ -251,7 +253,13 @@ Shader "Kagegan/Toon"
 
                 float fogDist = length(i.wpos - _WorldSpaceCameraPos.xyz);
                 half fog = saturate((fogDist - _KageFogParams.x) / max(0.01, _KageFogParams.y - _KageFogParams.x)) * _KageFogParams.z;
+                if (_KageEnvMute > 0)
+                {
+                    half lum = dot(col, half3(0.299, 0.587, 0.114));
+                    col = lerp(col, lerp(col, lum.xxx * half3(1.02, 1.0, 0.96), 0.55), _KageEnvMute * scenery);
+                }
                 col = lerp(col, _KageFogColor.rgb, fog);
+                if (_KageInk > 0) col = lerp(col, lerp(half3(0.97, 0.95, 0.9), half3(0.04, 0.03, 0.05), saturate(_CharFx * 10.0)), _KageInk);
                 return fixed4(col, 1);
             }
             ENDCG

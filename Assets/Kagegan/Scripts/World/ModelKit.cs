@@ -182,7 +182,7 @@ namespace Kagegan
                 var b = rs[0].bounds;
                 for (int i = 1; i < rs.Length; i++) b.Encapsulate(rs[i].bounds);
                 go.transform.position += Vector3.up * (pos.y - b.min.y);
-                if (cameraFade && b.size.y >= 0.85f)
+                if (cameraFade && b.size.y >= 0.35f) // low bushes too: nothing may cover the fighters
                     go.AddComponent<CameraOccluder>().Init(rs);
             }
             return go;

@@ -37,6 +37,8 @@ namespace Kagegan
         }
         WeatherLook? look;
         public WeatherType WeatherKind { get; private set; }
+        /// <summary>The dojo built for snow: white ground, firs, frozen haze (training ground and snowy dojo fights).</summary>
+        public bool Winter { get; private set; }
 
         /// <summary>Time of day for the daylight arenas (Dojo, Forest): picked per fight, the night ones stay as built.</summary>
         public enum TimeOfDay { Day, Evening, Night }
@@ -310,6 +312,65 @@ namespace Kagegan
             }
         }
 
+        /// <summary>
+        /// Layered silhouette backdrop: three flat cut-out ridges far behind the lane (tree lines, hills or a skyline),
+        /// each a step further into the haze, so the side view reads as near / mid / far like a painted stage set.
+        /// A few hundred vertices in the static mesh, the same on every preset.
+        /// </summary>
+        static void SilhouetteLayers(MeshBuilder mb, ArenaId id, bool winter)
+        {
+            Color[] cols;
+            switch (id)
+            {
+                case ArenaId.Forest: cols = new[] { new Color(0.2f, 0.34f, 0.24f), new Color(0.36f, 0.46f, 0.4f), new Color(0.56f, 0.62f, 0.58f) }; break;
+                case ArenaId.City: cols = new[] { new Color(0.2f, 0.19f, 0.24f), new Color(0.3f, 0.29f, 0.35f), new Color(0.42f, 0.4f, 0.47f) }; break;
+                case ArenaId.MoonTemple: cols = new[] { new Color(0.12f, 0.12f, 0.2f), new Color(0.18f, 0.17f, 0.3f), new Color(0.26f, 0.24f, 0.4f) }; break;
+                default:
+                    cols = winter ? new[] { new Color(0.24f, 0.33f, 0.36f), new Color(0.44f, 0.52f, 0.6f), new Color(0.68f, 0.74f, 0.84f) }
+                                  : new[] { new Color(0.26f, 0.38f, 0.3f), new Color(0.44f, 0.52f, 0.5f), new Color(0.64f, 0.68f, 0.7f) };
+                    break;
+            }
+            var rnd = new System.Random(57 + (int)id);
+            float[] zs = { 36f, 50f, 66f };
+            float[] baseH = { 3.5f, 7f, 11f };
+            var pts = new List<Vector2>(256);
+            for (int layer = 0; layer < 3; layer++)
+            {
+                pts.Clear();
+                float z = zs[layer], seed = (float)rnd.NextDouble() * 100f;
+                const float X0 = -120f, X1 = 120f;
+                if (id == ArenaId.City)
+                {
+                    // stepped skyline: blocks of varied width and height
+                    float x = X0;
+                    while (x < X1)
+                    {
+                        float w = 3f + (float)rnd.NextDouble() * (6f + layer * 3f);
+                        float h = baseH[layer] + (float)rnd.NextDouble() * (6f + layer * 5f);
+                        pts.Add(new Vector2(x, h)); pts.Add(new Vector2(x + w, h));
+                        x += w;
+                    }
+                }
+                else
+                {
+                    // rolling ridge; the near two layers carry a tree line (pointed firs) on top
+                    bool trees = id != ArenaId.MoonTemple && layer < 2;
+                    float step = trees ? 1.1f + layer * 0.6f : 3f;
+                    bool peak = false;
+                    for (float x = X0; x <= X1; x += step * (0.7f + 0.6f * (float)rnd.NextDouble()))
+                    {
+                        float ridge = baseH[layer] + Mathf.PerlinNoise(x * 0.025f + seed, seed) * (5f + layer * 6f) - 2.5f;
+                        if (id == ArenaId.MoonTemple) ridge += Mathf.Abs(Mathf.PerlinNoise(x * 0.09f, seed) - 0.5f) * 6f; // jagged rock
+                        float h = ridge;
+                        if (trees) { peak = !peak; if (peak) h += 1.6f + (float)rnd.NextDouble() * (2.2f + layer * 1.2f); }
+                        pts.Add(new Vector2(x, Mathf.Max(0.5f, h)));
+                    }
+                }
+                mb.SetColor(Mat.C(cols[layer]));
+                mb.Silhouette(pts, z, -2f, new Vector3(0f, 0.45f, -0.9f));
+            }
+        }
+
         /// <summary>Mid-ground band behind the lane so the side view has depth (static, merged).</summary>
         static void BackdropBand(MeshBuilder mb, MeshBuilder trees, ArenaId id)
         {
@@ -355,6 +416,7 @@ namespace Kagegan
             a.Id = id;
             a.WeatherKind = weather;
             a.look = WeatherSystem.Look(weather, id);
+            a.Winter = id == ArenaId.Dojo && weather == WeatherType.Snow;
             Current = a;
             Radius = 21f;
             var stat = new MeshBuilder();
@@ -367,6 +429,9 @@ namespace Kagegan
             }
             a.ApplyTimeOfDay(PickTimeOfDay(id));
             BackdropBand(stat, a.treeMb, id);
+            SilhouetteLayers(stat, id, a.Winter);
+            // muted scenery, full-colour fighters: the eye goes to the fight (night arenas are muted already)
+            Shader.SetGlobalFloat("_KageEnvMute", id == ArenaId.Dojo || id == ArenaId.Forest ? 0.38f : 0.2f);
             if (id == ArenaId.Forest && ModelKit.Available) a.NatureBackdrop();
             if (ModelKit.PhotoProps) a.PhotoScans();
             a.AddStaticMesh(stat, "Static");
@@ -955,6 +1020,9 @@ namespace Kagegan
                 float kind = (float)rnd.NextDouble();
                 float tall = (0.35f + 0.3f * (float)rnd.NextDouble()) * (GraphicsQuality.Current >= GraphicsPreset.High ? 1.3f : 1f);
                 if (Blocked(p, 0.12f)) continue;
+                // between the camera and the lane: only short grass, never tall or bushy clumps that cover the fighters
+                bool camSide = p.z < -LaneDepth - 0.5f;
+                if (camSide) { tall = Mathf.Min(tall, 0.42f); if (kind >= 0.08f && kind < 0.22f) kind = 0.5f; }
                 // patches: large slow noise mixes lush and drier grass so the field is not one flat colour
                 float patch = Mathf.PerlinNoise(p.x * 0.07f + seed, p.z * 0.07f);
                 Color tint = Color.Lerp(c, Color.Lerp(c, straw, 0.45f), Mathf.Clamp01((patch - 0.45f) * 2.2f)) * (0.8f + 0.4f * (float)rnd.NextDouble());
@@ -1124,26 +1192,43 @@ namespace Kagegan
         // ================= 0. Dojo / training ground (matches the original training scene) =================
         void BuildDojo(MeshBuilder mb)
         {
-            Lighting(new Vector3(-0.72f, 0.62f, 0.22f), new Color(1f, 0.96f, 0.86f), new Color(0.32f, 0.3f, 0.3f), new Color(0.93f, 0.9f, 0.82f), 25f, 110f, 0.55f);
-            Sky(new Color(0.55f, 0.75f, 0.95f), new Color(0.97f, 0.92f, 0.8f), new Color(0.9f, 0.85f, 0.7f), "sky_dojo");
-            PhotoGround("dojo", new Color(0.895f, 0.75f, 0.5f), new Color(0.603f, 0.451f, 0.321f), 3.2f);
-            Ground(mb, 70f, new Color(0.93f, 0.8f, 0.55f), new Color(0.86f, 0.7f, 0.45f), new Color(0.55f, 0.65f, 0.35f), 11);
-            Grass(260, 6f, 26f, new Color(0.45f, 0.62f, 0.25f), 3);
+            bool w = Winter;
+            if (w)
+            {
+                // winter training ground: snow everywhere, pale low sun, a cold white haze with a warm cast
+                Lighting(new Vector3(-0.72f, 0.5f, 0.22f), new Color(1f, 0.95f, 0.88f), new Color(0.4f, 0.42f, 0.5f), new Color(0.9f, 0.88f, 0.86f), 12f, 85f, 0.75f);
+                Sky(new Color(0.62f, 0.72f, 0.86f), new Color(0.95f, 0.93f, 0.9f), new Color(0.9f, 0.9f, 0.92f), "sky_dojo");
+                PhotoGround("snow", new Color(0.93f, 0.94f, 0.98f), new Color(0.648f, 0.647f, 0.655f), 3.4f, 0f, 0.5f);
+                Ground(mb, 70f, new Color(0.93f, 0.94f, 0.97f), new Color(0.86f, 0.88f, 0.93f), new Color(0.8f, 0.83f, 0.9f), 11);
+                Grass(110, 6f, 26f, new Color(0.6f, 0.56f, 0.4f), 3); // dry stalks poking through the snow
+            }
+            else
+            {
+                // warm distance haze: the far trees and mountains fade into a golden mist, the lane stays crisp
+                Lighting(new Vector3(-0.72f, 0.62f, 0.22f), new Color(1f, 0.96f, 0.86f), new Color(0.32f, 0.3f, 0.3f), new Color(0.96f, 0.88f, 0.74f), 14f, 92f, 0.72f);
+                Sky(new Color(0.55f, 0.75f, 0.95f), new Color(0.97f, 0.92f, 0.8f), new Color(0.9f, 0.85f, 0.7f), "sky_dojo");
+                PhotoGround("dojo", new Color(0.895f, 0.75f, 0.5f), new Color(0.603f, 0.451f, 0.321f), 3.2f);
+                Ground(mb, 70f, new Color(0.93f, 0.8f, 0.55f), new Color(0.86f, 0.7f, 0.45f), new Color(0.55f, 0.65f, 0.35f), 11);
+                Grass(260, 6f, 26f, new Color(0.45f, 0.62f, 0.25f), 3);
+            }
+            Color fir = w ? new Color(0.16f, 0.32f, 0.27f) : new Color(0.32f, 0.56f, 0.3f);
             // main hall behind the arena + side buildings
             House(mb, new Vector3(-6f, 0, 24f), 0, new Vector3(16f, 4.2f, 6f), new Color(0.96f, 0.94f, 0.88f), new Color(0.48f, 0.5f, 0.55f), new Color(0.35f, 0.24f, 0.17f));
             House(mb, new Vector3(-25f, 0, 8f), 70, new Vector3(9f, 3.4f, 5f), new Color(0.96f, 0.94f, 0.88f), new Color(0.48f, 0.5f, 0.55f), new Color(0.35f, 0.24f, 0.17f));
             mb.SetColor(Mat.C(0.8f, 0.12f, 0.12f));
             mb.Box(new Vector3(-3.5f, 3.2f, 20.9f), new Vector3(1.6f, 2.8f, 0.05f)); // red banner
             Torii(mb, new Vector3(16f, 0, 18f), -35, 1.2f);
+            if (w) Torii(mb, new Vector3(-15f, 0, 19.5f), 20, 0.95f); // a second gate on the snowy path
             Fence(mb, new Vector3(-20f, 0, 15f), new Vector3(10f, 0, 17f), new Color(0.42f, 0.3f, 0.2f));
             Fence(mb, new Vector3(-22f, 0, -14f), new Vector3(-22f, 0, 12f), new Color(0.42f, 0.3f, 0.2f));
             for (int i = 0; i < 9; i++)
             {
                 float a = 0.15f + i * 0.33f;
-                Pine(treeMb, new Vector3(Mathf.Cos(a) * 30f, 0, Mathf.Sin(a) * 30f + 4f), 8f + (i % 3) * 2f, new Color(0.32f, 0.56f, 0.3f));
+                Pine(treeMb, new Vector3(Mathf.Cos(a) * 30f, 0, Mathf.Sin(a) * 30f + 4f), 8f + (i % 3) * 2f, fir);
             }
-            for (int i = 0; i < 6; i++) Pine(treeMb, new Vector3(-30f + i * 4f, 0, -30f - (i % 2) * 4f), 7f + i % 3, new Color(0.3f, 0.52f, 0.3f));
-            Mountains(mb, 75f, new Color(0.62f, 0.7f, 0.8f), 12, 24f, 5);
+            if (w) for (int i = 0; i < 7; i++) Pine(treeMb, new Vector3(-27f + i * 9f, 0, 21f + (i % 3) * 3f), 9f + (i % 2) * 3f, fir * 0.92f);
+            for (int i = 0; i < 6; i++) Pine(treeMb, new Vector3(-30f + i * 4f, 0, -30f - (i % 2) * 4f), 7f + i % 3, fir * 0.95f);
+            Mountains(mb, 75f, w ? new Color(0.76f, 0.8f, 0.88f) : new Color(0.62f, 0.7f, 0.8f), 12, 24f, 5);
             bool kit = ModelKit.Has("Dummy");
             if (kit) DojoProps();
             else
@@ -1195,7 +1280,7 @@ namespace Kagegan
         // ================= 1. Forest of Destruction =================
         void BuildForest(MeshBuilder mb)
         {
-            Lighting(new Vector3(0.74f, 0.58f, 0.2f), new Color(1f, 0.88f, 0.7f), new Color(0.25f, 0.32f, 0.28f), new Color(0.55f, 0.68f, 0.55f), 14f, 70f, 0.75f);
+            Lighting(new Vector3(0.74f, 0.58f, 0.2f), new Color(1f, 0.88f, 0.7f), new Color(0.25f, 0.32f, 0.28f), new Color(0.8f, 0.78f, 0.6f), 11f, 72f, 0.78f); // warm green-gold haze
             Sky(new Color(0.45f, 0.62f, 0.75f), new Color(0.85f, 0.83f, 0.68f), new Color(0.4f, 0.5f, 0.35f), "sky_forest");
             PhotoGround("forest", new Color(0.43f, 0.485f, 0.27f), new Color(0.568f, 0.529f, 0.366f), 3.6f, 0f, 0.6f);
             Ground(mb, 70f, new Color(0.38f, 0.55f, 0.27f), new Color(0.48f, 0.42f, 0.27f), new Color(0.2f, 0.32f, 0.18f), 21);

@@ -265,7 +265,11 @@ namespace Kagegan
         {
             yield return new WaitForSeconds(delay);
             if (f == null) yield break;
-            Fx.Smoke(f.transform.position + Vector3.up * 0.3f, 1f, new Color(0.6f, 0.6f, 0.65f, 0.5f), 8);
+            // the body vanishes in a ninja smoke poof
+            Vector3 at = f.transform.position + Vector3.up * 0.4f;
+            Fx.Smoke(at, f.IsBoss ? 2.2f : 1.5f, new Color(0.82f, 0.82f, 0.86f, 0.65f), f.IsBoss ? 18 : 12);
+            Fx.Ring(f.transform.position + Vector3.up * 0.1f, new Color(0.9f, 0.9f, 0.95f, 0.5f), 0.3f, f.IsBoss ? 2.6f : 1.8f, 0.35f, Quaternion.identity); // dust ring on the floor
+            Sfx.Play(SfxId.Poof, 0.8f);
             Destroy(f.gameObject);
         }
 
@@ -326,6 +330,8 @@ namespace Kagegan
             CameraRig.EndCinematic();
             GameManager.Inst.SetControlsVisible(true);
             while (Boss != null && Boss.Alive) yield return null;
+            // the killing-blow cinematic (kanji, ink frame) plays first when it fired
+            while (FinisherFx.Busy) yield return null;
             // boss defeat: slow motion close-up, then the victory pose
             TimeFx.SlowMo(1.4f, 0.2f);
             if (Boss != null) CameraRig.Cinematic(Boss.Center, KMath.Flat(Player.transform.position - Boss.transform.position).normalized + Vector3.up * 0.2f, 5f, 1f, 1.6f);

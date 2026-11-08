@@ -899,6 +899,7 @@ namespace Kagegan
             }
             if (killer != null) { killer.Stats.kills++; if (killer.IsClone && killer.Owner != null) killer.Owner.Stats.kills++; }
             Kit?.OnDeath();
+            FinisherFx.OnKill(this, killer, h);
             if (IsBoss || IsPlayer)
             {
                 TimeFx.SlowMo(1.2f, 0.25f);

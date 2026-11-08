@@ -33,6 +33,7 @@ Shader "Kagegan/Fx"
             half _Fog, _Lit, _Soft;
             fixed4 _KageAmbient, _KageLightColor;
             half _SrcBlend, _DstBlend;
+            half _KageInk;    // finisher impact frame: sky turns to paper, effects vanish
             half _KageGlow;   // > 1 on HDR presets so additive effects bloom
             fixed4 _KageFogColor;
             float4 _KageFogParams;
@@ -69,6 +70,7 @@ Shader "Kagegan/Fx"
                 c.rgb *= c.a; // premultiplied: works for additive (One One) and alpha (One OneMinusSrcAlpha)
                 c.rgb = lerp(c.rgb, _KageFogColor.rgb * c.a, i.fog);
                 if (_DstBlend == 1) c.rgb *= min(max(_KageGlow, 1.0), 3.0); // additive glow
+                if (_KageInk > 0) c = _DstBlend == 0 ? lerp(c, half4(0.97, 0.95, 0.9, 1), _KageInk) : c * (1.0 - _KageInk);
                 return min(max(c, 0.0), 4.0); // never hand the HDR target anything that blooms into a white blob
 
             }
