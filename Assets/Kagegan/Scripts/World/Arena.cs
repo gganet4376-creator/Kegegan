@@ -37,6 +37,46 @@ namespace Kagegan
         }
         WeatherLook? look;
         public WeatherType WeatherKind { get; private set; }
+
+        /// <summary>Time of day for the daylight arenas (Dojo, Forest): picked per fight, the night ones stay as built.</summary>
+        public enum TimeOfDay { Day, Evening, Night }
+        public TimeOfDay Tod { get; private set; } = TimeOfDay.Day;
+        Color todSky = Color.white, todFog = Color.white;
+
+        static TimeOfDay PickTimeOfDay(ArenaId id)
+        {
+            if (id != ArenaId.Dojo && id != ArenaId.Forest) return TimeOfDay.Day;
+            float r = Random.value;
+            return r < 0.55f ? TimeOfDay.Day : r < 0.85f ? TimeOfDay.Evening : TimeOfDay.Night;
+        }
+
+        /// <summary>Re-colours the arena's base light for evening / night (runs before the scenery shadow is baked).</summary>
+        void ApplyTimeOfDay(TimeOfDay t)
+        {
+            Tod = t;
+            if (t == TimeOfDay.Day) return;
+            if (t == TimeOfDay.Evening)
+            {
+                // low warm sun from the side: long shadows, orange rims
+                sunDir = new Vector3(sunDir.x, 0.3f, sunDir.z).normalized;
+                sunCol = new Color(1f, 0.62f, 0.38f) * 0.95f;
+                ambCol = new Color(ambCol.r * 0.9f + 0.03f, ambCol.g * 0.75f, ambCol.b * 0.85f + 0.04f);
+                fogCol = Color.Lerp(fogCol, new Color(0.85f, 0.55f, 0.42f), 0.6f);
+                todSky = new Color(1f, 0.74f, 0.62f);
+                todFog = new Color(1f, 0.78f, 0.66f);
+            }
+            else
+            {
+                // cool moonlight; kept bright enough to read the fighters on a phone screen
+                sunDir = new Vector3(-sunDir.x, 0.55f, sunDir.z).normalized;
+                sunCol = new Color(0.5f, 0.58f, 0.85f);
+                ambCol = new Color(0.17f, 0.19f, 0.3f);
+                fogCol = new Color(0.1f, 0.12f, 0.22f);
+                todSky = new Color(0.2f, 0.24f, 0.42f);
+                todFog = new Color(0.3f, 0.33f, 0.5f);
+            }
+            skyTop *= todSky; skyHorizon *= todSky;
+        }
         public WeatherSystem WeatherFx { get; private set; }
         MoonTiles moonTiles;
 
@@ -325,6 +365,7 @@ namespace Kagegan
                 case ArenaId.City: a.BuildCity(stat); break;
                 default: a.BuildMoon(stat); break;
             }
+            a.ApplyTimeOfDay(PickTimeOfDay(id));
             BackdropBand(stat, a.treeMb, id);
             if (id == ArenaId.Forest && ModelKit.Available) a.NatureBackdrop();
             if (ModelKit.PhotoProps) a.PhotoScans();
@@ -575,14 +616,14 @@ namespace Kagegan
             if (cl.HasValue)
             {
                 var l = cl.Value;
-                WorldLighting.SetFog(Color.Lerp(fogCol, l.Fog, l.FogLerp), fogStart * l.FogNear, fogEnd * Mathf.Lerp(1f, l.FogNear, 0.6f), Mathf.Max(fogMax, l.FogMax));
+                WorldLighting.SetFog(Color.Lerp(fogCol, l.Fog * todFog, l.FogLerp), fogStart * l.FogNear, fogEnd * Mathf.Lerp(1f, l.FogNear, 0.6f), Mathf.Max(fogMax, l.FogMax));
             }
             else WorldLighting.SetFog(fogCol, fogStart, fogEnd, fogMax);
             if (skyRenderer != null && dimensionUntil <= 0f)
             {
                 if (skyMpb == null) skyMpb = new MaterialPropertyBlock();
                 skyMpb.Clear();
-                if (cl.HasValue) skyMpb.SetColor("_Color", cl.Value.Sky);
+                if (cl.HasValue || todSky != Color.white) skyMpb.SetColor("_Color", (cl.HasValue ? cl.Value.Sky : Color.white) * todSky);
                 skyRenderer.SetPropertyBlock(skyMpb);
             }
             if (CameraRig.Inst != null) CameraRig.Inst.Cam.backgroundColor = cl.HasValue ? skyHorizon * cl.Value.Sky : skyHorizon;
@@ -671,6 +712,8 @@ namespace Kagegan
                 case WeatherType.Snow: c = new Color(Mathf.Lerp(c.r, 0.85f, 0.5f), Mathf.Lerp(c.g, 0.87f, 0.5f), Mathf.Lerp(c.b, 0.92f, 0.5f), 0.88f); count += 6; break;
                 case WeatherType.Fog: c.a = Mathf.Min(1f, c.a + 0.1f); count += 4; break;
             }
+            // evening / night: clouds take the sky colour instead of glowing white
+            if (todSky != Color.white) { float al = c.a; c *= Color.Lerp(todSky, Color.white, 0.25f); c.a = al; }
             count = Mathf.RoundToInt(count * Mathf.Max(0.5f, GraphicsQuality.WeatherMul));
             var go = new GameObject("Clouds");
             go.transform.SetParent(transform, false);
