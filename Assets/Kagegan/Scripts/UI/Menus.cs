@@ -207,7 +207,21 @@ namespace Kagegan
             SettingRow("Виброотдача", () => Save.Data.vibration ? "Вкл" : "Выкл", d => { Save.Data.vibration = !Save.Data.vibration; if (Save.Data.vibration) Haptics.Medium(); }, nextY());
             SettingRow("Музыка", () => Mathf.RoundToInt(Save.Data.music * 100) + "%", d => { Save.Data.music = Mathf.Clamp01(Save.Data.music + d * 0.1f); Sfx.RefreshVolume(); }, nextY());
             SettingRow("Звуки", () => Mathf.RoundToInt(Save.Data.sfx * 100) + "%", d => { Save.Data.sfx = Mathf.Clamp01(Save.Data.sfx + d * 0.1f); Sfx.Play(SfxId.Hit); }, nextY());
-            SettingRow("Показывать FPS", () => Save.Data.showFps ? "Вкл" : "Выкл", d => Save.Data.showFps = !Save.Data.showFps, nextY());
+            // off -> FPS -> detailed profiler (frame ms, 1% low, CPU/GPU, draw calls, heat)
+            SettingRow("Показывать FPS", () => !Save.Data.showFps ? "Выкл" : Save.Data.perfDetail ? "Подробно" : "Вкл", d =>
+            {
+                int m = !Save.Data.showFps ? 0 : Save.Data.perfDetail ? 2 : 1;
+                m = (m + d + 3) % 3;
+                Save.Data.showFps = m > 0; Save.Data.perfDetail = m == 2;
+            }, nextY());
+            // the per-wave log lives in the app's private folder; copying it lets the player paste it into a chat
+            string copied = null;
+            SettingRow("Отчёт о производительности", () => copied ?? "Копировать", d =>
+            {
+                string log = PerfProbe.ReadLog();
+                GUIUtility.systemCopyBuffer = log.Length > 0 ? log : "Kagegan: лог пуст — сыграйте бой.";
+                copied = log.Length > 0 ? "Скопирован" : "Пусто";
+            }, nextY());
             SettingRow("Тряска камеры", () => Mathf.RoundToInt(Save.Data.shake * 100) + "%", d => { Save.Data.shake = Mathf.Clamp(Save.Data.shake + d * 0.25f, 0f, 1.5f); CameraRig.ShakeScale = Save.Data.shake; CameraRig.Shake(0.4f); }, nextY());
             SettingRow("Отступ от краёв экрана", () => Save.Data.safeAreaPadding ? "Вкл" : "Выкл", d => Save.Data.safeAreaPadding = !Save.Data.safeAreaPadding, nextY());
             SettingRow("Размер кнопок", () => Mathf.RoundToInt(Save.Data.buttonScale * 100) + "%", d => { Save.Data.buttonScale = Mathf.Clamp(Save.Data.buttonScale + d * 0.05f, 0.7f, 1.6f); GameManager.Inst.Touch.ApplyScaleAlpha(); }, nextY());

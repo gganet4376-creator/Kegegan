@@ -59,6 +59,7 @@ namespace Kagegan
             GrassBend.Init(gameObject);
             gameObject.AddComponent<TimeFx>();
             gameObject.AddComponent<PerfMonitor>();
+            gameObject.AddComponent<PerfProbe>();
             Fx.Init(gameObject);
 
             WorldRoot = new GameObject("World").transform;

@@ -28,6 +28,7 @@ namespace Kagegan
         public bool vibration = true;
         public float music = 0.55f, sfx = 0.9f;
         public bool showFps;
+        public bool perfDetail;             // with showFps: frame ms, 1% low, CPU/GPU, draw calls, heat
         public float shake = 1f;
         public int weather;                 // 0 = auto (per arena), 1 = random, 2.. = fixed WeatherType - 2
         public bool safeAreaPadding = true;

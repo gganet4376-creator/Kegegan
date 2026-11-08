@@ -193,6 +193,7 @@ namespace Kagegan
             Projectile.ClearAll(); Beam.ClearAll(); Hazard.ClearAll(); Fx.ClearAll();
             var arenaId = ArenaFor(w);
             var arena = Arena.Build(arenaId, GameManager.Inst.WorldRoot, WeatherSystem.Choose(arenaId, true));
+            PerfProbe.SkipFrames(3); // the arena build hitch is loading, not combat
             SpawnPlayer(arena.PlayerSpawn);
             Sfx.PlayTrack(w == 0 ? "forest" : w == 1 ? "city" : "moon", 1);
             SetWeatherAmbience(arena);
@@ -416,6 +417,7 @@ namespace Kagegan
         IEnumerator TrainingFlow()
         {
             var arena = Arena.Build(ArenaId.Dojo, GameManager.Inst.WorldRoot, WeatherSystem.Choose(ArenaId.Dojo, false));
+            PerfProbe.SkipFrames(3);
             SetWeatherAmbience(arena);
             SpawnPlayer(arena.PlayerSpawn);
             Player.InfiniteChakra = true;

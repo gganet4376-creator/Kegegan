@@ -810,6 +810,18 @@ namespace Kagegan
             }
         }
 
+        /// <summary>Particles alive in all shared systems plus pooled mesh effects (perf overlay).</summary>
+        public static int LiveParticles()
+        {
+            if (inst == null) return 0;
+            int n = inst.anims.Count;
+            foreach (var ps in new[] { inst.sparks, inst.smoke, inst.fire, inst.debris, inst.glow, inst.leaves, inst.ringGold, inst.ringEnergy, inst.ringVoid, inst.ringLightning, inst.ringFire,
+                                       inst.fireBurst, inst.explosionFlip, inst.groundRing, inst.puffWhite, inst.puffBlack, inst.puffFire, inst.flashPs,
+                                       inst.slashFlip, inst.hitStar, inst.hitBurst, inst.electric, inst.flames, inst.dirtPs, inst.glyphs })
+                if (ps != null) n += ps.particleCount;
+            return n;
+        }
+
         public static void ClearAll()
         {
             if (inst == null) return;

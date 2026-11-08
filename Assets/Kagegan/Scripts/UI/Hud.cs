@@ -10,8 +10,8 @@ namespace Kagegan
         static Hud inst;
         public RectTransform Root;
         Image hp, hpLag, stamina, chakra, rage, targetHp, targetLag, bossHp, bossLag;
-        Text playerName, targetName, bossName, waveText, comboText, popupText, bannerText, lineText, fpsText, statsText, storedText, enemyCount;
-        RectTransform targetPanel, bossPanel, comboRt, statsPanel;
+        Text playerName, targetName, bossName, waveText, comboText, popupText, bannerText, lineText, fpsText, perfText, statsText, storedText, enemyCount;
+        RectTransform targetPanel, bossPanel, comboRt, statsPanel, perfPanel;
         RawImage playerPortrait, bossPortrait;
         Image playerBadge;
         Text hpText, bossHpText;
@@ -87,6 +87,12 @@ namespace Kagegan
             bannerText = UIKit.Label(UIKit.Box(Root, "Banner", new Vector2(0.5f, 0.5f), new Vector2(0, 60), new Vector2(1600, 140)), "", 86, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
             lineText = UIKit.Label(UIKit.Box(Root, "Line", new Vector2(0.5f, 1), new Vector2(0, -230), new Vector2(1300, 50)), "", 32, UIKit.Paper, TextAnchor.MiddleCenter, FontStyle.Bold);
             fpsText = UIKit.Label(UIKit.Box(Root, "Fps", new Vector2(1, 1), new Vector2(-120, -30), new Vector2(220, 40)), "", 26, new Color(0.7f, 1f, 0.7f), TextAnchor.MiddleRight);
+            // detailed profiler block (settings: "Показывать FPS" = "Подробно"), top-right under the boss bar
+            perfPanel = UIKit.Box(Root, "Perf", new Vector2(1, 1), new Vector2(-20, -180), new Vector2(760, 190), new Vector2(1, 1));
+            UIKit.Img(perfPanel, new Color(0f, 0f, 0f, 0.55f));
+            perfText = UIKit.Label(UIKit.Box(perfPanel, "T", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(740, 180)), "", 22, new Color(0.75f, 1f, 0.75f), TextAnchor.UpperLeft);
+            perfText.raycastTarget = false;
+            perfPanel.gameObject.SetActive(false);
 
             // ---- training stats (like the original "ПОЛИГОН" overlay) ----
             statsPanel = UIKit.Box(Root, "Stats", new Vector2(0, 1), new Vector2(30, -260), new Vector2(760, 120), new Vector2(0, 1));
@@ -231,7 +237,11 @@ namespace Kagegan
             popupText.canvasRenderer.SetAlpha(Mathf.Clamp01(popupT * 3f));
             bannerText.canvasRenderer.SetAlpha(Mathf.Clamp01(bannerT * 2f));
             lineText.canvasRenderer.SetAlpha(Mathf.Clamp01(lineT * 2f));
-            fpsText.text = Save.Data.showFps ? Mathf.RoundToInt(PerfMonitor.Fps) + " FPS  ×" + GraphicsQuality.CurrentRenderScale.ToString("0.00") : "";
+            // cached strings from PerfProbe: no new string per frame
+            fpsText.text = PerfProbe.ShortText;
+            string detail = PerfProbe.DetailText;
+            if (perfPanel.gameObject.activeSelf != (detail.Length > 0)) perfPanel.gameObject.SetActive(detail.Length > 0);
+            perfText.text = detail;
         }
 
         void OnDestroy() { if (inst == this) inst = null; }

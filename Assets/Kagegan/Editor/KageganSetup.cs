@@ -167,6 +167,13 @@ namespace Kagegan.EditorTools
                 if (fp != null && fp.CanWrite) fp.SetValue(null, true);
             }
             catch (Exception e) { Debug.LogWarning("Kagegan: frame pacing not set (" + e.Message + ")."); }
+            // CPU/GPU frame times for the in-game profiler (PerfProbe); small overhead, no Development build needed
+            try
+            {
+                var fts = typeof(PlayerSettings).GetProperty("enableFrameTimingStats", BindingFlags.Public | BindingFlags.Static);
+                if (fts != null && fts.CanWrite) fts.SetValue(null, true);
+            }
+            catch (Exception e) { Debug.LogWarning("Kagegan: frame timing stats not set (" + e.Message + ")."); }
             PlayerSettings.runInBackground = false;
             PlayerSettings.SplashScreen.show = false;
             SetActiveInputHandlingBoth();

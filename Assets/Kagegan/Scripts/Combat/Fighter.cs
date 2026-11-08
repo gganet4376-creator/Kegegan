@@ -54,6 +54,9 @@ namespace Kagegan
         public bool InActiveFrames => State == FState.Attack && CurMove != null && MoveTime >= CurMove.Startup && MoveTime < CurMove.Startup + CurMove.Active;
         public bool InStartup => State == FState.Attack && CurMove != null && MoveTime < CurMove.Startup;
         bool activeFired;
+        // swept hit check: where the strike tip was on the previous checked frame of this move
+        Vector3 prevTip;
+        bool prevTipValid;
         bool envHitDone;
         readonly List<Fighter> hitList = new List<Fighter>(8);
         float rehitTimer;
@@ -364,6 +367,7 @@ namespace Kagegan
             envHitDone = false;
             hitList.Clear();
             rehitTimer = 0f;
+            prevTipValid = false;
             chain = fromChain;
             chainIndex = index;
             chainOpenUntil = 0f;
@@ -387,6 +391,7 @@ namespace Kagegan
         {
             var m = CurMove;
             float speed = Kit != null ? Kit.SpeedMul : 1f;
+            float t0 = MoveTime;
             MoveTime += dt * m.AnimSpeed * speed;
             float t = MoveTime;
             m.OnTick?.Invoke(this, t / m.Total);
@@ -404,6 +409,10 @@ namespace Kagegan
             }
             else { Velocity.x *= 0.8f; Velocity.z *= 0.8f; }
 
+            // last startup pose of the strike tip, so the first active check sweeps the final part of the swing too
+            if (t < m.Startup && m.Damage > 0f && (m.Kind == HitKind.Light || m.Kind == HitKind.Heavy) && t > m.Startup * 0.6f)
+            { prevTip = HitPoint(m); prevTipValid = true; }
+
             if (t >= m.Startup && !activeFired)
             {
                 activeFired = true;
@@ -413,9 +422,13 @@ namespace Kagegan
                 if (m.SlashFx && m.Damage > 0f) Fx.Slash(transform, new Vector3(0, Height * 0.55f, 0.55f), m.SlashEuler, m.FxColor, (1.1f + m.Radius) * (m.Kind == HitKind.Light ? 0.65f : 1f));
             }
 
-            if (InActiveFrames)
+            // Frame-rate independent active window: also check on the frame that steps past its end, so a long frame
+            // (30 fps, a hitch) can't jump over a short window and silently drop the hit; the swept tip in HitCheck
+            // covers the limb's travel between the two frames.
+            float activeEnd = m.Startup + m.Active;
+            if (InActiveFrames || (t >= activeEnd && t0 < activeEnd && t >= m.Startup && State == FState.Attack))
             {
-                if (m.Hits > 1)
+                if (m.Hits > 1 && InActiveFrames) // the late catch-up check never adds an extra multi-hit tick
                 {
                     rehitTimer += dt;
                     if (rehitTimer >= m.Active / m.Hits) { rehitTimer = 0f; hitList.Clear(); }
@@ -484,6 +497,11 @@ namespace Kagegan
                 }
             }
             Vector3 b = HitPoint(m);
+            // swept: the strike tip moves up to ~0.5 m per frame at 30 fps, so also test the path it travelled since the
+            // last check; skipped after big jumps (teleports, warps) where the path isn't a real swing
+            bool swept = prevTipValid && (b - prevTip).sqrMagnitude < 2.5f * 2.5f;
+            Vector3 tipFrom = prevTip;
+            prevTip = b; prevTipValid = true;
             for (int i = 0; i < All.Count; i++)
             {
                 var f = All[i];
@@ -493,6 +511,8 @@ namespace Kagegan
                 // point-blank: an enemy pressed against the attacker sits between chest and elbow/knee
                 if (d > m.Radius + f.BodyRadius && a != chest)
                     d = Mathf.Min(d, KMath.SegmentSegmentDistance(chest, a, f.transform.position + Vector3.up * 0.25f, f.transform.position + Vector3.up * (f.Height - 0.15f)));
+                if (d > m.Radius + f.BodyRadius && swept)
+                    d = Mathf.Min(d, KMath.SegmentSegmentDistance(tipFrom, b, f.transform.position + Vector3.up * 0.25f, f.transform.position + Vector3.up * (f.Height - 0.15f)));
                 if (d > m.Radius + f.BodyRadius) continue;
 
                 // attack clash: both fighters are in active frames and their strikes meet
