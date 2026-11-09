@@ -613,7 +613,7 @@ namespace Kagegan
             if (!string.IsNullOrEmpty(texName))
             {
                 // strong phones get the 4K panorama (4096 px around), the rest the 2K one
-                if (GraphicsQuality.Current >= GraphicsPreset.High) skyTex = Resources.Load<Texture2D>("Kagegan/Sky/" + texName + "_4k");
+                if (GraphicsQuality.Current >= GraphicsPreset.High && GraphicsQuality.Is64Bit) skyTex = Resources.Load<Texture2D>("Kagegan/Sky/" + texName + "_4k");
                 if (skyTex == null) skyTex = Resources.Load<Texture2D>("Kagegan/Sky/" + texName);
             }
             Color tintC = tint ?? Color.white;

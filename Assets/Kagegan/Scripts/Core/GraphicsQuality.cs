@@ -80,6 +80,9 @@ namespace Kagegan
         static bool urpLookupDone;
         static Vector2Int nativeRes;
 
+        /// <summary>False when the app runs as a 32-bit (ARMv7) process: big textures are then skipped to save address space.</summary>
+        public static bool Is64Bit => System.IntPtr.Size == 8;
+
         public static GraphicsPreset AutoDetect()
         {
             int ram = SystemInfo.systemMemorySize;
@@ -90,6 +93,8 @@ namespace Kagegan
                                || gpu.Contains("adreno (tm) 8") || gpu.Contains("adreno (tm) 7") || gpu.Contains("xclipse");
             if (Application.isMobilePlatform)
             {
+                // a 32-bit system (ARMv7 APK) is always a budget phone, and the process has under 3 GB of address space
+                if (!Is64Bit) return GraphicsPreset.Low;
                 if (ram <= 4600 || weakGpu || SystemInfo.processorCount <= 4) return GraphicsPreset.Low;
                 if (ram <= 6500) return GraphicsPreset.Medium;
                 if (flagshipGpu && ram >= 9000) return GraphicsPreset.Ultra; // e.g. Vivo X200 Pro mini (Dimensity 9400, Immortalis-G925)
