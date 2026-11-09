@@ -46,7 +46,9 @@ namespace Kagegan
             {
                 asset.supportsHDR = on;
                 asset.msaaSampleCount = on ? 2 : 1; // 4x on a 2.6K panel cost a lot of bandwidth (and heat) for little gain
-                asset.supportsCameraDepthTexture = on; // depth of field reads it
+                // depth of field reads it; on GLES with MSAA the depth texture can cost a whole extra depth pass,
+                // so only Ultra pays for it
+                asset.supportsCameraDepthTexture = ultra;
             }
             if (cam == null) return;
             cam.allowHDR = on;
@@ -57,14 +59,14 @@ namespace Kagegan
                 data.renderPostProcessing = on;
                 data.antialiasing = AntialiasingMode.None; // MSAA does the edges; keeps the toon lines crisp
                 data.dithering = on;
-                data.requiresDepthTexture = on;
+                data.requiresDepthTexture = ultra;
                 // a single NaN/Inf pixel (driver quirks) would otherwise bloom into a white blob on HDR targets
                 data.stopNaN = on;
             }
             if (!on) { if (inst != null) inst.enabled = false; return; }
 
             EnsureVolume();
-            dof.active = true;
+            dof.active = ultra;
             bloom.active = true;
             bloom.intensity.value = ultra ? 0.65f : 0.5f;
             bloom.threshold.value = 1.25f;
