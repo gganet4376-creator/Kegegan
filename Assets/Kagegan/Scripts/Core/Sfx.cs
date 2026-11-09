@@ -10,8 +10,8 @@ namespace Kagegan
     }
 
     /// <summary>
-    /// All audio is synthesised at startup (offline game, zero audio assets to ship).
-    /// Short one-shots are generated at 22 kHz mono; music loops are generated lazily per theme.
+    /// Plays recorded sound effects and music from Resources/Kagegan/Audio (see CREDITS.md).
+    /// The synthesised clips below are only a fallback for a missing file.
     /// </summary>
     public class Sfx : MonoBehaviour
     {
@@ -92,9 +92,9 @@ namespace Kagegan
             variants = new AudioClip[(int)SfxId.Count][];
             lastVariant = new int[(int)SfxId.Count];
             for (int i = 0; i < trim.Length; i++) trim[i] = 1f;
-            trim[(int)SfxId.Energy] = 1f; trim[(int)SfxId.Charge] = 1f; trim[(int)SfxId.Release] = 1f;
+            trim[(int)SfxId.Energy] = 1f; trim[(int)SfxId.Charge] = 1f; trim[(int)SfxId.Release] = 0.6f; trim[(int)SfxId.Thunder] = 0.7f; trim[(int)SfxId.Poof] = 0.8f;
             trim[(int)SfxId.Whoosh] = 0.55f; trim[(int)SfxId.Land] = 0.7f; trim[(int)SfxId.Crumble] = 0.8f; trim[(int)SfxId.Block] = 0.85f;
-            trim[(int)SfxId.WireSwing] = 0.75f; trim[(int)SfxId.WireCrack] = 0.8f; trim[(int)SfxId.Ko] = 0.9f; trim[(int)SfxId.Roar] = 0.9f;
+            trim[(int)SfxId.WireSwing] = 0.75f; trim[(int)SfxId.WireCrack] = 0.8f; trim[(int)SfxId.Ko] = 0.9f; trim[(int)SfxId.Roar] = 0.75f;
             var all = Resources.LoadAll<AudioClip>("Kagegan/Audio/Sfx");
             var groups = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.List<AudioClip>>();
             foreach (var c in all)

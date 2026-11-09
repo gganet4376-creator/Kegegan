@@ -67,10 +67,23 @@
 - "Fantasy Props MegaKit" (Standard) — Quaternius — https://quaternius.itch.io/fantasy-props-megakit — бочки, ящики, манекены, вазы, стойки
 - "Medieval Village MegaKit" (Standard) — Quaternius — https://quaternius.itch.io/medieval-village-megakit — повозка, заборы, ящики
 - "Voiceover Pack: Fighter" — Kenney — https://opengameart.org/content/voiceover-pack-fighter-40-taunts — голос диктора
-- "Sci-Fi Sounds" — Kenney (CC0) — https://opengameart.org/content/sci-fi-sounds — основа звуков монострун Люси, огня, рыка боссов, KO, телепорта, накопления силы
+- "Sci-Fi Sounds" — Kenney (CC0) — https://opengameart.org/content/sci-fi-sounds — часть вариантов телепорта и взрыва
 - "Whip sound" — reemax (CC-BY 3.0) — https://opengameart.org/content/whip-sound — щелчок кнута в звуках монострун Люси
 - "Fire whip hit (Yo Frankie)" — Lamoot (CC-BY 3.0) — https://opengameart.org/content/fire-whip-hit-yo-frankie — удар хлыста в звуках монострун Люси
-- Звуки wireswing/wirecrack/wirezap, fire, poof, hiss, roar, ko, thunder и доп. варианты teleport/charge/absorb собраны и обработаны скриптами проекта из этих записей и синтеза.
+- "80 CC0 RPG SFX" — rubberduck (CC0) — https://opengameart.org/content/80-cc0-rpg-sfx — огонь, заклинания, рык
+- "80 CC0 creature SFX" — rubberduck (CC0) — https://opengameart.org/content/80-cc0-creature-sfx — рык боссов
+- "100 CC0 SFX" — rubberduck (CC0) — https://opengameart.org/content/100-cc0-sfx — гонг и удар тела для KO, взрыв
+- "CC0 Deep monster roar" — trazzz123 (CC0) — https://opengameart.org/content/cc0-deep-monster-roar — рык босса
+- "Energy drain" — qubodup (CC0) — https://opengameart.org/content/energy-drain — поглощение силы
+- "Electricity game sound pack" — faxcorp (CC0) — https://opengameart.org/content/electricity-game-sound-pack — треск тока монострун
+- "Steam release sounds" — bart (CC0) — https://opengameart.org/content/steam-release-sounds — шипение пара
+- "Swish - bamboo stick weapon swhoshes" — qubodup (CC0) — https://opengameart.org/content/swish-bamboo-stick-weapon-swhoshes — взмах монострун, дым, телепорт
+- "Air woosh / move" — almitory (CC0) — https://opengameart.org/content/air-woosh-move — телепорт
+- "Sand spell" — qubodup (CC0) — https://opengameart.org/content/sand-spell — дым, накопление силы
+- "Fire / Evil spell" — qubodup (CC-BY 3.0) — https://opengameart.org/content/fire-evil-spell — огонь, заклинание
+- "2 high quality explosions" — qubodup (CC-BY 3.0) — https://opengameart.org/content/2-high-quality-explosions — взрыв, выброс силы
+- "Gonk (gong)" — dklon (CC-BY 3.0) — https://opengameart.org/content/gonk-gong — KO
+- Звуки fire, roar, ko, hiss, poof, charge, absorb, energy, release, explosion, thunder, teleport_0 и монострун (wireswing/wirecrack/wirezap) нарезаны из этих записей скриптом проекта: обрезка, затухание, микширование двух записей, реверс, фильтр, выравнивание громкости. Синтеза нет. Гром — те же записи, что в разделе «Погода».
 - "85 Short Music Jingles" — Kenney — https://opengameart.org/content/85-short-music-jingles — заставки победы
 
 - "City Kit (Commercial)" и "City Kit (Roads)" — Kenney — https://kenney.nl — небоскрёбы, фонари, мусорные баки, ограждения
