@@ -75,6 +75,7 @@ namespace Kagegan
             s.referenceResolution = new Vector2(1920, 1080);
             s.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
             s.matchWidthOrHeight = 1f;
+            go.AddComponent<AdaptiveScaler>();
             go.AddComponent<GraphicRaycaster>();
             return c;
         }
@@ -234,6 +235,27 @@ namespace Kagegan
             scale = Mathf.Lerp(scale, target, 1f - Mathf.Exp(-18f * Time.unscaledDeltaTime));
             transform.localScale = Vector3.one * scale;
         }
+    }
+
+    /// <summary>
+    /// Layouts are authored for 1920x1080. Wide phones (16:9 and up) scale by height, so extra width just spreads the
+    /// corners apart. Narrower screens (16:10 / 4:3 tablets such as Xiaomi Pad 6) scale by width instead: the canvas
+    /// stays 1920 units wide and simply gets taller, so nothing authored for 1920 overflows the sides.
+    /// </summary>
+    public class AdaptiveScaler : MonoBehaviour
+    {
+        CanvasScaler s;
+        Vector2Int last;
+        void Awake() { s = GetComponent<CanvasScaler>(); Apply(); }
+        void Update() { if (last.x != Screen.width || last.y != Screen.height) Apply(); }
+        void Apply()
+        {
+            last = new Vector2Int(Screen.width, Screen.height);
+            if (s == null || last.y <= 0) return;
+            s.matchWidthOrHeight = (float)last.x / last.y >= 16f / 9f - 0.01f ? 1f : 0f;
+        }
+        /// <summary>Canvas units per screen height (1080 on phones, up to 1440 on 4:3).</summary>
+        public static float CanvasHeight => Screen.width <= 0 ? 1080f : Mathf.Max(1080f, 1920f * Screen.height / Screen.width);
     }
 
     /// <summary>Keeps a RectTransform inside Screen.safeArea (camera cut-outs, rounded corners, gesture bar) plus a small margin.</summary>

@@ -139,8 +139,28 @@ namespace Kagegan
             CameraOccluder.CheckLine(from, f.position + Vector3.up * 1.85f);
         }
 
+        Camera camRef;
+        float lastAspect = -1f;
+
+        /// <summary>
+        /// The vertical FOV is tuned for 16:9 phones. On narrower screens (16:10 / 4:3 tablets) widen it so the same
+        /// horizontal slice of the arena stays in view instead of cropping fighters off the sides.
+        /// </summary>
+        void FitAspect()
+        {
+            if (camRef == null) camRef = GetComponent<Camera>();
+            if (camRef == null || Mathf.Approximately(camRef.aspect, lastAspect)) return;
+            lastAspect = camRef.aspect;
+            const float baseFov = 50f, refAspect = 16f / 9f;
+            float fov = baseFov;
+            if (lastAspect > 0.1f && lastAspect < refAspect)
+                fov = 2f * Mathf.Atan(Mathf.Tan(baseFov * 0.5f * Mathf.Deg2Rad) * refAspect / lastAspect) * Mathf.Rad2Deg;
+            camRef.fieldOfView = Mathf.Min(fov, 68f);
+        }
+
         void LateUpdate()
         {
+            FitAspect();
             ComputeTarget(out Vector3 tp, out Vector3 tl);
             float dt = Time.unscaledDeltaTime;
             float rate = Time.unscaledTime < cineUntil ? 6f : (LaneMode ? 4f : 5f);
