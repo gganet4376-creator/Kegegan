@@ -117,7 +117,7 @@ namespace Kagegan
             {
                 if (info.Tint.a > 0f) m.SetColor("_Color", info.Tint);
                 if (info.GrassContact) m.SetFloat("_GrassContact", 1f);
-                if (info.Cut) { m.SetFloat("_Cutoff", 0.5f); m.SetFloat("_Cull", 0f); }
+                if (info.Cut) { m.SetFloat("_Cutoff", 0.5f); m.SetFloat("_Cull", 0f); m.EnableKeyword("KAGE_CLIP"); }
                 if (info.Wind > 0f) { m.SetFloat("_Wind", info.Wind); m.SetFloat("_WindObj", 1f); m.SetFloat("_WindHeight", info.WindH); m.SetFloat("_Flutter", info.Flutter); }
             }
 

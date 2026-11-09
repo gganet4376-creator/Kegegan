@@ -47,6 +47,7 @@ Shader "Kagegan/Surface"
             #pragma fragment frag
             #pragma multi_compile_instancing
             #pragma multi_compile_local __ KAGE_SURF_LITE KAGE_SURF_MID
+            #pragma multi_compile_local __ KAGE_CLIP // discard only while faded (see KageToon)
             // Medium = the lite surface plus cheap puddles that mirror the sky (no normal map, no ripples)
             #if defined(KAGE_SURF_MID)
                 #define KAGE_SURF_LITE 1
@@ -136,12 +137,14 @@ Shader "Kagegan/Surface"
 
             fixed4 frag (v2f i) : SV_Target
             {
+            #ifdef KAGE_CLIP
                 if (_Fade < 0.999)
                 {
                     float2 px = floor(i.spos.xy / max(i.spos.w, 1e-4) * _ScreenParams.xy);
                     float d = frac(52.9829189 * frac(dot(px, float2(0.06711056, 0.00583715))));
                     clip(_Fade - d);
                 }
+            #endif
                 half3 gn = normalize(i.wnormal);
                 half4 alb; half3 nt; half3 n;
                 if (_ObjUV > 0)
@@ -279,6 +282,7 @@ Shader "Kagegan/Surface"
             #pragma vertex vertD
             #pragma fragment fragD
             #pragma multi_compile_instancing
+            #pragma multi_compile_local __ KAGE_CLIP
             #pragma target 3.0
             struct v2fD { float4 pos : SV_POSITION; UNITY_VERTEX_OUTPUT_STEREO };
             v2fD vertD (appdata v)
@@ -291,7 +295,9 @@ Shader "Kagegan/Surface"
             }
             fixed4 fragD (v2fD i) : SV_Target
             {
+            #ifdef KAGE_CLIP
                 if (_Fade < 0.999) clip(-1);
+            #endif
                 return 0;
             }
             ENDCG

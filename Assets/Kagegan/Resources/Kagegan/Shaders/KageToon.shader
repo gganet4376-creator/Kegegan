@@ -135,6 +135,10 @@ Shader "Kagegan/Toon"
             #pragma vertex vert
             #pragma fragment frag
             #pragma multi_compile_instancing
+            // clip() only where it is needed (cut-out leaves, a prop faded out of the camera's way): a shader that can
+            // discard turns off early depth rejection on mobile tile GPUs (Mali FPK, PowerVR HSR), so every hidden
+            // layer of grass and foliage would be fully shaded
+            #pragma multi_compile_local __ KAGE_CLIP
             #pragma target 3.0
             struct v2f
             {
@@ -172,6 +176,7 @@ Shader "Kagegan/Toon"
 
             fixed4 frag (v2f i) : SV_Target
             {
+            #ifdef KAGE_CLIP
                 // screen-door fade for props that block the camera's view of the fighters
                 if (_Fade < 0.999)
                 {
@@ -179,8 +184,11 @@ Shader "Kagegan/Toon"
                     float d = frac(52.9829189 * frac(dot(px, float2(0.06711056, 0.00583715)))); // interleaved gradient noise
                     clip(_Fade - d);
                 }
+            #endif
                 fixed4 tex = tex2D(_MainTex, i.uv);
+            #ifdef KAGE_CLIP
                 if (_Cutoff > 0) clip(tex.a - _Cutoff);
+            #endif
                 half3 n = normalize(i.wnormal);
                 half3 l = normalize(_KageLightDir.xyz);
                 half3 vdir = normalize(_WorldSpaceCameraPos.xyz - i.wpos);
@@ -279,6 +287,7 @@ Shader "Kagegan/Toon"
             #pragma vertex vertD
             #pragma fragment fragD
             #pragma multi_compile_instancing
+            #pragma multi_compile_local __ KAGE_CLIP
             #pragma target 3.0
             struct v2fD { float4 pos : SV_POSITION; float2 uv : TEXCOORD0; UNITY_VERTEX_OUTPUT_STEREO };
             v2fD vertD (appdata v)
@@ -299,8 +308,10 @@ Shader "Kagegan/Toon"
             }
             fixed4 fragD (v2fD i) : SV_Target
             {
+            #ifdef KAGE_CLIP
                 if (_Cutoff > 0) clip(tex2D(_MainTex, i.uv).a - _Cutoff);
                 if (_Fade < 0.999) clip(-1);
+            #endif
                 return 0;
             }
             ENDCG
