@@ -167,7 +167,10 @@ namespace Kagegan
                 r.receiveShadows = false;
             }
             foreach (var c in go.GetComponentsInChildren<Collider>()) Object.Destroy(c);
-            // file units differ between exporters: measure once and normalise to the wanted height
+            // file units differ between exporters: measure once and normalise to the wanted height.
+            // h0 is the model's height at the prefab's own root scale, in the parent's units. Dividing by the root's
+            // own lossyScale was wrong: Blender FBX roots carry a scale of 100 (with -90 X), which made h0 100x too
+            // small and the props ~10000x too big (the menu's brown "wall"; in battle the camera fade hid them).
             if (!heights.TryGetValue(model, out float h0))
             {
                 h0 = 0f;
@@ -175,11 +178,19 @@ namespace Kagegan
                 {
                     var b = rs[0].bounds;
                     for (int i = 1; i < rs.Length; i++) b.Encapsulate(rs[i].bounds);
-                    h0 = b.size.y / Mathf.Max(0.0001f, go.transform.lossyScale.y);
+                    float parentScale = parent != null ? Mathf.Abs(parent.lossyScale.y) : 1f;
+                    h0 = b.size.y / Mathf.Max(0.0001f, parentScale);
                 }
-                heights[model] = h0;
+                // an empty or degenerate measurement must not be cached: the next spawn measures again
+                if (h0 > 0.0001f) heights[model] = h0;
             }
-            if (h0 > 0.0001f && height > 0f) go.transform.localScale *= height / h0;
+            if (h0 > 0.0001f && height > 0f)
+            {
+                float k = height / h0;
+                // a model is never meant to be resized by more than 1000x either way
+                if (k > 0.001f && k < 1000f) go.transform.localScale *= k;
+                else Debug.LogWarning("Kagegan: " + model + " skipped implausible rescale x" + k);
+            }
             // sit on the ground
             if (rs.Length > 0)
             {
