@@ -2,17 +2,18 @@ using UnityEngine;
 
 namespace Kagegan
 {
-    public enum WeatherType { Clear, Rain, Storm, Snow, Fog }
+    public enum WeatherType { Clear, Rain, Storm, Snow, Fog, Downpour }
 
     /// <summary>
-    /// Arena weather: rain (streaks, splashes, distant rain curtains, wet ground), thunderstorm (heavy rain + lightning
+    /// Arena weather: rain (streaks, splash crowns, ripples and droplets on the floor, distant rain curtains, wet ground),
+    /// downpour (ливень: denser heavier rain in gusting sheets with spray haze), thunderstorm (heavy rain + lightning
     /// and recorded thunder), snow (drifting flakes that slowly settle on the scenery) and fog (dense haze + low mist).
     /// Sets the shader globals _KageWet / _KageSnow, the lighting mood, the wind and the ambience loop.
     /// Particle counts scale with GraphicsQuality.WeatherMul, so Low stays cheap.
     /// </summary>
     public class WeatherSystem : MonoBehaviour
     {
-        public const int SettingCount = 7; // auto, random, clear, rain, storm, snow, fog
+        public const int SettingCount = 8; // auto, random, clear, rain, storm, snow, fog, downpour
 
         public WeatherType Type { get; private set; }
         Arena arena;
@@ -28,8 +29,8 @@ namespace Kagegan
         public static WeatherType Choose(ArenaId id, bool battle)
         {
             int s = Save.Data != null ? Save.Data.weather : 0;
-            if (s >= 2) return (WeatherType)Mathf.Clamp(s - 2, 0, 4);
-            if (s == 1) return (WeatherType)Random.Range(0, 5);
+            if (s >= 2) return (WeatherType)Mathf.Clamp(s - 2, 0, 5);
+            if (s == 1) return (WeatherType)Random.Range(0, 6);
             // training: the winter dojo (falling snow, white ground), unless the player picked a weather
             if (!battle) return id == ArenaId.Dojo && s == 0 ? WeatherType.Snow : WeatherType.Clear;
             // auto: the ruined city always has its storm, the rest roll a weighted chance;
@@ -45,9 +46,9 @@ namespace Kagegan
             float r = Random.value;
             switch (id)
             {
-                case ArenaId.Forest: return r < 0.4f ? WeatherType.Clear : r < 0.68f ? WeatherType.Rain : r < 0.85f ? WeatherType.Fog : WeatherType.Storm;
+                case ArenaId.Forest: return r < 0.4f ? WeatherType.Clear : r < 0.62f ? WeatherType.Rain : r < 0.72f ? WeatherType.Downpour : r < 0.87f ? WeatherType.Fog : WeatherType.Storm;
                 case ArenaId.MoonTemple: return r < 0.5f ? WeatherType.Clear : r < 0.78f ? WeatherType.Snow : WeatherType.Fog;
-                default: return r < 0.45f ? WeatherType.Clear : r < 0.67f ? WeatherType.Rain : r < 0.86f ? WeatherType.Snow : WeatherType.Fog;
+                default: return r < 0.45f ? WeatherType.Clear : r < 0.62f ? WeatherType.Rain : r < 0.7f ? WeatherType.Downpour : r < 0.87f ? WeatherType.Snow : WeatherType.Fog;
             }
         }
 
@@ -67,8 +68,9 @@ namespace Kagegan
                 case WeatherType.Clear:
                     to = a.Id == ArenaId.MoonTemple ? (r < 0.6f ? WeatherType.Snow : WeatherType.Fog) : a.Id == ArenaId.Dojo ? (r < 0.55f ? WeatherType.Rain : WeatherType.Snow) : WeatherType.Rain;
                     break;
-                case WeatherType.Rain: to = r < 0.6f ? WeatherType.Storm : WeatherType.Clear; break;
+                case WeatherType.Rain: to = r < 0.4f ? WeatherType.Storm : r < 0.7f ? WeatherType.Downpour : WeatherType.Clear; break;
                 case WeatherType.Storm: to = WeatherType.Rain; break;
+                case WeatherType.Downpour: to = r < 0.5f ? WeatherType.Rain : WeatherType.Storm; break;
                 case WeatherType.Snow: to = r < 0.5f ? WeatherType.Clear : WeatherType.Fog; break;
                 default: to = a.Id == ArenaId.MoonTemple && r < 0.4f ? WeatherType.Snow : r < 0.7f ? WeatherType.Clear : WeatherType.Rain; break;
             }
@@ -82,13 +84,14 @@ namespace Kagegan
             Shader.SetGlobalFloat("_KageSnow", 0f);
         }
 
-        public static bool Precipitation(WeatherType t) => t == WeatherType.Rain || t == WeatherType.Storm || t == WeatherType.Snow;
+        public static bool Precipitation(WeatherType t) => t == WeatherType.Rain || t == WeatherType.Storm || t == WeatherType.Snow || t == WeatherType.Downpour;
+        public static bool Rainy(WeatherType t) => t == WeatherType.Rain || t == WeatherType.Storm || t == WeatherType.Downpour;
 
         /// <summary>Lighting change for this weather (null = keep the arena's own look).</summary>
         public static Arena.WeatherLook? Look(WeatherType t, ArenaId id)
         {
             // the city is built as a stormy night already
-            if (id == ArenaId.City && (t == WeatherType.Rain || t == WeatherType.Storm)) return null;
+            if (id == ArenaId.City && Rainy(t)) return null;
             bool night = id == ArenaId.MoonTemple;
             switch (t)
             {
@@ -96,6 +99,9 @@ namespace Kagegan
                     return new Arena.WeatherLook { Sun = 0.55f, SunTint = new Color(0.86f, 0.92f, 1f), Amb = 0.9f, Fog = night ? new Color(0.14f, 0.15f, 0.22f) : new Color(0.5f, 0.55f, 0.62f), FogLerp = 0.65f, FogNear = 0.6f, FogMax = 0.85f, Sky = new Color(0.62f, 0.66f, 0.74f) };
                 case WeatherType.Storm:
                     return new Arena.WeatherLook { Sun = 0.42f, SunTint = new Color(0.8f, 0.88f, 1f), Amb = 0.75f, Fog = night ? new Color(0.1f, 0.1f, 0.16f) : new Color(0.3f, 0.33f, 0.4f), FogLerp = 0.6f, FogNear = 0.5f, FogMax = 0.9f, Sky = new Color(0.42f, 0.45f, 0.54f) };
+                case WeatherType.Downpour:
+                    // a grey wall of water: flat light, the far arena washes out
+                    return new Arena.WeatherLook { Sun = 0.38f, SunTint = new Color(0.82f, 0.88f, 0.98f), Amb = 0.82f, Fog = night ? new Color(0.12f, 0.13f, 0.19f) : new Color(0.4f, 0.44f, 0.5f), FogLerp = 0.75f, FogNear = 0.38f, FogMax = 0.93f, Sky = new Color(0.48f, 0.51f, 0.58f) };
                 case WeatherType.Snow:
                     return new Arena.WeatherLook { Sun = 0.82f, SunTint = new Color(0.92f, 0.96f, 1.06f), Amb = 1.2f, Fog = night ? new Color(0.3f, 0.32f, 0.42f) : new Color(0.8f, 0.84f, 0.9f), FogLerp = 0.6f, FogNear = 0.65f, FogMax = 0.8f, Sky = new Color(0.85f, 0.88f, 0.95f) };
                 case WeatherType.Fog:
@@ -111,6 +117,7 @@ namespace Kagegan
             {
                 case WeatherType.Rain: return ("amb_rain", 0.5f);
                 case WeatherType.Storm: return ("amb_rain_heavy", 0.55f);
+                case WeatherType.Downpour: return ("amb_rain_heavy", 0.78f);
                 case WeatherType.Snow: return ("amb_wind", 0.32f);
                 case WeatherType.Fog: return ("amb_wind", 0.2f);
             }
@@ -136,11 +143,17 @@ namespace Kagegan
             switch (t)
             {
                 case WeatherType.Rain:
-                    Rain(240f, 1f);
+                    Rain(240f, 1f, false);
                     wet = 0.3f; wetTarget = 0.85f;
                     break;
+                case WeatherType.Downpour:
+                    // ливень: dense heavy drops, thick far curtains, spray haze over the ground, everything soaked fast
+                    Rain(470f, 1.45f, true);
+                    Mist(new Color(0.6f, 0.64f, 0.72f, 0.26f), 14);
+                    wet = 0.75f; wetTarget = 1f;
+                    break;
                 case WeatherType.Storm:
-                    Rain(340f, 1.3f); // was 480: with splashes, drops and far curtains the storm alone cost ~4 ms on phones
+                    Rain(340f, 1.3f, false); // was 480: with splashes, drops and far curtains the storm alone cost ~4 ms on phones
                     Mist(new Color(0.55f, 0.58f, 0.66f, 0.22f), 10);
                     wet = 0.6f; wetTarget = 1f;
                     break;
@@ -155,7 +168,7 @@ namespace Kagegan
                     break;
             }
             // grass and dirt only get damp: full puddles + sky reflection read as a lake outside the asphalt city
-            if (a == null || a.Id != ArenaId.City) { wet *= 0.35f; wetTarget *= 0.35f; }
+            if (a == null || a.Id != ArenaId.City) { float k = t == WeatherType.Downpour ? 0.55f : 0.35f; wet *= k; wetTarget *= k; }
             // a change mid-fight continues from how wet / snowy the ground already is (it dries or melts slowly)
             if (fadeIn > 0f) { wet = Shader.GetGlobalFloat("_KageWet"); snow = Shader.GetGlobalFloat("_KageSnow"); }
             Shader.SetGlobalFloat("_KageWet", wet);
@@ -257,7 +270,7 @@ namespace Kagegan
             vel.z = new ParticleSystem.MinMaxCurve(min.z, max.z);
         }
 
-        void Rain(float rate, float heavy)
+        void Rain(float rate, float heavy, bool downpour)
         {
             Vector4 w = Shader.GetGlobalVector("_KageWind");
             float wx = w.x * 2.5f * heavy, wz = w.y * 1.2f * heavy;
@@ -280,7 +293,7 @@ namespace Kagegan
             // rain curtains far behind the arena: few, big and faint, so the downpour has depth
             if (GraphicsQuality.Current >= GraphicsPreset.Medium)
             {
-                var far = Layer("RainFar", follow, new Vector3(0f, 26f, 45f), rate * 0.12f, 1.6f, streakMat);
+                var far = Layer("RainFar", follow, new Vector3(0f, 26f, 45f), rate * (downpour ? 0.2f : 0.12f), 1.6f, streakMat);
                 var fm = far.main;
                 fm.startSize = new ParticleSystem.MinMaxCurve(0.12f, 0.2f);
                 fm.startColor = new Color(0.7f, 0.74f, 0.84f, 0.22f);
@@ -294,29 +307,164 @@ namespace Kagegan
                 far.Play();
             }
 
-            // splashes: small rings that open on the ground (flat, facing up)
-            var splash = Layer("RainSplash", follow, new Vector3(0f, 0.04f, 4f), rate * 0.32f, 0.35f, Mat.FxTex(Mat.Ring, false, "RainSplash"));
-            var sm = splash.main;
-            sm.startSize = new ParticleSystem.MinMaxCurve(0.12f, 0.3f);
-            sm.startColor = new Color(0.85f, 0.88f, 0.95f, 0.55f);
-            Box(splash, new Vector3(36f, 0f, 22f));
-            var sz = splash.sizeOverLifetime; sz.enabled = true; sz.size = new ParticleSystem.MinMaxCurve(1f, AnimationCurve.Linear(0f, 0.2f, 1f, 1f));
-            var sc = splash.colorOverLifetime; sc.enabled = true; sc.color = Fade(0.05f, 0.4f);
-            splash.GetComponent<ParticleSystemRenderer>().renderMode = ParticleSystemRenderMode.HorizontalBillboard;
-            splash.Play();
+            Splashes(rate, downpour);
 
-            // droplets that bounce off the splashes (skipped on Low)
-            if (GraphicsQuality.Current >= GraphicsPreset.Medium)
+            // ливень: the downpour comes in gusts - heavy soft sheets sweep across the arena in front of the background
+            if (downpour)
             {
-                var drops = Layer("RainDrops", follow, new Vector3(0f, 0.05f, 4f), rate * 0.25f, 0.28f, Mat.FxAlpha);
-                var dm = drops.main;
-                dm.startSize = new ParticleSystem.MinMaxCurve(0.03f, 0.05f);
-                dm.startColor = new Color(0.85f, 0.9f, 1f, 0.6f);
-                dm.gravityModifier = 2.2f;
-                Box(drops, new Vector3(36f, 0f, 22f));
-                Velocity(drops, new Vector3(-0.8f, 1.6f, -0.8f), new Vector3(0.8f, 2.6f, 0.8f));
-                drops.Play();
+                var sheet = Layer("RainSheets", follow, new Vector3(0f, 14f, 22f), rate * 0.05f, 1.2f, streakMat);
+                var shm = sheet.main;
+                shm.startSize = new ParticleSystem.MinMaxCurve(0.35f, 0.6f);
+                shm.startColor = new Color(0.74f, 0.78f, 0.86f, 0.1f);
+                Box(sheet, new Vector3(70f, 1f, 18f));
+                Velocity(sheet, new Vector3(wx * 1.4f - 1f, -22f, wz), new Vector3(wx * 1.4f + 1f, -18f, wz));
+                var shc = sheet.colorOverLifetime; shc.enabled = true; shc.color = Fade(0.15f, 0.8f);
+                var shr = sheet.GetComponent<ParticleSystemRenderer>();
+                shr.renderMode = ParticleSystemRenderMode.Stretch;
+                shr.velocityScale = 0.08f;
+                shr.lengthScale = 1f;
+                shr.maxParticleSize = 0.25f;
+                sheet.Play();
+
+                // fat drops right in front of the lens (High+): the depth cue of filming in a downpour
+                if (GraphicsQuality.Current >= GraphicsPreset.High)
+                {
+                    var lens = Layer("RainLens", follow, new Vector3(0f, 9f, -4f), 26f, 0.55f, streakMat);
+                    var lm = lens.main;
+                    lm.startSize = new ParticleSystem.MinMaxCurve(0.05f, 0.08f);
+                    lm.startColor = new Color(0.82f, 0.86f, 0.95f, 0.32f);
+                    Box(lens, new Vector3(16f, 1f, 5f));
+                    Velocity(lens, new Vector3(wx - 0.3f, -24f, wz), new Vector3(wx + 0.3f, -20f, wz));
+                    var lr = lens.GetComponent<ParticleSystemRenderer>();
+                    lr.renderMode = ParticleSystemRenderMode.Stretch;
+                    lr.velocityScale = 0.05f;
+                    lr.lengthScale = 1f;
+                    lens.Play();
+                }
             }
+        }
+
+        static Texture2D crownTex, rippleTex;
+
+        /// <summary>
+        /// Splash crown seen from the side, drawn in code: a low sheet of water at the impact point that breaks into
+        /// thin jets leaning outwards, each with a droplet at its tip. The lower half of the texture is empty so the
+        /// billboard's centre sits on the ground.
+        /// </summary>
+        static Texture2D CrownTexture()
+        {
+            if (crownTex != null) return crownTex;
+            const int W = 64, H = 64;
+            var a = new float[W * H];
+            void Dot(float cx, float cy, float rad, float alpha)
+            {
+                for (int y = Mathf.Max(0, (int)(cy - rad - 2)); y < Mathf.Min(H, (int)(cy + rad + 2)); y++)
+                    for (int x = Mathf.Max(0, (int)(cx - rad - 2)); x < Mathf.Min(W, (int)(cx + rad + 2)); x++)
+                    {
+                        float d = Mathf.Sqrt((x + 0.5f - cx) * (x + 0.5f - cx) + (y + 0.5f - cy) * (y + 0.5f - cy));
+                        float v = Mathf.Clamp01(rad + 0.7f - d) * alpha;
+                        if (v > a[y * W + x]) a[y * W + x] = v;
+                    }
+            }
+            float bx = W * 0.5f, by = H * 0.5f;
+            // the base sheet: a shallow bowl of water
+            for (float t = -1f; t <= 1f; t += 0.02f) Dot(bx + t * 13f, by + 1.5f + t * t * 5f, 1.4f * (1f - 0.4f * t * t), 0.75f);
+            // jets: thin, tapering, curving outwards, a droplet breaking off the end
+            float[] ang = { -62f, -38f, -16f, 8f, 30f, 54f };
+            float[] len = { 14f, 19f, 22f, 21f, 18f, 13f };
+            for (int j = 0; j < ang.Length; j++)
+            {
+                float rad = ang[j] * Mathf.Deg2Rad, sx = bx + Mathf.Sin(rad) * 11f, sy = by + 3f + Mathf.Abs(Mathf.Sin(rad)) * 4f;
+                for (float t = 0f; t <= 1f; t += 0.03f)
+                {
+                    float bend = rad * (1f + 0.5f * t);
+                    float x = sx + Mathf.Sin(bend) * len[j] * t * 0.55f, y = sy + Mathf.Cos(bend) * len[j] * t * 0.85f;
+                    Dot(x, y, Mathf.Lerp(1.2f, 0.45f, t), Mathf.Lerp(0.9f, 0.55f, t));
+                }
+                // the droplet just pinching off past the jet's tip, along the same curve
+                float tb = rad * 1.6f, tt = 1.18f;
+                Dot(sx + Mathf.Sin(tb) * len[j] * tt * 0.55f, sy + Mathf.Cos(tb) * len[j] * tt * 0.85f, 1.35f, 1f);
+            }
+            var t2 = new Texture2D(W, H, TextureFormat.RGBA32, false) { name = "RainCrown", wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
+            var px = new Color32[W * H];
+            for (int i = 0; i < px.Length; i++) px[i] = new Color32(255, 255, 255, (byte)(Mathf.Clamp01(a[i]) * 255f));
+            t2.SetPixels32(px);
+            t2.Apply(false, true);
+            return crownTex = t2;
+        }
+
+        /// <summary>Ripple on standing water: a sharp leading ring and a fainter second ring inside it.</summary>
+        static Texture2D RippleTexture()
+        {
+            if (rippleTex != null) return rippleTex;
+            const int N = 128;
+            var t = new Texture2D(N, N, TextureFormat.RGBA32, false) { name = "RainRipple", wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
+            var px = new Color32[N * N];
+            for (int y = 0; y < N; y++)
+                for (int x = 0; x < N; x++)
+                {
+                    float u = (x + 0.5f) / N * 2f - 1f, v = (y + 0.5f) / N * 2f - 1f;
+                    float r = Mathf.Sqrt(u * u + v * v);
+                    float outer = Mathf.Clamp01(1f - Mathf.Abs(r - 0.86f) * 22f);
+                    float inner = Mathf.Clamp01(1f - Mathf.Abs(r - 0.6f) * 26f) * 0.45f;
+                    float a = Mathf.Max(outer, inner) * (r < 0.97f ? 1f : 0f);
+                    px[y * N + x] = new Color32(255, 255, 255, (byte)(a * 255f));
+                }
+            t.SetPixels32(px);
+            t.Apply(false, true);
+            return rippleTex = t;
+        }
+
+        /// <summary>
+        /// Drops landing on the ground, in three parts that together read as water hitting a hard floor:
+        /// a crown that jumps up and collapses in ~0.15 s, a ripple that spreads over the wet surface,
+        /// and a few droplets thrown out that fall back under gravity.
+        /// </summary>
+        void Splashes(float rate, bool downpour)
+        {
+            float big = downpour ? 1.25f : 1f;
+            var area = new Vector3(36f, 0f, 22f);
+
+            // 1. crowns: vertical billboards standing on the floor, quick rise and collapse
+            var crown = Layer("RainCrown", follow, new Vector3(0f, 0.02f, 4f), rate * 0.42f, 0.16f, Mat.FxTex(CrownTexture(), false, "RainCrown"));
+            var cm = crown.main;
+            cm.startSize = new ParticleSystem.MinMaxCurve(0.16f * big, 0.3f * big);
+            cm.startColor = new Color(0.86f, 0.9f, 0.98f, 0.7f);
+            Box(crown, area);
+            var csz = crown.sizeOverLifetime; csz.enabled = true;
+            csz.size = new ParticleSystem.MinMaxCurve(1f, new AnimationCurve(new Keyframe(0f, 0.35f), new Keyframe(0.35f, 1f), new Keyframe(1f, 1.1f)));
+            var ccol = crown.colorOverLifetime; ccol.enabled = true; ccol.color = Fade(0.08f, 0.45f);
+            var cr = crown.GetComponent<ParticleSystemRenderer>();
+            cr.renderMode = ParticleSystemRenderMode.VerticalBillboard; // stands upright, turns to the camera
+            crown.Play();
+
+            // 2. ripples: rings spreading on the wet floor, longer-lived and wider than the crown
+            var ripple = Layer("RainRipple", follow, new Vector3(0f, 0.03f, 4f), rate * 0.3f, 0.55f, Mat.FxTex(RippleTexture(), false, "RainRipple"));
+            var rm = ripple.main;
+            rm.startSize = new ParticleSystem.MinMaxCurve(0.28f * big, 0.55f * big);
+            rm.startColor = new Color(0.82f, 0.86f, 0.95f, 0.42f);
+            Box(ripple, area);
+            var rsz = ripple.sizeOverLifetime; rsz.enabled = true;
+            rsz.size = new ParticleSystem.MinMaxCurve(1f, new AnimationCurve(new Keyframe(0f, 0.08f, 0f, 2.4f), new Keyframe(1f, 1f, 0.4f, 0f)));
+            var rcol = ripple.colorOverLifetime; rcol.enabled = true; rcol.color = Fade(0.04f, 0.3f);
+            ripple.GetComponent<ParticleSystemRenderer>().renderMode = ParticleSystemRenderMode.HorizontalBillboard;
+            ripple.Play();
+
+            // 3. droplets thrown out of the splash, arcing back down (Low gets fewer)
+            float dropRate = rate * (GraphicsQuality.Current >= GraphicsPreset.Medium ? 0.3f : 0.12f) * big;
+            var drops = Layer("RainDrops", follow, new Vector3(0f, 0.05f, 4f), dropRate, 0.3f, Mat.FxTex(Mat.Streak, false, "RainDrop"));
+            var dm = drops.main;
+            dm.startSize = new ParticleSystem.MinMaxCurve(0.018f, 0.032f);
+            dm.startColor = new Color(0.88f, 0.92f, 1f, 0.75f);
+            dm.gravityModifier = 2.4f;
+            Box(drops, area);
+            Velocity(drops, new Vector3(-1f, 1.4f, -1f), new Vector3(1f, 2.8f, 1f));
+            var dc = drops.colorOverLifetime; dc.enabled = true; dc.color = Fade(0.02f, 0.75f);
+            var dr = drops.GetComponent<ParticleSystemRenderer>();
+            dr.renderMode = ParticleSystemRenderMode.Stretch;   // short streaks along the arc read as flying water
+            dr.velocityScale = 0.02f;
+            dr.lengthScale = 1.2f;
+            drops.Play();
         }
 
         void Snow()

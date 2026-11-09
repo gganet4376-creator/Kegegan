@@ -752,6 +752,7 @@ namespace Kagegan
             {
                 case WeatherType.Rain: Mat.SetWind(new Vector2(wind.x, wind.y), Mathf.Max(wind.z, 1.5f), Mathf.Max(wind.w, 1.15f)); break;
                 case WeatherType.Storm: Mat.SetWind(new Vector2(wind.x, wind.y), Mathf.Max(wind.z, 1.9f), Mathf.Max(wind.w, 1.3f)); break;
+                case WeatherType.Downpour: Mat.SetWind(new Vector2(wind.x, wind.y), Mathf.Max(wind.z, 2.1f), Mathf.Max(wind.w, 1.35f)); break;
                 case WeatherType.Snow: Mat.SetWind(new Vector2(wind.x, wind.y), Mathf.Min(wind.z, 0.7f), 0.8f); break;
                 case WeatherType.Fog: Mat.SetWind(new Vector2(wind.x, wind.y), Mathf.Min(wind.z, 0.45f), 0.7f); break;
             }
@@ -795,6 +796,7 @@ namespace Kagegan
             switch (WeatherKind)
             {
                 case WeatherType.Rain: if (Id != ArenaId.City) { c = new Color(c.r * 0.6f, c.g * 0.62f, c.b * 0.7f, 0.9f); count += 8; } break;
+                case WeatherType.Downpour:
                 case WeatherType.Storm: if (Id != ArenaId.City) { c = new Color(c.r * 0.42f, c.g * 0.43f, c.b * 0.52f, 0.92f); count += 10; } break;
                 case WeatherType.Snow: c = new Color(Mathf.Lerp(c.r, 0.85f, 0.5f), Mathf.Lerp(c.g, 0.87f, 0.5f), Mathf.Lerp(c.b, 0.92f, 0.5f), 0.88f); count += 6; break;
                 case WeatherType.Fog: c.a = Mathf.Min(1f, c.a + 0.1f); count += 4; break;

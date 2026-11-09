@@ -242,7 +242,7 @@ namespace Kagegan
                     // every weather on High (or Ultra in quick mode), clear + storm elsewhere
                     bool full = p == (quick ? GraphicsPreset.Ultra : GraphicsPreset.High);
                     var weathers = full
-                        ? new[] { WeatherType.Clear, WeatherType.Rain, WeatherType.Storm, WeatherType.Snow, WeatherType.Fog }
+                        ? new[] { WeatherType.Clear, WeatherType.Rain, WeatherType.Storm, WeatherType.Snow, WeatherType.Fog, WeatherType.Downpour }
                         : new[] { WeatherType.Clear, WeatherType.Storm };
                     foreach (var w in weathers)
                     {

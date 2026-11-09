@@ -39,6 +39,7 @@ namespace Kagegan
                 case WeatherType.Storm: return "Гроза";
                 case WeatherType.Snow: return "Снег";
                 case WeatherType.Fog: return "Туман";
+                case WeatherType.Downpour: return "Ливень";
                 default: return "Ясно";
             }
         }
