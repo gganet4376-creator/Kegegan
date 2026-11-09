@@ -145,12 +145,20 @@ namespace Kagegan
         float aiCapriAt;
         bool leftFailed;
 
+        float lastCrack = -1f;
+
         void Lash(Vector3 to, Color c, float life, float sweep)
         {
             // called on the contact frame: a fast roll so the tip snaps almost at once (a real cracker breaks the sound barrier)
             // a swing from the left (sweep < 0) comes from the left hand; an overhead one (sweep 0) uses both wires
             float dur = Mathf.Clamp(life * 0.8f, 0.18f, 0.32f);
             var w = sweep < -0.01f && whipL != null ? whipL : whip;
+            // cyber monowire: the tip snaps with an electric crack (throttled - barrages lash several times a beat)
+            if (Time.time - lastCrack > 0.05f)
+            {
+                lastCrack = Time.time;
+                Sfx.PlayAt(SfxId.WireCrack, to, 0.75f, Random.Range(0.92f, 1.1f));
+            }
             if (w != null)
             {
                 w.Strike(to, dur, sweep);
@@ -187,7 +195,7 @@ namespace Kagegan
         {
             var m = MoveLib.Hook(true, dmg);
             m.Name = "wirelash"; m.Range = 3.2f; m.Reach = new Vector3(0, 0, 1.6f); m.Radius = 0.7f; m.Lunge = 1f;
-            m.Knockback = 3.5f; m.FxColor = Wire; m.SlashEuler = new Vector3(0, 0, 75); m.Sfx = SfxId.Whoosh;
+            m.Knockback = 3.5f; m.FxColor = Wire; m.SlashEuler = new Vector3(0, 0, 75); m.Sfx = SfxId.WireSwing;
             m.OnActive = ff => Lash(ff.transform.position + ff.transform.forward * 3f + Vector3.up * 1.05f, Wire, 0.26f, sweep);
             return m;
         }
@@ -281,7 +289,7 @@ namespace Kagegan
                 Name = "monowire", Windup = PoseLib.HookRWind, Strike = PoseLib.HookR, Startup = 0.16f, Active = 0.16f, Recovery = 0.3f,
                 Damage = 24f, Kind = HitKind.Technique, Knockback = 5f, Hitstun = 0.6f, Radius = 1f, Bone = HitBone.Body,
                 Reach = new Vector3(0, 0.1f, 2.6f), Range = 4.8f, Lunge = 1.5f, FxColor = Wire, Shake = 0.3f, HitStop = 0.09f,
-                SlashEuler = new Vector3(0, 0, 70), Sfx = SfxId.Whoosh, HitSfx = SfxId.HeavyHit, Mocap = "Melee_Hook", MocapContact = MocapLibrary.HookContact
+                SlashEuler = new Vector3(0, 0, 70), Sfx = SfxId.WireSwing, HitSfx = SfxId.HeavyHit, Mocap = "Melee_Hook", MocapContact = MocapLibrary.HookContact
             };
             m.OnActive = ff =>
             {
@@ -308,7 +316,8 @@ namespace Kagegan
             f.EnterChannel();
             f.FaceInstant(t.transform.position);
             Act(ThrowClip, 2f, 0.45f, 0.4f, Clip.Hold(PoseLib.Throw, 0.06f, 0.2f, 0.1f)); // arm fully out ~0.18 s in
-            Sfx.Play(SfxId.Whoosh, 1f, 1.3f);
+            Sfx.Play(SfxId.WireSwing, 1f, 1.1f);
+            Sfx.Play(SfxId.WireZap, 0.7f, 1f);
             yield return new WaitForSeconds(0.12f);
             if (Interrupted(f, t)) yield break;
             Lash(t.Center, Wire, 0.5f, 0.4f);
@@ -463,7 +472,7 @@ namespace Kagegan
             // launch
             t.Teleport(c + Vector3.up * 3.2f);
             Fx.Electric(t.Center, Wire, 1.6f, 4);
-            Sfx.Play(SfxId.Whoosh, 1f, 0.7f);
+            Sfx.Play(SfxId.WireSwing, 1f, 0.8f);
             TimeFx.SlowMo(0.5f, 0.35f);
             yield return new WaitForSeconds(0.2f);
             // finisher: flip above and bring both wires down
@@ -513,7 +522,8 @@ namespace Kagegan
             // 1. wire bind
             f.FaceInstant(c);
             f.Anim.Play(Clip.Hold(PoseLib.Throw, 0.04f, 0.4f, 0.1f));
-            Sfx.Play(SfxId.Whoosh, 1f, 1.1f);
+            Sfx.Play(SfxId.WireSwing, 1f, 1f);
+            Sfx.Play(SfxId.WireZap, 0.8f, 0.9f);
             for (int k = 0; k < 6; k++)
             {
                 Tether(t.Center + Random.insideUnitSphere * 0.25f);

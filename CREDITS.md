@@ -54,6 +54,10 @@
 - "Fantasy Props MegaKit" (Standard) — Quaternius — https://quaternius.itch.io/fantasy-props-megakit — бочки, ящики, манекены, вазы, стойки
 - "Medieval Village MegaKit" (Standard) — Quaternius — https://quaternius.itch.io/medieval-village-megakit — повозка, заборы, ящики
 - "Voiceover Pack: Fighter" — Kenney — https://opengameart.org/content/voiceover-pack-fighter-40-taunts — голос диктора
+- "Sci-Fi Sounds" — Kenney (CC0) — https://opengameart.org/content/sci-fi-sounds — основа звуков монострун Люси, огня, рыка боссов, KO, телепорта, накопления силы
+- "Whip sound" — reemax (CC-BY 3.0) — https://opengameart.org/content/whip-sound — щелчок кнута в звуках монострун Люси
+- "Fire whip hit (Yo Frankie)" — Lamoot (CC-BY 3.0) — https://opengameart.org/content/fire-whip-hit-yo-frankie — удар хлыста в звуках монострун Люси
+- Звуки wireswing/wirecrack/wirezap, fire, poof, hiss, roar, ko, thunder и доп. варианты teleport/charge/absorb собраны и обработаны скриптами проекта из этих записей и синтеза.
 - "85 Short Music Jingles" — Kenney — https://opengameart.org/content/85-short-music-jingles — заставки победы
 
 - "City Kit (Commercial)" и "City Kit (Roads)" — Kenney — https://kenney.nl — небоскрёбы, фонари, мусорные баки, ограждения

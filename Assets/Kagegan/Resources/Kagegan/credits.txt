@@ -84,3 +84,6 @@
 Лицензия: https://creativecommons.org/licenses/by/3.0/
 
 Капри (призыв Люси): спрайты, разрыв, портрет и кольцо кнопки нарисованы процедурно скриптами проекта. Фанатская интерпретация, некоммерческое использование.
+
+
+Звуки монострун Люси и аниме-эффекты: Kenney "Sci-Fi Sounds" (CC0); "Whip sound" — reemax (CC-BY 3.0); "Fire whip hit (Yo Frankie)" — Lamoot (CC-BY 3.0), opengameart.org. Обработка — скрипты проекта.

@@ -5,7 +5,8 @@ namespace Kagegan
     public enum SfxId
     {
         Hit, HeavyHit, Whoosh, Block, Parry, Explosion, Fire, Thunder, Energy, Poof, Step,
-        Absorb, Release, Teleport, Crumble, Roar, Click, Clash, Ko, Hiss, Charge, Land, Count
+        Absorb, Release, Teleport, Crumble, Roar, Click, Clash, Ko, Hiss, Charge, Land,
+        WireSwing, WireCrack, WireZap, Count
     }
 
     /// <summary>
@@ -79,6 +80,9 @@ namespace Kagegan
             clips[(int)SfxId.Ko] = Make("ko", 1.4f, (t, d) => (Sine(220, t) + Sine(277, t) + Sine(330, t)) * Env(t, 0.02f, 1.3f) * 0.3f);
             clips[(int)SfxId.Hiss] = Make("hiss", 0.5f, (t, d) => Noise() * Mathf.Sin(Mathf.PI * t / d) * 0.3f);
             clips[(int)SfxId.Charge] = Make("charge", 0.9f, (t, d) => Sine(200 + 600 * t / d, t) * (t / d) * 0.4f + Noise() * 0.05f);
+            clips[(int)SfxId.WireSwing] = Make("wireswing", 0.4f, (t, d) => (Noise() * 0.5f + Sine(2000 + 5000 * t / d, t) * 0.25f) * Mathf.Sin(Mathf.PI * t / d) * 0.4f);
+            clips[(int)SfxId.WireCrack] = Make("wirecrack", 0.3f, (t, d) => (Noise() * Env(t, 0.0005f, 0.03f) + Square(2400, t) * (Random01() > 0.7f ? 0.3f : 0f) * Env(t, 0.002f, 0.2f)) * 0.7f);
+            clips[(int)SfxId.WireZap] = Make("wirezap", 0.22f, (t, d) => Square(180 + 60 * Mathf.Sin(t * 200), t) * (Mathf.Sin(t * 220) > -0.3f ? 1f : 0f) * Env(t, 0.002f, 0.18f) * 0.35f);
             clips[(int)SfxId.Land] = Make("land", 0.12f, (t, d) => LowNoise(0.4f) * Env(t, 0.001f, 0.1f) * 0.6f);
         }
 
@@ -90,6 +94,7 @@ namespace Kagegan
             for (int i = 0; i < trim.Length; i++) trim[i] = 1f;
             trim[(int)SfxId.Energy] = 1f; trim[(int)SfxId.Charge] = 1f; trim[(int)SfxId.Release] = 1f;
             trim[(int)SfxId.Whoosh] = 0.55f; trim[(int)SfxId.Land] = 0.7f; trim[(int)SfxId.Crumble] = 0.8f; trim[(int)SfxId.Block] = 0.85f;
+            trim[(int)SfxId.WireSwing] = 0.75f; trim[(int)SfxId.WireCrack] = 0.8f; trim[(int)SfxId.Ko] = 0.9f; trim[(int)SfxId.Roar] = 0.9f;
             var all = Resources.LoadAll<AudioClip>("Kagegan/Audio/Sfx");
             var groups = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.List<AudioClip>>();
             foreach (var c in all)
