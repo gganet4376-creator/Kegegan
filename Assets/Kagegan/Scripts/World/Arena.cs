@@ -487,6 +487,7 @@ namespace Kagegan
             a.EnemySpawn = new Vector3(5f, 0f, 0f);
             a.BuildWalls(Radius);
             a.ApplyLighting();
+            if (id == ArenaId.Forest) go.AddComponent<SunShafts>();
             // trees, rocks, gates and buildings throw sun shadows: shadow map, or the CPU bake as a fallback (High / Ultra)
             if (KageShadowMap.On) KageShadowMap.SetScenery(go.transform);
             else SceneryShadow.Bake(go.transform, a.sunDir);
@@ -698,10 +699,26 @@ namespace Kagegan
         Color SunNow { get { var l = CurLook; return l.HasValue ? sunCol * l.Value.Sun * l.Value.SunTint : sunCol; } }
         Color AmbNow { get { var l = CurLook; return l.HasValue ? ambCol * l.Value.Amb : ambCol; } }
 
+        /// <summary>Mist lying in the distance (see WorldLighting.SetAtmosphere).</summary>
+        static Vector4 HeightFog(ArenaId id)
+        {
+            switch (id)
+            {
+                case ArenaId.Forest: return new Vector4(0f, 0.16f, 0.5f, 14f);   // blue morning mist between the trunks
+                case ArenaId.City: return new Vector4(0f, 0.1f, 0.35f, 12f);     // rain haze between the buildings
+                case ArenaId.MoonTemple: return new Vector4(0f, 0.22f, 0.3f, 16f);
+                default: return new Vector4(0f, 0.25f, 0.22f, 18f);
+            }
+        }
+
+        /// <summary>How much the haze glows toward the sun.</summary>
+        static float FogSun(ArenaId id) => id == ArenaId.Forest ? 0.7f : id == ArenaId.Dojo ? 0.5f : id == ArenaId.City ? 0.15f : 0.3f;
+
         public void ApplyLighting()
         {
             var cl = CurLook;
             WorldLighting.SetSun(sunDir, SunNow, AmbNow);
+            WorldLighting.SetAtmosphere(HeightFog(Id), FogSun(Id) * (cl.HasValue ? Mathf.Clamp01(cl.Value.Sun) : 1f));
             if (cl.HasValue)
             {
                 var l = cl.Value;
@@ -943,7 +960,7 @@ namespace Kagegan
         {
             GraphicsQuality.Changed -= RefreshWeather;
             GraphicsQuality.Changed -= RefreshSceneryShadow;
-            if (Current == this) { Current = null; SceneryShadow.Clear(); KageShadowMap.ClearScenery(); }
+            if (Current == this) { Current = null; SceneryShadow.Clear(); KageShadowMap.ClearScenery(); WorldLighting.SetAtmosphere(Vector4.zero, 0f); }
         }
 
         // quality changed from the pause menu: drop or (re)bake the scenery shadows to match
@@ -1308,8 +1325,10 @@ namespace Kagegan
         // ================= 1. Forest of Destruction =================
         void BuildForest(MeshBuilder mb)
         {
-            Lighting(new Vector3(0.74f, 0.58f, 0.2f), new Color(1f, 0.88f, 0.7f), new Color(0.25f, 0.32f, 0.28f), new Color(0.8f, 0.78f, 0.6f), 11f, 72f, 0.78f); // warm green-gold haze
-            Sky(new Color(0.45f, 0.62f, 0.75f), new Color(0.85f, 0.83f, 0.68f), new Color(0.4f, 0.5f, 0.35f), "sky_forest");
+            // warm low sun from behind the trees (long dappled shadows, backlit leaves, shafts toward the camera),
+            // cool blue sky light in the shade and a blue-grey haze in the distance
+            Lighting(new Vector3(0.66f, 0.5f, 0.56f), new Color(1.06f, 0.9f, 0.68f), new Color(0.24f, 0.31f, 0.38f), new Color(0.62f, 0.72f, 0.8f), 11f, 72f, 0.74f);
+            Sky(new Color(0.45f, 0.62f, 0.75f), new Color(0.7f, 0.78f, 0.8f), new Color(0.4f, 0.5f, 0.35f), "sky_forest");
             PhotoGround("forest", new Color(0.43f, 0.485f, 0.27f), new Color(0.568f, 0.529f, 0.366f), 3.6f, 0f, 0.6f);
             Ground(mb, 70f, new Color(0.38f, 0.55f, 0.27f), new Color(0.48f, 0.42f, 0.27f), new Color(0.2f, 0.32f, 0.18f), 21);
             Grass(360, 2f, 30f, new Color(0.35f, 0.58f, 0.22f), 7);

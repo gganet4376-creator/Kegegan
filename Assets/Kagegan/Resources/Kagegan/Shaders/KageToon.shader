@@ -23,6 +23,8 @@ Shader "Kagegan/Toon"
         _MainTex ("Albedo (imported models)", 2D) = "white" {}
         _VColor ("Use vertex colour (procedural meshes)", Range(0,1)) = 1
         _Cutoff ("Alpha cutoff (foliage)", Range(0,1)) = 0
+        _Translucent ("Foliage: sun shining through", Range(0,1)) = 0
+        _TransGreen ("Foliage: only on green parts (trunk + leaves in one mesh)", Range(0,1)) = 0
         [Enum(UnityEngine.Rendering.CullMode)] _Cull ("Cull", Float) = 2
     }
     SubShader
@@ -33,6 +35,9 @@ Shader "Kagegan/Toon"
             #include "UnityCG.cginc"
             fixed4 _Color, _ShadowTint, _RimColor, _FlashColor, _EmitColor;
             half _Flash, _CharFx, _Emit, _Fade, _Wind, _WindObj, _GrassContact, _VColor, _Cutoff, _WindHeight, _Flutter;
+            half _Translucent, _TransGreen;
+            half _KageTransl;         // global foliage translucency scale (0 = off)
+            half _KageCharTones;      // fighters: third (core) shadow tone + warm skin edge, 0 = off
             float4 _KageWind;         // xy = wind direction on the ground, z = strength, w = speed
             half _KageGlow;           // emission multiplier (HDR presets)
             half _KageInk;            // 1 for the finisher impact frame: paper world, ink fighters
@@ -57,6 +62,8 @@ Shader "Kagegan/Toon"
             float _KageBendK[12];     // push strength 0..1 (fades out smoothly so the grass springs back)
             float _KageBendCount;
             float4 _KageGrassFade;    // x = distance where grass starts sinking into the ground, y = where it is gone
+
+            #include "KageAtmo.cginc"
 
             struct appdata
             {
@@ -227,11 +234,33 @@ Shader "Kagegan/Toon"
                 // shadows also block part of the sky light, so they stay readable under overcast / night lighting
                 half ambOcc = lerp(1.0, shAll, 0.6);
                 half3 lit = albedo * lerp(_ShadowTint.rgb, half3(1,1,1), band1) * (_KageLightColor.rgb + band2) + albedo * _KageAmbient.rgb * hemi * ambOcc;
+                if (_CharFx * _KageCharTones > 0)
+                {
+                    half ct = _CharFx * _KageCharTones;
+                    // anime three-tone: lit / shadow / a slightly deeper core where the form turns fully away
+                    half core = smoothstep(-0.42, -0.34, ndl);
+                    lit *= lerp(1.0, lerp(0.84, 1.0, max(core, band1)), ct);
+                    // skin (picked by its colour in the atlas): warm light bleeds just past the shadow line
+                    half inv = 1.0 / max(albedo.r, 0.05);
+                    half skin = saturate(1.0 - abs((albedo.r - albedo.g) * inv - 0.22) * 4.0)
+                              * saturate(1.0 - abs((albedo.g - albedo.b) * inv - 0.14) * 4.0) * step(0.18, albedo.r);
+                    half edgeZone = saturate(smoothstep(-0.3, 0.06, ndl) - band1);
+                    lit += albedo * _KageLightColor.rgb * half3(0.42, 0.12, 0.06) * edgeZone * skin * shAll * ct;
+                }
 
                 half fres = 1.0 - saturate(dot(n, vdir));
                 half rim = pow(fres, 4.0) * _RimColor.a * (0.35 + band1);
                 rim *= 1.0 - 0.85 * scenery * saturate(n.y); // no milky sheen on ground seen at a grazing angle
                 lit += rim * _RimColor.rgb;
+                if (_Translucent * _KageTransl > 0)
+                {
+                    // sun shining through leaves and grass blades: strongest when looking toward the sun,
+                    // and a softer glow on the shaded side of a leaf that the sun hits from behind
+                    half toSun = saturate(dot(-vdir, l));
+                    half green = lerp(1.0, saturate((albedo.g - albedo.r * 0.85) * 6.0 + 0.1), _TransGreen);
+                    half thru = (toSun * toSun * toSun * 0.9 + saturate(-ndl) * 0.3) * shAll * green * _Translucent * _KageTransl;
+                    lit += albedo * _KageLightColor.rgb * half3(1.05, 1.15, 0.75) * thru;
+                }
                 if (wetHere > 0)
                 {
                     // wet sheen: a tight sun glint plus the grey sky on grazing angles
@@ -272,12 +301,13 @@ Shader "Kagegan/Toon"
 
                 float fogDist = length(i.wpos - _WorldSpaceCameraPos.xyz);
                 half fog = saturate((fogDist - _KageFogParams.x) / max(0.01, _KageFogParams.y - _KageFogParams.x)) * _KageFogParams.z;
+                half3 fogCol = KageFogTint(fogDist, i.wpos.y, -vdir, l, fog);
                 if (_KageEnvMute > 0)
                 {
                     half lum = dot(col, half3(0.299, 0.587, 0.114));
                     col = lerp(col, lerp(col, lum.xxx * half3(1.02, 1.0, 0.96), 0.55), _KageEnvMute * scenery);
                 }
-                col = lerp(col, _KageFogColor.rgb, fog);
+                col = lerp(col, fogCol, fog);
                 if (_KageInk > 0) col = lerp(col, lerp(half3(0.97, 0.95, 0.9), half3(0.04, 0.03, 0.05), saturate(_CharFx * 10.0)), _KageInk);
                 return fixed4(col, 1);
             }

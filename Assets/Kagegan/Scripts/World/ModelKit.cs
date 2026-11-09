@@ -119,6 +119,9 @@ namespace Kagegan
                 if (info.GrassContact) m.SetFloat("_GrassContact", 1f);
                 if (info.Cut) { m.SetFloat("_Cutoff", 0.5f); m.SetFloat("_Cull", 0f); m.EnableKeyword("KAGE_CLIP"); }
                 if (info.Wind > 0f) { m.SetFloat("_Wind", info.Wind); m.SetFloat("_WindObj", 1f); m.SetFloat("_WindHeight", info.WindH); m.SetFloat("_Flutter", info.Flutter); }
+                // leaves and grass cards let the sun through; a swaying model without cut-outs may carry its trunk too
+                if (info.Cut) m.SetFloat("_Translucent", 0.65f);
+                else if (info.Wind > 0f) { m.SetFloat("_Translucent", 0.6f); m.SetFloat("_TransGreen", 1f); }
             }
 
             if (found || src == null) mats[n] = m;

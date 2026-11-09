@@ -36,6 +36,16 @@ namespace Kagegan
             Shader.SetGlobalVector("_KageFogParams", new Vector4(start, end, max, 0));
         }
 
+        /// <summary>
+        /// Height fog and sun haze. heightFog: x = ground height, y = thinning per metre up, z = density (0 = off),
+        /// w = camera distance where it starts. fogSun 0..1: the haze turns sun-coloured when looking into the light.
+        /// </summary>
+        public static void SetAtmosphere(Vector4 heightFog, float fogSun)
+        {
+            Shader.SetGlobalVector("_KageHeightFog", heightFog);
+            Shader.SetGlobalFloat("_KageFogSun", fogSun);
+        }
+
         public static void Flash(Vector3 pos, Color col, float range, float life)
         {
             if (inst == null || GraphicsQuality.DynamicLights == 0) return;

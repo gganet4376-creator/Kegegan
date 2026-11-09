@@ -21,6 +21,7 @@ namespace Kagegan
         static DepthOfField dof;
         static ChromaticAberration chroma;
         static ShadowsMidtonesHighlights smh;
+        static Tonemapping tone;
         static float kick;
 
         public static bool Enabled { get; private set; }
@@ -79,6 +80,10 @@ namespace Kagegan
             dof.gaussianMaxRadius.value = ultra ? 1.1f : 0.8f;
             dof.highQualitySampling.value = false;
             chroma.intensity.value = 0f;
+            // HDR -> screen with a soft shoulder: glowing chakra and the sun-lit haze roll off instead of clipping,
+            // without ACES's heavy contrast and hue shifts that would dull the anime palette
+            tone.mode.value = TonemappingMode.Neutral;
+            tone.active = true;
             // film-like split: cool shadows, warm highlights (baked into the grading LUT, no extra pass)
             smh.shadows.value = new Vector4(0.96f, 0.99f, 1.07f, 0f);
             smh.midtones.value = new Vector4(1f, 1f, 1f, 0f);
@@ -131,7 +136,7 @@ namespace Kagegan
             grade.colorFilter.value = filter;
             grade.contrast.value = contrast;
             grade.saturation.value = saturation;
-            grade.postExposure.value = 0f;
+            grade.postExposure.value = 0.15f; // offsets the slight darkening of neutral tonemapping
         }
 
         /// <summary>Brief lens fringe on heavy impacts (scaled like camera shake).</summary>
@@ -151,6 +156,7 @@ namespace Kagegan
             dof = profile.Add<DepthOfField>(true);
             chroma = profile.Add<ChromaticAberration>(true);
             smh = profile.Add<ShadowsMidtonesHighlights>(true);
+            tone = profile.Add<Tonemapping>(true);
             var go = new GameObject("PostFxVolume");
             DontDestroyOnLoad(go);
             var vol = go.AddComponent<Volume>();

@@ -26,6 +26,12 @@ namespace Kagegan
         public static bool GroundDetail = true;
         /// <summary>Fighters casting a capsule sun-shadow on the scenery (0 = blob shadows only).</summary>
         public static int ShadowCasters = 0;
+        /// <summary>Sun shafts through the forest canopy (0 = off).</summary>
+        public static int SunShafts = 0;
+        /// <summary>Sun through leaves and grass (shader scale, 0 = off).</summary>
+        public static float FoliageLight = 1f;
+        /// <summary>Fighters' third shadow tone and warm skin edge (0 = off).</summary>
+        public static float CharTones = 1f;
         public static float CurrentRenderScale { get; private set; } = 1f;
         /// <summary>How many rescue steps PerfMonitor has taken on this preset (0 = full quality).</summary>
         public static int PerfDegrade { get; private set; }
@@ -59,9 +65,10 @@ namespace Kagegan
         static void ApplyDegrade()
         {
             int d = PerfDegrade;
-            if (d >= 1) { ShadowCasters = Mathf.Min(ShadowCasters, 3); ParticleMul *= 0.75f; }
-            if (d >= 2) { QualitySettings.antiAliasing = 0; ShadowCasters = Mathf.Min(ShadowCasters, 2); DynamicLights = Mathf.Min(DynamicLights, 2); }
-            if (d >= 3) { ShadowCasters = Mathf.Min(ShadowCasters, 1); ParticleMul *= 0.75f; DynamicLights = Mathf.Min(DynamicLights, 1); }
+            if (d >= 1) { ShadowCasters = Mathf.Min(ShadowCasters, 3); ParticleMul *= 0.75f; SunShafts /= 2; }
+            if (d >= 2) { QualitySettings.antiAliasing = 0; ShadowCasters = Mathf.Min(ShadowCasters, 2); DynamicLights = Mathf.Min(DynamicLights, 2); SunShafts = 0; }
+            if (d >= 3) { ShadowCasters = Mathf.Min(ShadowCasters, 1); ParticleMul *= 0.75f; DynamicLights = Mathf.Min(DynamicLights, 1); FoliageLight = 0f; CharTones = 0f; }
+            PushLookGlobals();
             if (ShadowCasters == 0) Shader.SetGlobalFloat("_KageCasterCount", 0f);
             KageShadowMap.ApplyQuality(Current, d);
             Shader.SetGlobalFloat("_KageDynLightCount", DynamicLights);
@@ -166,22 +173,26 @@ namespace Kagegan
                 case GraphicsPreset.Low:
                     BaseRenderScale = 0.62f; Outlines = false; DynamicLights = 0; ParticleMul = 0.45f; WeatherMul = 0.3f;
                     MaxActiveEnemies = 3; DebrisPerBreak = 3; GroundDetail = false; ShadowCasters = 0;
+                    SunShafts = 0; FoliageLight = 1f; CharTones = 0f;
                     QualitySettings.antiAliasing = 0;
                     break;
                 case GraphicsPreset.Medium:
                     BaseRenderScale = 0.8f; Outlines = true; DynamicLights = 2; ParticleMul = 0.75f; WeatherMul = 0.65f;
                     MaxActiveEnemies = 4; DebrisPerBreak = 6; GroundDetail = true; ShadowCasters = 0;
+                    SunShafts = 4; FoliageLight = 1f; CharTones = 1f;
                     QualitySettings.antiAliasing = 0;
                     break;
                 case GraphicsPreset.High:
                     BaseRenderScale = 0.9f; Outlines = true; DynamicLights = 4; ParticleMul = 1f; WeatherMul = 1f;
                     MaxActiveEnemies = 5; DebrisPerBreak = 10; GroundDetail = true; ShadowCasters = 4;
+                    SunShafts = 7; FoliageLight = 1f; CharTones = 1f;
                     QualitySettings.antiAliasing = 2;
                     break;
                 default: // Ultra: flagship phones. 0.9 of a 2.6K panel is still sharper than High, and 2x MSAA instead
                          // of 4x: flagship SoCs throttle hard after a few minutes, a lighter frame keeps them cool
                     BaseRenderScale = 0.9f; Outlines = true; DynamicLights = 4; ParticleMul = 1.25f; WeatherMul = 1.4f;
                     MaxActiveEnemies = 5; DebrisPerBreak = 14; GroundDetail = true; ShadowCasters = 6;
+                    SunShafts = 10; FoliageLight = 1f; CharTones = 1f;
                     QualitySettings.antiAliasing = 2;
                     break;
             }
@@ -197,6 +208,7 @@ namespace Kagegan
             QualitySettings.lodBias = p == GraphicsPreset.Low ? 0.6f : (p == GraphicsPreset.Medium ? 1f : 1.5f);
             Shader.SetGlobalFloat("_KageDynLightCount", DynamicLights);
             Shader.SetGlobalFloat("_KageCasterStrength", 0.85f);
+            PushLookGlobals();
             if (ShadowCasters == 0) Shader.SetGlobalFloat("_KageCasterCount", 0f);
             KageShadowMap.ApplyQuality(p, 0);
             BlobShadow.SetStrength(KageShadowMap.On ? 0f : ShadowCasters > 0 ? 0.8f : 1f);
@@ -204,6 +216,12 @@ namespace Kagegan
             PerfDegrade = 0;
             PostFx.Apply(p);
             Changed?.Invoke();
+        }
+
+        static void PushLookGlobals()
+        {
+            Shader.SetGlobalFloat("_KageTransl", FoliageLight);
+            Shader.SetGlobalFloat("_KageCharTones", CharTones);
         }
 
         /// <summary>Sets render scale through URP when available, else changes the backbuffer size (only on preset change).</summary>

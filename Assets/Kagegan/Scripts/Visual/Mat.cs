@@ -34,11 +34,14 @@ namespace Kagegan
             ToonWind.SetFloat("_Wind", 1f);
             ToonWind.SetFloat("_Flutter", 0.25f);
             ToonWind.SetFloat("_Cull", 0f); // grass blades are single quads, seen from both sides
+            ToonWind.SetFloat("_Translucent", 0.55f); // backlit blades glow
             ToonTree = new Material(toon) { name = "KageToonTree" };
             ToonTree.SetFloat("_Wind", 1f);
             ToonTree.SetFloat("_WindObj", 1f);
             ToonTree.SetFloat("_WindHeight", 11f);
             ToonTree.SetFloat("_Flutter", 0.5f);
+            ToonTree.SetFloat("_Translucent", 0.7f);
+            ToonTree.SetFloat("_TransGreen", 1f); // trunk and crown share the mesh: only the green crown lets light through
             SetWind(new Vector2(0.9f, 0.45f), 1f);
 
             FxAdd = MakeFx(fx, SoftDot, true, "FxAdd");
