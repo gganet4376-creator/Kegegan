@@ -103,7 +103,8 @@ namespace Kagegan
             Upload();
         }
 
-        static bool Eligible(MeshRenderer r)
+        /// <summary>Static scenery that throws sun shadows (also used by KageShadowMap).</summary>
+        internal static bool Eligible(MeshRenderer r)
         {
             if (!r.enabled) return false;
             string n = r.gameObject.name;

@@ -56,4 +56,5 @@ half KageSceneShadow(float3 p, half3 l)
     half occ = s.r * saturate((s.g * 32.0 - p.y - 0.3) * 2.0) * inside;
     return 1.0 - occ * _KageSceneShadowRect.w;
 }
+#include "KageShadowMap.cginc"
 #endif

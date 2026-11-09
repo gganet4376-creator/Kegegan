@@ -63,6 +63,7 @@ namespace Kagegan
             if (d >= 2) { QualitySettings.antiAliasing = 0; ShadowCasters = Mathf.Min(ShadowCasters, 2); DynamicLights = Mathf.Min(DynamicLights, 2); }
             if (d >= 3) { ShadowCasters = Mathf.Min(ShadowCasters, 1); ParticleMul *= 0.75f; DynamicLights = Mathf.Min(DynamicLights, 1); }
             if (ShadowCasters == 0) Shader.SetGlobalFloat("_KageCasterCount", 0f);
+            KageShadowMap.ApplyQuality(Current, d);
             Shader.SetGlobalFloat("_KageDynLightCount", DynamicLights);
             GrassBend.ApplyDistance();
             PostFx.Degrade(d);
@@ -187,14 +188,18 @@ namespace Kagegan
 
             QualitySettings.vSyncCount = 0;
             ApplyFps();
-            QualitySettings.shadows = ShadowQuality.Disable; // characters use cheap blob shadows on every preset
+            // sun shadows come from our own shadow maps (KageShadowMap); the old capsule / blob shadows are only a
+            // fallback for a GPU that can't render them. Unity's built-in shadows stay off.
+            if (KageShadowMap.On) ShadowCasters = 0;
+            QualitySettings.shadows = ShadowQuality.Disable;
             QualitySettings.skinWeights = p == GraphicsPreset.Low ? SkinWeights.OneBone : SkinWeights.TwoBones;
             QualitySettings.anisotropicFiltering = p >= GraphicsPreset.High ? AnisotropicFiltering.ForceEnable : AnisotropicFiltering.Enable;
             QualitySettings.lodBias = p == GraphicsPreset.Low ? 0.6f : (p == GraphicsPreset.Medium ? 1f : 1.5f);
             Shader.SetGlobalFloat("_KageDynLightCount", DynamicLights);
             Shader.SetGlobalFloat("_KageCasterStrength", 0.85f);
             if (ShadowCasters == 0) Shader.SetGlobalFloat("_KageCasterCount", 0f);
-            BlobShadow.SetStrength(ShadowCasters > 0 ? 0.8f : 1f); // sun shadows add the long shape; the blob keeps a firm contact shadow
+            KageShadowMap.ApplyQuality(p, 0);
+            BlobShadow.SetStrength(KageShadowMap.On ? 0f : ShadowCasters > 0 ? 0.8f : 1f);
             SetRenderScale(BaseRenderScale, true);
             PerfDegrade = 0;
             PostFx.Apply(p);

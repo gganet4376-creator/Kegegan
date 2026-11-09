@@ -293,7 +293,7 @@ namespace Kagegan
 
             sb.Append("батчи ").Append(Counter(batches)).Append("  SetPass ").Append(Counter(setPass)).Append("  треуг ").Append(Counter(tris, 1000, "k")).Append('\n');
             sb.Append("бойцы ").Append(Fighter.All.Count).Append("  частицы ").Append(Fx.LiveParticles())
-              .Append("  тени ").Append(GraphicsQuality.ShadowCasters).Append("  пост ").Append(PostFx.Enabled ? "вкл" : "выкл").Append('\n');
+              .Append("  тени ").Append(KageShadowMap.Describe()).Append("  пост ").Append(PostFx.Enabled ? "вкл" : "выкл").Append('\n');
             sb.Append(Names.Preset(GraphicsQuality.Current)).Append(" ×").Append(GraphicsQuality.CurrentRenderScale.ToString("0.00"))
               .Append("  цель ").Append(Application.targetFrameRate);
             if (!float.IsNaN(batteryC)) sb.Append("  ").Append(batteryC.ToString("0.0")).Append("°C");

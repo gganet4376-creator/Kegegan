@@ -223,8 +223,13 @@ Shader "Kagegan/Surface"
 
                 half ndl = dot(n, l);
                 half band = smoothstep(-0.12, 0.35, ndl);
-                half shAll = KageSceneShadow(i.wpos, l);
-                if (_KageCasterCount > 0) shAll *= KageCasterShadow(i.wpos, l);
+                half shAll;
+                if (_KageSMOn > 0) shAll = KageShadowMap(i.wpos, gn, l); // real sun shadow maps
+                else
+                {
+                    shAll = KageSceneShadow(i.wpos, l);
+                    if (_KageCasterCount > 0) shAll *= KageCasterShadow(i.wpos, l);
+                }
                 band *= shAll;
                 // shadows also block part of the sky light, so they stay readable under overcast / night lighting
                 half3 lit = albedo * lerp(_ShadowTint.rgb, half3(1, 1, 1), band) * _KageLightColor.rgb + albedo * _KageAmbient.rgb * lerp(1.0, shAll, 0.6);
@@ -301,6 +306,33 @@ Shader "Kagegan/Surface"
             #endif
                 return 0;
             }
+            ENDCG
+        }
+        // sun shadow-map caster (drawn only by KageShadowMap.cs; URP never runs this light mode)
+        Pass
+        {
+            Name "KageShadow"
+            Tags { "LightMode"="KageShadow" }
+            ZWrite On
+            ZTest LEqual
+            Cull Off
+            CGPROGRAM
+            #pragma vertex vertS
+            #pragma fragment fragS
+            #pragma multi_compile_instancing
+            #pragma target 3.0
+            #include "KageShadowMap.cginc"
+            v2fKageSM vertS (appdata v)
+            {
+                v2fKageSM o;
+                UNITY_SETUP_INSTANCE_ID(v);
+                float3 wpos = mul(unity_ObjectToWorld, v.vertex).xyz;
+                o.pos = UnityWorldToClipPos(wpos);
+                o.uv = v.uv;
+                o.d = mul(_KageSMCur, float4(wpos, 1.0)).z;
+                return o;
+            }
+            float4 fragS (v2fKageSM i) : SV_Target { return KageSMOut(i.d); }
             ENDCG
         }
     }

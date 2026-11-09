@@ -153,6 +153,7 @@ namespace Kagegan
             if (Broken) return;
             Broken = true;
             SceneryShadow.Remove(this);
+            KageShadowMap.SceneryChanged(4f); // its shadow follows it down
             if (dir.sqrMagnitude < 0.01f) dir = Random.onUnitSphere;
             dir = KMath.Flat(dir).normalized;
             switch (Kind)
@@ -252,17 +253,24 @@ namespace Kagegan
         }
     }
 
-    /// <summary>Cheap soft circular shadow under fighters (replaces real-time shadow maps on all presets).</summary>
+    /// <summary>Soft circular shadow under fighters: only a fallback for GPUs without KageShadowMap.</summary>
     public static class BlobShadow
     {
         static Mesh quad;
         static Material mat;
         static float strength = 1f;
+        static readonly System.Collections.Generic.List<Renderer> all = new System.Collections.Generic.List<Renderer>();
 
+        /// <summary>0 hides the blobs (real shadow maps are on).</summary>
         public static void SetStrength(float s)
         {
             strength = s;
             if (mat != null) mat.SetColor("_Color", new Color(1f, 1f, 1f, s));
+            for (int i = all.Count - 1; i >= 0; i--)
+            {
+                if (all[i] == null) { all.RemoveAt(i); continue; }
+                all[i].enabled = s > 0f;
+            }
         }
 
         public static Transform Create(Transform owner, float size)
@@ -281,6 +289,9 @@ namespace Kagegan
             var r = go.AddComponent<MeshRenderer>();
             r.sharedMaterial = mat;
             r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            r.enabled = strength > 0f;
+            all.RemoveAll(x => x == null);
+            all.Add(r);
             go.transform.localScale = Vector3.one * size;
             var link = owner.gameObject.AddComponent<BlobLink>();
             link.blob = go;

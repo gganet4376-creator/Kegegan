@@ -430,6 +430,7 @@ namespace Kagegan
             if (Current != null) Destroy(Current.gameObject);
             Destructible.All.Clear();
             SceneryShadow.Clear();
+            KageShadowMap.ClearScenery();
             blockers.Clear();
             WeatherSystem.ResetGlobals();
             var go = new GameObject("Arena_" + id);
@@ -486,8 +487,9 @@ namespace Kagegan
             a.EnemySpawn = new Vector3(5f, 0f, 0f);
             a.BuildWalls(Radius);
             a.ApplyLighting();
-            // trees, gates and buildings throw baked sun shadows (High / Ultra)
-            SceneryShadow.Bake(go.transform, a.sunDir);
+            // trees, rocks, gates and buildings throw sun shadows: shadow map, or the CPU bake as a fallback (High / Ultra)
+            if (KageShadowMap.On) KageShadowMap.SetScenery(go.transform);
+            else SceneryShadow.Bake(go.transform, a.sunDir);
             GraphicsQuality.Changed += a.RefreshSceneryShadow;
             return a;
         }
@@ -941,12 +943,13 @@ namespace Kagegan
         {
             GraphicsQuality.Changed -= RefreshWeather;
             GraphicsQuality.Changed -= RefreshSceneryShadow;
-            if (Current == this) { Current = null; SceneryShadow.Clear(); }
+            if (Current == this) { Current = null; SceneryShadow.Clear(); KageShadowMap.ClearScenery(); }
         }
 
         // quality changed from the pause menu: drop or (re)bake the scenery shadows to match
         void RefreshSceneryShadow()
         {
+            if (KageShadowMap.On) return; // the shadow map follows the preset by itself
             if (GraphicsQuality.Current < GraphicsPreset.High) SceneryShadow.Clear();
             else if (!SceneryShadow.Active) SceneryShadow.Bake(transform, sunDir);
         }

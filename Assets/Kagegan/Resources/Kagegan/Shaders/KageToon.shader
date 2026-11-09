@@ -212,9 +212,17 @@ Shader "Kagegan/Toon"
                 }
                 // fighters' sun shadows on the scenery (High / Ultra), and a sky-vs-ground ambient instead of a flat one
                 half shAll = 1.0;
-                if (_KageCasterCount > 0 && scenery > 0) { half sh = KageCasterShadow(i.wpos, l); band1 *= sh; band2 *= sh; shAll = sh; }
-                // trees / buildings shade the ground, the grass and the fighters walking under them
-                { half ss = KageSceneShadow(i.wpos, l); band1 *= ss; band2 *= ss; shAll *= ss; }
+                if (_KageSMOn > 0)
+                {
+                    // real sun shadow maps: trees, rocks and fighters on everything, fighters on themselves
+                    half sm = KageShadowMap(i.wpos, n, l); band1 *= sm; band2 *= sm; shAll = sm;
+                }
+                else
+                {
+                    if (_KageCasterCount > 0 && scenery > 0) { half sh = KageCasterShadow(i.wpos, l); band1 *= sh; band2 *= sh; shAll = sh; }
+                    // trees / buildings shade the ground, the grass and the fighters walking under them
+                    { half ss = KageSceneShadow(i.wpos, l); band1 *= ss; band2 *= ss; shAll *= ss; }
+                }
                 half hemi = lerp(0.82, 1.1, saturate(n.y * 0.5 + 0.5));
                 // shadows also block part of the sky light, so they stay readable under overcast / night lighting
                 half ambOcc = lerp(1.0, shAll, 0.6);
@@ -313,6 +321,45 @@ Shader "Kagegan/Toon"
                 if (_Fade < 0.999) clip(-1);
             #endif
                 return 0;
+            }
+            ENDCG
+        }
+        // sun shadow-map caster (drawn only by KageShadowMap.cs; URP never runs this light mode)
+        Pass
+        {
+            Name "KageShadow"
+            Tags { "LightMode"="KageShadow" }
+            ZWrite On
+            ZTest LEqual
+            Cull Off
+            CGPROGRAM
+            #pragma vertex vertS
+            #pragma fragment fragS
+            #pragma multi_compile_instancing
+            #pragma multi_compile_local __ KAGE_CLIP
+            #pragma target 3.0
+            v2fKageSM vertS (appdata v)
+            {
+                v2fKageSM o;
+                UNITY_SETUP_INSTANCE_ID(v);
+                float3 wpos = mul(unity_ObjectToWorld, v.vertex).xyz;
+                if (_CharFx > 0) wpos = KageSway(wpos, v.uv2);
+                if (_Wind > 0)
+                {
+                    half gust;
+                    wpos = KageWind(wpos, v.uv, UnityObjectToWorldNormal(v.normal), gust);
+                }
+                o.pos = UnityWorldToClipPos(wpos);
+                o.uv = TRANSFORM_TEX(v.uv, _MainTex);
+                o.d = mul(_KageSMCur, float4(wpos, 1.0)).z;
+                return o;
+            }
+            float4 fragS (v2fKageSM i) : SV_Target
+            {
+            #ifdef KAGE_CLIP
+                if (_Cutoff > 0) clip(tex2D(_MainTex, i.uv).a - _Cutoff); // leaves cast leaf-shaped shadows
+            #endif
+                return KageSMOut(i.d);
             }
             ENDCG
         }
