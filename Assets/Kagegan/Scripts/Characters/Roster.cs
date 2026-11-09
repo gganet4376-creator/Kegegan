@@ -139,6 +139,13 @@ namespace Kagegan
             return f;
         }
 
+        /// <summary>Background sparring partner for the main menu: a minion look and move set, no brain, no gameplay team.</summary>
+        public static Fighter CreateSparring(MinionType t, Vector3 pos, Transform parent)
+        {
+            var heavy = t == MinionType.CityBrute || t == MinionType.MoonBone;
+            return FighterFactory.Make(MinionName(t), MinionLook(t), heavy ? StanceKind.Heavy : StanceKind.Brawler, RunStyle.Normal, new MinionKit(t), Team.Neutral, pos, parent, 100f, 5f);
+        }
+
         public static Fighter CreateClone(Fighter owner, Vector3 pos, Color? ghostTint = null)
         {
             pos = Arena.ClampInside(pos, 1f);
@@ -273,7 +280,8 @@ namespace Kagegan
             return f;
         }
 
-        public static string BossName(int i) => i == 0 ? "Дзякура, Змеиный мудрец" : i == 1 ? "Райдэн, Мститель грома" : "Сэйгэцу, Владычица луны";
+        public const int BossCount = 4;
+        public static string BossName(int i) => i == 0 ? "Дзякура, Змеиный мудрец" : i == 1 ? "Райдэн, Мститель грома" : i == 2 ? "Сэйгэцу, Владычица луны" : "Кагура-07, Кибер-они";
 
         public static Fighter CreateBoss(int i, Vector3 pos, DifficultyTuning tune)
         {
@@ -302,6 +310,15 @@ namespace Kagegan
                     };
                     kit = new ThunderKit(); stance = StanceKind.Thunder; run = RunStyle.Ninja; hp = 1700f; speed = 6.8f;
                     break;
+                case 3:
+                    L = new Look
+                    {
+                        skin = new Color(0.85f, 0.82f, 0.86f), top = new Color(0.12f, 0.1f, 0.14f), sleeve = new Color(0.12f, 0.1f, 0.14f), top2 = new Color(1f, 0.22f, 0.72f),
+                        pants = new Color(0.1f, 0.09f, 0.12f), hair = new Color(0.2f, 0.08f, 0.25f), eye = new Color(1f, 0.25f, 0.75f), eyeGlow = 1f,
+                        accent = new Color(0.25f, 0.95f, 1f), hairStyle = HairStyle.LongStraight, horns = true, hairLength = 1.2f, model = "oni"
+                    };
+                    kit = new OniKit(); stance = StanceKind.Swift; run = RunStyle.Ninja; hp = 2100f; speed = 6.6f; scale = 1.1f;
+                    break;
                 default:
                     L = new Look
                     {
@@ -321,7 +338,8 @@ namespace Kagegan
             BossBrain brain;
             if (i == 0) brain = f.gameObject.AddComponent<SerpentBrain>();
             else if (i == 1) brain = f.gameObject.AddComponent<ThunderBrain>();
-            else brain = f.gameObject.AddComponent<MoonBrain>();
+            else if (i == 2) brain = f.gameObject.AddComponent<MoonBrain>();
+            else brain = f.gameObject.AddComponent<OniBrain>();
             brain.Setup(f, Archetype.Boss, tune);
             return f;
         }

@@ -280,12 +280,19 @@ namespace Kagegan
                 (CharacterId.Kaito, Difficulty.Warrior), (CharacterId.Genryu, Difficulty.Warrior), (CharacterId.Mugen, Difficulty.Warrior), (CharacterId.Reina, Difficulty.Warrior),
             };
             if (!quick) { runs.Add((CharacterId.Kaito, Difficulty.Novice)); runs.Add((CharacterId.Genryu, Difficulty.Legend)); }
+            // the secret boss gets its own replay fight (index -1 = Boss Rush)
+            var bossRuns = new List<int>();
+            foreach (var r in runs) bossRuns.Add(-1);
+            runs.Add((CharacterId.Reina, Difficulty.Warrior)); bossRuns.Add(3);
             float limit = quick ? 90f : 240f;
-            foreach (var r in runs)
+            for (int ri = 0; ri < runs.Count; ri++)
             {
-                string name = "rush_" + r.c + "_" + r.d;
+                var r = runs[ri];
+                int bossRun = bossRuns[ri];
+                string name = (bossRun >= 0 ? "boss" + bossRun + "_" : "rush_") + r.c + "_" + r.d;
                 Begin(name);
-                GM.StartBattle(BattleMode.BossRush, r.c, r.d);
+                if (bossRun >= 0) GM.StartBattle(BattleMode.BossOnly, r.c, r.d, bossRun);
+                else GM.StartBattle(BattleMode.BossRush, r.c, r.d);
                 while (GM.IsLoading) yield return null;
                 float t0 = Time.realtimeSinceStartup, nextShot = 15f;
                 int lastWave = -1;

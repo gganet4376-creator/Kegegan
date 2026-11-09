@@ -58,8 +58,8 @@ namespace Kagegan
             }
         }
 
-        public static string WaveName(int w) => w == 0 ? "Лес разрушений" : w == 1 ? "Разрушенный город" : "Лунный храм";
-        public static ArenaId ArenaFor(int w) => w == 0 ? ArenaId.Forest : w == 1 ? ArenaId.City : ArenaId.MoonTemple;
+        public static string WaveName(int w) => w == 0 ? "Лес разрушений" : w == 1 ? "Разрушенный город" : w == 2 ? "Лунный храм" : "Неоновый город";
+        public static ArenaId ArenaFor(int w) => w == 0 ? ArenaId.Forest : w == 1 || w == 3 ? ArenaId.City : ArenaId.MoonTemple;
 
         static MinionType[][] Groups(int w, Difficulty d)
         {
@@ -273,11 +273,11 @@ namespace Kagegan
             var arena = Arena.Build(arenaId, GameManager.Inst.WorldRoot, WeatherSystem.Choose(arenaId, true));
             PerfProbe.SkipFrames(3); // the arena build hitch is loading, not combat
             SpawnPlayer(arena.PlayerSpawn);
-            Sfx.PlayTrack(w == 0 ? "forest" : w == 1 ? "city" : "moon", 1);
+            Sfx.PlayTrack(w == 0 ? "forest" : w == 2 ? "moon" : "city", 1);
             SetWeatherAmbience(arena);
             WeatherSystem.PlanChange(arena, true);
             Hud.Inst.SetBoss(null);
-            Hud.Inst.SetWave("Волна " + (w + 1) + "/3 — " + WaveName(w) + "   •   " + Names.Difficulty(Diff));
+            Hud.Inst.SetWave((Mode == BattleMode.BossOnly ? "Босс — " : "Волна " + (w + 1) + "/3 — ") + WaveName(w) + "   •   " + Names.Difficulty(Diff));
             CameraRig.Orbit(arena.PlayerSpawn + Vector3.up * 1.5f, 9f, 3f, 2.2f);
             ScreenFader.FadeIn();
             Hud.Banner(WaveName(w).ToUpperInvariant(), UIKit.Paper);
@@ -338,10 +338,14 @@ namespace Kagegan
         {
             if (f == Boss && Mode != BattleMode.Training && Player != null && Player.Alive)
             {
-                var skills = Save.Skills(Character);
-                skills.points = Mathf.Min(9, skills.points + 1);
+                // only the first win over each boss on each difficulty pays out, so points can't be farmed
+                if (Save.FirstBossWin(Character, Wave, Diff))
+                {
+                    var skills = Save.Skills(Character);
+                    skills.points = Mathf.Min(9, skills.points + 1);
+                    Hud.Popup("+1 ОЧКО НАВЫКОВ", UIKit.Gold);
+                }
                 Save.Write();
-                Hud.Popup("+1 ОЧКО НАВЫКОВ", UIKit.Gold);
             }
             StartCoroutine(RemoveCorpse(f, f.IsBoss ? 6f : 2.5f));
         }
@@ -373,7 +377,7 @@ namespace Kagegan
             GameManager.Inst.SetControlsVisible(false);
             Player.SetMove(Vector3.zero);
             Player.FaceInstant(pos);
-            Sfx.PlayTrack(index == 0 ? "boss_serpent" : index == 1 ? "boss_thunder" : "boss_moon", 2);
+            Sfx.PlayTrack(index == 0 ? "boss_serpent" : index == 2 ? "boss_moon" : "boss_thunder", 2);
             Boss.EnterCinematic();
             Boss.ForceAnimMode(AnimMode.Custom, PoseLib.AirUp);
             CameraRig.Cinematic(pos + Vector3.up * 1.5f, new Vector3(-0.35f, 0.1f, -1f), 9f, 1.2f, 1.4f);
@@ -631,6 +635,12 @@ namespace Kagegan
                     r.Unlocked = "Открыта сложность: " + Names.Difficulty((Difficulty)next) + "!";
                 }
                 else if (first) r.Unlocked = "Первое прохождение за " + Roster.Name(Character) + "!";
+            }
+            // beating the Moon Sovereign (Boss Rush or replay) wakes the secret boss
+            if (r.Cleared && Wave == 2 && (Save.Data.bossesUnlocked & (1 << 3)) == 0)
+            {
+                Save.Data.bossesUnlocked |= 1 << 3;
+                r.Unlocked = (string.IsNullOrEmpty(r.Unlocked) ? "" : r.Unlocked + "\n") + "Открыт секретный босс: " + Roster.BossName(3) + " (Повтор боссов)";
             }
             rec.maxCombo = Mathf.Max(rec.maxCombo, r.MaxCombo);
             Save.Write();

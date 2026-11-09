@@ -19,6 +19,10 @@ namespace Kagegan
         public Battle Battle;
         Fighter showcase;
         float showcaseTimer;
+        // main-menu backdrop: a sparring pair in the distance (Medium+) and drifting leaves
+        Fighter sparA, sparB;
+        float sparTimer, ambientTimer;
+        bool sparTurn;
         bool inMenu;
         LoadingScreen loading;
         Coroutine loadingRoutine;
@@ -126,6 +130,7 @@ namespace Kagegan
             // the menu always gets the bright daytime dojo: a random sunset tinted the whole backdrop orange
             Arena.Build(ArenaId.Dojo, WorldRoot, WeatherType.Clear, Arena.TimeOfDay.Day);
             SetShowcase((CharacterId)Mathf.Clamp(Save.Data.lastCharacter, 0, (int)CharacterId.Reina));
+            SpawnSparring();
             CameraRig.Inst.MenuMode = true;
             CameraRig.Inst.Snap();
             Sfx.PlayTrack("menu", 0);
@@ -172,9 +177,73 @@ namespace Kagegan
                     else showcase.Anim.Play(Clip.Hold(PoseLib.Charge, 0.2f, 0.6f, 0.3f));
                 }
             }
+            if (inMenu) MenuBackdrop(Time.deltaTime);
             bool pausePressed = false;
             try { pausePressed = Input.GetKeyDown(KeyCode.Escape) || PadInput.Down(PadAction.Pause); } catch (System.Exception) { }
             if (!inMenu && !IsLoading && pausePressed && Battle != null) Pause(!TimeFx.Paused);
+        }
+
+        void SpawnSparring()
+        {
+            DespawnSparring();
+            if (GraphicsQuality.Current < GraphicsPreset.Medium) return; // Low keeps the menu to one character
+            var pairs = new[] { (MinionType.ForestBandit, MinionType.ForestAssassin), (MinionType.CityMerc, MinionType.CityBrute), (MinionType.MoonGuard, MinionType.SnakeAdept) };
+            var (ta, tb) = pairs[Random.Range(0, pairs.Length)];
+            // well behind the showcase and off to the free side of the frame, so they read as background life
+            Vector3 c = new Vector3(2.6f, 0f, 7.5f);
+            try
+            {
+                sparA = Roster.CreateSparring(ta, c + new Vector3(-0.85f, 0f, 0f), WorldRoot);
+                sparB = Roster.CreateSparring(tb, c + new Vector3(0.85f, 0f, 0f), WorldRoot);
+            }
+            catch (System.Exception e) { Debug.LogException(e); DespawnSparring(); return; }
+            sparA.FaceInstant(sparB.transform.position);
+            sparB.FaceInstant(sparA.transform.position);
+            sparTimer = 1.2f;
+        }
+
+        void DespawnSparring()
+        {
+            if (sparA != null) Destroy(sparA.gameObject);
+            if (sparB != null) Destroy(sparB.gameObject);
+            sparA = sparB = null;
+        }
+
+        void MenuBackdrop(float dt)
+        {
+            // drifting leaves and dust motes across the camera's view of the dojo
+            ambientTimer -= dt;
+            if (ambientTimer <= 0f && CameraRig.Inst != null)
+            {
+                ambientTimer = GraphicsQuality.Current == GraphicsPreset.Low ? 0.6f : 0.3f;
+                var cam = CameraRig.Inst.transform;
+                Vector3 center = cam.position + cam.forward * 5f;
+                Fx.Ambient(center, new Vector3(4.5f, 2.2f, 3f), new Vector3(0.45f, 0f, 0.1f), Random.value < 0.4f);
+            }
+            if (sparA == null || sparB == null) return;
+            sparTimer -= dt;
+            if (sparTimer > 0f) return;
+            sparTimer = Random.Range(1.1f, 1.9f);
+            sparTurn = !sparTurn;
+            var atk = sparTurn ? sparA : sparB;
+            var def = sparTurn ? sparB : sparA;
+            atk.FaceInstant(def.transform.position);
+            def.FaceInstant(atk.transform.position);
+            var k = atk.Kit;
+            var m = Random.value < 0.7f && k.LightChain != null && k.LightChain.Length > 0 ? k.LightChain[Random.Range(0, k.LightChain.Length)] : k.Heavy;
+            if (m == null || m.Clip == null) return;
+            atk.Anim.Play(m.Clip);
+            // the partner guards and the blow lands on the block a beat later (quiet: it is far away)
+            def.Anim.Play(Clip.Hold(PoseLib.Block, 0.08f, 0.35f, 0.2f));
+            StartCoroutine(SparImpact(def, 0.22f));
+        }
+
+        IEnumerator SparImpact(Fighter def, float delay)
+        {
+            yield return new WaitForSeconds(delay);
+            if (!inMenu || def == null) yield break;
+            Fx.Block(def.Center + def.transform.forward * 0.35f);
+            Sfx.Play(SfxId.Block, 0.12f);
         }
 
         // ===================== battle =====================
@@ -221,6 +290,7 @@ namespace Kagegan
             Save.Write();
             inMenu = false;
             if (showcase != null) { Destroy(showcase.gameObject); showcase = null; }
+            DespawnSparring();
             Menus.HideAll();
             Hud.Root.gameObject.SetActive(true);
             Hud.SetTraining(false);
@@ -272,6 +342,7 @@ namespace Kagegan
             Hud.SetBoss(null);
             for (int i = Fighter.All.Count - 1; i >= 0; i--)
                 if (Fighter.All[i] != null && Fighter.All[i] != showcase) Destroy(Fighter.All[i].gameObject);
+            sparA = sparB = null;
             Combat.AttackTokensInUse = 0;
         }
 

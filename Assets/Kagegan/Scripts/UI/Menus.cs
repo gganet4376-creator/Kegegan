@@ -17,7 +17,7 @@ namespace Kagegan
         readonly Button[] skillButtons = new Button[3];
         Text skillTitle, skillPoints;
         readonly Button[] diffButtons = new Button[3];
-        readonly Button[] bossButtons = new Button[3];
+        readonly Button[] bossButtons = new Button[Roster.BossCount];
         Button bossDiffButton, sparringButton;
         CharacterId selected;
         Difficulty bossDiff;
@@ -64,7 +64,11 @@ namespace Kagegan
             main.GetComponent<Image>().raycastTarget = false;
             var side = UIKit.Rect(main, "Side", new Vector2(0, 0), new Vector2(0, 1), Vector2.zero, new Vector2(760, 0));
             UIKit.Img(side, new Color(0.05f, 0.04f, 0.07f, 0.72f));
+            // a soft accent-coloured echo sits behind the title and breathes with it
+            var titleGlow = UIKit.Label(UIKit.Box(side, "TitleGlow", new Vector2(0.5f, 1), new Vector2(0, -150), new Vector2(720, 170)), "KAGEGAN", 128, UIKit.Accent, TextAnchor.MiddleCenter, FontStyle.Bold);
+            titleGlow.raycastTarget = false;
             var title = UIKit.Label(UIKit.Box(side, "Title", new Vector2(0.5f, 1), new Vector2(0, -150), new Vector2(720, 170)), "KAGEGAN", 128, UIKit.Paper, TextAnchor.MiddleCenter, FontStyle.Bold);
+            title.gameObject.AddComponent<TitlePulse>().Glow = titleGlow;
             UIKit.Label(UIKit.Box(side, "Sub", new Vector2(0.5f, 1), new Vector2(0, -250), new Vector2(720, 60)), "M O B I L E", 40, UIKit.Accent, TextAnchor.MiddleCenter, FontStyle.Bold);
             float y = -380;
             UIKit.Button(side, "Босс-раш: 3 волны", new Vector2(0.5f, 1), new Vector2(0, y), new Vector2(600, 110), () => { pendingMode = BattleMode.BossRush; ShowCharSelect(); }, UIKit.Accent, 44);
@@ -117,7 +121,7 @@ namespace Kagegan
                     new Vector2(1000f, 125f), () => BuySkill(attribute), UIKit.Ink, 33);
             }
             UIKit.Label(UIKit.Box(skillScreen, "Hint", new Vector2(0.5f, 0f), new Vector2(0f, 180f), new Vector2(1100f, 60f)),
-                "Победа над боссом даёт одно очко выбранному бойцу", 27, UIKit.Paper);
+                "Первая победа над каждым боссом на каждой сложности даёт бойцу очко", 27, UIKit.Paper);
             UIKit.Button(skillScreen, "Назад", new Vector2(0.5f, 0f), new Vector2(0f, 70f), new Vector2(300f, 100f),
                 () => Show(charSel), UIKit.Ink, 38);
         }
@@ -200,15 +204,17 @@ namespace Kagegan
             UIKit.Button(diffSel, "Назад", new Vector2(0.5f, 0), new Vector2(0, 110), new Vector2(300, 110), ShowCharSelect, new Color(0.15f, 0.12f, 0.14f, 0.9f));
         }
 
-        static void FitCard(Button button, int index)
+        static void FitCard(Button button, int index, int count = 3)
         {
             var rect = (RectTransform)button.transform;
             float y = rect.anchoredPosition.y;
             float halfHeight = rect.sizeDelta.y * 0.5f;
-            rect.anchorMin = new Vector2(index / 3f, 0.5f);
-            rect.anchorMax = new Vector2((index + 1f) / 3f, 0.5f);
-            rect.offsetMin = new Vector2(20f, y - halfHeight);
-            rect.offsetMax = new Vector2(-20f, y + halfHeight);
+            // a 40px band on each side keeps the outer cards off the screen edge
+            float pad = count > 3 ? 12f : 20f;
+            rect.anchorMin = new Vector2(index / (float)count, 0.5f);
+            rect.anchorMax = new Vector2((index + 1f) / count, 0.5f);
+            rect.offsetMin = new Vector2(pad + (index == 0 ? 28f : 0f), y - halfHeight);
+            rect.offsetMax = new Vector2(-pad - (index == count - 1 ? 28f : 0f), y + halfHeight);
         }
 
         public void ShowDifficulty()
@@ -231,16 +237,17 @@ namespace Kagegan
         {
             bossSel = Screen("BossSelect", new Color(0.03f, 0.02f, 0.05f, 0.7f));
             UIKit.Label(UIKit.Box(bossSel, "T", new Vector2(0.5f, 1), new Vector2(0, -110), new Vector2(1400, 110)), "ПОВТОР БОССОВ", 80, UIKit.Paper, TextAnchor.MiddleCenter, FontStyle.Bold);
-            for (int i = 0; i < 3; i++)
+            for (int i = 0; i < Roster.BossCount; i++)
             {
                 int idx = i;
-                bossButtons[i] = UIKit.Button(bossSel, "", new Vector2(0.5f, 0.5f), new Vector2(0f, 40f), new Vector2(520, 320), () => GameManager.Inst.StartBattle(BattleMode.BossOnly, selected, bossDiff, idx), UIKit.Ink, 32);
-                FitCard(bossButtons[i], i);
+                bossButtons[i] = UIKit.Button(bossSel, "", new Vector2(0.5f, 0.5f), new Vector2(0f, 40f), new Vector2(420, 340), () => GameManager.Inst.StartBattle(BattleMode.BossOnly, selected, bossDiff, idx), UIKit.Ink, 28);
+                FitCard(bossButtons[i], i, Roster.BossCount);
             }
             bossDiffButton = UIKit.Button(bossSel, "", new Vector2(0.5f, 0), new Vector2(-220, 110), new Vector2(400, 110), () =>
             {
                 bossDiff = (Difficulty)(((int)bossDiff + 1) % (Save.Data.unlockedDifficulty + 1));
                 UIKit.SetLabel(bossDiffButton, "Сложность: " + Names.Difficulty(bossDiff));
+                RefreshBossCards();
             });
             UIKit.Button(bossSel, "Назад", new Vector2(0.5f, 0), new Vector2(220, 110), new Vector2(300, 110), ShowCharSelect, new Color(0.15f, 0.12f, 0.14f, 0.9f));
         }
@@ -250,10 +257,19 @@ namespace Kagegan
             Show(bossSel);
             bossDiff = (Difficulty)Mathf.Min(Save.Data.lastDifficulty, Save.Data.unlockedDifficulty);
             UIKit.SetLabel(bossDiffButton, "Сложность: " + Names.Difficulty(bossDiff));
-            for (int i = 0; i < 3; i++)
+            RefreshBossCards();
+        }
+
+        void RefreshBossCards()
+        {
+            var skills = Save.Skills(selected);
+            for (int i = 0; i < Roster.BossCount; i++)
             {
                 bool open = (Save.Data.bossesUnlocked & (1 << i)) != 0;
-                UIKit.SetLabel(bossButtons[i], open ? Roster.BossName(i) + "\n\n" + Battle.WaveName(i) : "???\n\nВстретьте босса\nв режиме «Босс-раш»");
+                bool paid = (skills.bossWins & (1 << (i * 3 + (int)bossDiff))) != 0;
+                string reward = paid ? "\n\nОчко уже получено" : "\n\nНаграда: +1 очко";
+                string locked = i == 3 ? "???\n\nСекретный босс.\nПобедите Владычицу луны" : "???\n\nВстретьте босса\nв режиме «Босс-раш»";
+                UIKit.SetLabel(bossButtons[i], open ? Roster.BossName(i).Replace(", ", "\n") + "\n\n" + Battle.WaveName(i) + reward : locked);
                 bossButtons[i].interactable = open;
             }
         }
@@ -517,6 +533,26 @@ namespace Kagegan
             float e = 1f - (1f - t) * (1f - t);
             g.alpha = e;
             transform.localScale = Vector3.one * Mathf.Lerp(0.97f, 1f, e);
+        }
+    }
+
+    /// <summary>Main-menu title: a slow breathing scale with a glowing echo, and an occasional bright flare.</summary>
+    public class TitlePulse : MonoBehaviour
+    {
+        public Text Glow;
+        float t, flare, nextFlare = 3f;
+        void Update()
+        {
+            float dt = Time.unscaledDeltaTime;
+            t += dt;
+            nextFlare -= dt;
+            if (nextFlare <= 0f) { flare = 1f; nextFlare = UnityEngine.Random.Range(5f, 8f); }
+            flare = Mathf.Max(0f, flare - dt * 1.6f);
+            float b = 0.5f + 0.5f * Mathf.Sin(t * 1.8f);
+            transform.localScale = Vector3.one * (1f + 0.012f * b + 0.025f * flare);
+            if (Glow == null) return;
+            Glow.transform.localScale = Vector3.one * (1.02f + 0.025f * b + 0.04f * flare);
+            var c = Glow.color; c.a = 0.12f + 0.18f * b + 0.35f * flare; Glow.color = c;
         }
     }
 }

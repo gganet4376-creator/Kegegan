@@ -67,6 +67,18 @@ namespace Kagegan
             fire = MakePS("Fire", Mat.FxAdd, 300, -0.6f, false);
             glow = MakePS("Glow", Mat.FxAdd, 120, 0f, false);
             debris = MakePS("Debris", Own(Mat.FxAlphaSolid, "FxDebris", 1f, 0f), 200, 1.6f, false);
+            // drifting leaves/petals for ambience: near-weightless, fluttering on a soft noise field, fading in and out
+            leaves = MakePS("Drift", Own(Mat.FxAlphaSolid, "FxDrift", 1f, 0f), 90, 0.04f, false);
+            {
+                var lsol = leaves.sizeOverLifetime; lsol.size = new ParticleSystem.MinMaxCurve(1f, AnimationCurve.Constant(0f, 1f, 1f));
+                var lcol = leaves.colorOverLifetime;
+                var lg = new Gradient();
+                lg.SetKeys(new[] { new GradientColorKey(Color.white, 0), new GradientColorKey(Color.white, 1) },
+                           new[] { new GradientAlphaKey(0f, 0f), new GradientAlphaKey(1f, 0.12f), new GradientAlphaKey(1f, 0.8f), new GradientAlphaKey(0f, 1f) });
+                lcol.color = lg;
+                var lrot = leaves.rotationOverLifetime; lrot.enabled = true; lrot.z = new ParticleSystem.MinMaxCurve(-3f, 3f);
+                var lnoise = leaves.noise; lnoise.enabled = true; lnoise.strength = 0.6f; lnoise.frequency = 0.35f; lnoise.scrollSpeed = 0.3f; lnoise.quality = ParticleSystemNoiseQuality.Low;
+            }
             // chunks keep their size, then shrink away in the last quarter of their life (no pop)
             var dsol = debris.sizeOverLifetime;
             dsol.size = new ParticleSystem.MinMaxCurve(1f, new AnimationCurve(new Keyframe(0, 1f), new Keyframe(0.72f, 1f), new Keyframe(1f, 0f, -2.5f, 0f)));
@@ -529,6 +541,26 @@ namespace Kagegan
             }
         }
 
+        /// <summary>
+        /// Ambient menu/scenery drift: a few leaves or petals floating down through the view plus warm dust motes
+        /// catching the light. Call a few times a second; counts are scaled by the quality preset.
+        /// </summary>
+        public static void Ambient(Vector3 center, Vector3 halfExtent, Vector3 wind, bool petals)
+        {
+            if (inst == null || inst.leaves == null) return;
+            Vector3 P() => center + Vector3.Scale(new Vector3(Random.Range(-1f, 1f), Random.Range(-1f, 1f), Random.Range(-1f, 1f)), halfExtent);
+            if (Random.value < GraphicsQuality.ParticleMul)
+            {
+                Color c = petals ? Color.Lerp(new Color(1f, 0.72f, 0.8f), new Color(1f, 0.9f, 0.93f), Random.value)
+                                 : Color.Lerp(new Color(0.42f, 0.62f, 0.22f), new Color(0.85f, 0.6f, 0.2f), Random.value);
+                Vector3 p = P(); p.y = center.y + halfExtent.y; // enter from the top
+                EmitF(inst.leaves, p, wind + new Vector3(Random.Range(-0.3f, 0.3f), Random.Range(-0.9f, -0.5f), Random.Range(-0.3f, 0.3f)), c, Random.Range(0.07f, 0.12f), Random.Range(4.5f, 6.5f));
+            }
+            int motes = Scaled(2);
+            for (int i = 0; i < motes; i++)
+                Emit(inst.glow, P(), wind * 0.15f + Random.insideUnitSphere * 0.08f, new Color(1f, 0.9f, 0.7f, 0.35f), Random.Range(0.03f, 0.06f), Random.Range(2.5f, 4f));
+        }
+
         public static void Explosion(Vector3 pos, float radius, Color color)
         {
             if (inst == null) return;
@@ -855,7 +887,7 @@ namespace Kagegan
                 if (a.c != null) a.c.gameObject.SetActive(false);
             inst.anims.Clear();
             inst.ringPool.ReleaseAll(); inst.slashPool.ReleaseAll(); inst.crackPool.ReleaseAll(); inst.spherePool.ReleaseAll(); inst.boltPool.ReleaseAll(); inst.wirePool.ReleaseAll();
-            inst.sparks.Clear(); inst.smoke.Clear(); inst.fire.Clear(); inst.debris.Clear(); inst.glow.Clear();
+            inst.sparks.Clear(); inst.smoke.Clear(); inst.fire.Clear(); inst.debris.Clear(); inst.glow.Clear(); inst.leaves?.Clear();
             foreach (var ps in new[] { inst.ringGold, inst.ringEnergy, inst.ringVoid, inst.ringLightning, inst.ringFire, inst.fireBurst, inst.explosionFlip, inst.groundRing, inst.puffWhite, inst.puffBlack, inst.puffFire, inst.flashPs,
                                        inst.slashFlip, inst.hitStar, inst.hitBurst, inst.electric, inst.flames, inst.dirtPs, inst.glyphs })
                 if (ps != null) ps.Clear();

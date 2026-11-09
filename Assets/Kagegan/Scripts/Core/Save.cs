@@ -9,6 +9,7 @@ namespace Kagegan
     public class FighterSkills
     {
         public int character, points, health, stamina, chakra;
+        public int bossWins; // bit (boss * 3 + difficulty): first win already paid out a skill point
     }
 
     [Serializable] public class PadBind { public int action; public int code; } // code: 0..19 joystick button, 100+axis*2(+1 negative)
@@ -51,6 +52,7 @@ namespace Kagegan
         public List<RunRecord> records = new List<RunRecord>();
         public List<FighterSkills> skills = new List<FighterSkills>();
         public bool skillHistoryMigrated;
+        public bool bossWinsMigrated;
         public int lastCharacter;
         public int lastDifficulty;
         public bool tutorialDone;           // first-fight hints were shown (settings can turn them back on)
@@ -106,6 +108,22 @@ namespace Kagegan
                 data.skillHistoryMigrated = true;
                 Write();
             }
+            if (!data.bossWinsMigrated)
+            {
+                // cleared Boss Rush runs already paid for their three bosses at that difficulty
+                foreach (var record in data.records)
+                {
+                    if (record == null || !record.cleared || record.character < 0 || record.character > (int)CharacterId.Reina) continue;
+                    if (record.difficulty < 0 || record.difficulty > 2) continue;
+                    var skills = Skills((CharacterId)record.character);
+                    for (int b = 0; b < 3; b++) skills.bossWins |= 1 << (b * 3 + record.difficulty);
+                }
+                // anyone who already beat the Moon Sovereign gets the secret boss
+                foreach (var record in data.records)
+                    if (record != null && record.cleared) { data.bossesUnlocked |= 1 << 3; break; }
+                data.bossWinsMigrated = true;
+                Write();
+            }
         }
 
         public static void Write()
@@ -121,6 +139,16 @@ namespace Kagegan
             var created = new FighterSkills { character = (int)character };
             Data.skills.Add(created);
             return created;
+        }
+
+        /// <summary>Marks the boss as beaten by this fighter on this difficulty. True only the first time.</summary>
+        public static bool FirstBossWin(CharacterId character, int boss, Difficulty d)
+        {
+            var skills = Skills(character);
+            int bit = 1 << (Mathf.Clamp(boss, 0, 9) * 3 + Mathf.Clamp((int)d, 0, 2));
+            if ((skills.bossWins & bit) != 0) return false;
+            skills.bossWins |= bit;
+            return true;
         }
 
         public static RunRecord Record(CharacterId c, Difficulty d)
