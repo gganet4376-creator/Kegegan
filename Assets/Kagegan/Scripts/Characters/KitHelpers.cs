@@ -107,5 +107,82 @@ namespace Kagegan
             if (d.sqrMagnitude < 0.01f) d = t.transform.forward * -1f;
             return Arena.ClampInside(t.transform.position + d.normalized * dist, 1f);
         }
+
+        // ---------- boss tools ----------
+        static readonly Dictionary<Fighter, List<Renderer>> hidden = new Dictionary<Fighter, List<Renderer>>();
+
+        /// <summary>Hides or shows every renderer of a fighter (eclipse, shed skin). Only re-enables what it disabled.</summary>
+        public static void SetHidden(Fighter f, bool hide)
+        {
+            if (f == null) return;
+            if (hide)
+            {
+                if (hidden.ContainsKey(f)) return;
+                var list = new List<Renderer>();
+                foreach (var r in f.GetComponentsInChildren<Renderer>())
+                    if (r.enabled) { r.enabled = false; list.Add(r); }
+                hidden[f] = list;
+            }
+            else if (hidden.TryGetValue(f, out var list))
+            {
+                foreach (var r in list) if (r != null) r.enabled = true;
+                hidden.Remove(f);
+            }
+        }
+
+        /// <summary>Readable warning before a heavy attack: body flash, a shrinking ground ring and a rising charge sound.</summary>
+        public static void Telegraph(Fighter f, Color c, float secs, float radius = 2.2f)
+        {
+            if (f == null) return;
+            f.Flash(c, 0.9f);
+            Fx.Ring(f.transform.position + Vector3.up * 0.06f, c, radius, 0.4f, secs, Quaternion.identity);
+            Fx.Glow(f.Center + Vector3.up * 0.5f, c, 1.1f, secs * 0.8f);
+            Sfx.Play(SfxId.Charge, 0.8f, 1.6f - Mathf.Clamp01(secs) * 0.6f);
+        }
+
+        /// <summary>Warning marker on the ground at a point (not on a fighter).</summary>
+        public static void Mark(Vector3 p, Color c, float radius, float secs)
+        {
+            p.y = 0.06f;
+            Fx.Ring(p, c, radius * 1.4f, radius, secs, Quaternion.identity);
+            Fx.Glow(p + Vector3.up * 0.3f, c, radius * 0.6f, secs);
+        }
+
+        /// <summary>Wraps a move so it always shows a warning before it strikes and gets a slightly longer windup.</summary>
+        public static Move Warned(Move m, Color c, float extra = 0.12f)
+        {
+            m.Startup += extra;
+            var prev = m.OnStart;
+            float secs = m.Startup;
+            m.OnStart = f => { prev?.Invoke(f); Telegraph(f, c, secs, 1.6f); };
+            return m;
+        }
+
+        /// <summary>A copy of a boss that dies from any hit (shed skin, illusions). With a brain it fights for a few seconds.</summary>
+        public static Fighter Decoy(Fighter owner, Vector3 pos, StanceKind stance, RunStyle run, bool fights, float life, Color tint)
+        {
+            pos = Arena.ClampInside(pos, 1f);
+            var look = owner.Rig.Look;
+            float scale = owner.Rig.transform.localScale.x;
+            var f = FighterFactory.Make(owner.DisplayName, look, stance, run, new MinionKit(MinionType.SnakeAdept), owner.Team, pos, Roster.FighterRoot, 1f, owner.MoveSpeed, scale);
+            f.IsClone = true;
+            f.Owner = owner;
+            f.DamageMul = owner.DamageMul * 0.35f;
+            f.InfiniteChakra = false;
+            f.transform.rotation = owner.transform.rotation;
+            f.Rig.SetEmit(0.25f, tint);
+            if (fights)
+            {
+                var tune = DifficultyTuning.For(Difficulty.Warrior);
+                tune.aggression = 1f; tune.reaction = 0.25f; tune.blockChance = 0f;
+                var brain = f.gameObject.AddComponent<AIBrain>();
+                brain.Setup(f, Archetype.Clone, tune);
+                f.Target = owner.Target;
+            }
+            var l = f.gameObject.AddComponent<CloneLife>();
+            l.Lifetime = life;
+            f.OnDied += (dead, killer) => l.Poof();
+            return f;
+        }
     }
 }

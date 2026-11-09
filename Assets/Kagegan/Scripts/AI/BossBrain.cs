@@ -18,6 +18,8 @@ namespace Kagegan
         protected bool transitioning;
         protected bool busy;
         float nextBreakAt;
+        float ultReadyAt = float.MaxValue;
+        protected float ultEvery = 26f;
 
         public override bool FinalPhase => Phase >= Thresholds.Length;
         public bool Transitioning => transitioning;
@@ -52,6 +54,18 @@ namespace Kagegan
             {
                 nextBreakAt = Time.time + 0.8f; // one roll per window, not one per AI tick
                 if (Random.value < Tune.breakChance + 0.15f) { nextBreakAt = Time.time + 6f; F.Press(Cmd.Dodge); return; }
+            }
+            // final phase: the boss unleashes its ultimate on a timer (telegraphed by banner, shout and warning zones)
+            if (FinalPhase && F.Kit.Ult != null && Time.time >= ultReadyAt && F.CanAct && F.Target != null && F.Target.Alive
+                && F.Target.State != FState.Cinematic && F.Target.State != FState.Grabbed)
+            {
+                F.Rage = 100f;
+                if (F.Kit.UseUlt())
+                {
+                    ultReadyAt = Time.time + ultEvery * Tune.bossPace;
+                    patternReadyAt = Time.time + 3.5f;
+                    return;
+                }
             }
             if (F.CanAct && F.Target != null && Time.time >= patternReadyAt)
             {
@@ -100,6 +114,7 @@ namespace Kagegan
             F.MoveSpeed = speedBase * (1f + p * 0.05f);
             transitioning = false;
             patternReadyAt = Time.time + 1.6f * Tune.bossPace; // breathing room after the roar
+            if (FinalPhase) ultReadyAt = Time.time + 5f * Tune.bossPace;
         }
 
         protected virtual void OnPhase(int p) { }
