@@ -129,9 +129,27 @@ namespace Kagegan
             yield return new WaitForEndOfFrame();
             if (Web)
             {
-                // the browser harness grabs the canvas when it sees this line in the console
-                Debug.Log("[kagetest] SHOT " + (++shots).ToString("000") + "_" + name);
-                yield return Wait(0.8f);
+                // the frame itself goes to the console as JPEG base64 chunks; the browser harness reassembles them.
+                // Grabbing the page from outside is far too slow under software rendering and lands on later frames.
+                string id = (++shots).ToString("000") + "_" + name;
+                Debug.Log("[kagetest] SHOT " + id);
+                string b64 = null;
+                Texture2D tex = null;
+                try
+                {
+                    tex = ScreenCapture.CaptureScreenshotAsTexture();
+                    b64 = Convert.ToBase64String(tex.EncodeToJPG(80));
+                }
+                catch (Exception e) { Debug.LogWarning("[kagetest] capture failed: " + e.Message); }
+                if (tex != null) Destroy(tex);
+                if (b64 != null)
+                {
+                    const int chunk = 48000;
+                    int n = (b64.Length + chunk - 1) / chunk;
+                    for (int i = 0; i < n; i++)
+                        Debug.Log("[kagetest] IMG " + id + " " + i + "/" + n + " " + b64.Substring(i * chunk, Mathf.Min(chunk, b64.Length - i * chunk)));
+                }
+                yield return Wait(0.3f);
                 yield break;
             }
             string file = Path.Combine(outDir, "shots", (++shots).ToString("000") + "_" + name + ".png");
