@@ -4,8 +4,8 @@ namespace Kagegan
 {
     /// <summary>
     /// Maps touch controls, keyboard and gamepad (legacy Input Manager axes / joystick buttons) to Fighter commands.
-    /// Handles technique pages (2 visible slots, "swap" toggles between techniques 1-2 and 3-4), hold-type techniques,
-    /// and target lock-on.
+    /// Techniques live in a fan menu ("Техники" opens every technique of the fighter); the gamepad keeps two slots
+    /// with pages (the page button cycles through pairs). Also handles hold-type techniques and target lock-on.
     /// </summary>
     public class PlayerController : MonoBehaviour
     {
@@ -13,7 +13,7 @@ namespace Kagegan
         public TouchControls Touch;
         public int TechPage;
         bool blockTouch, blockKey;
-        readonly bool[] techHeld = new bool[4];
+        readonly bool[] techHeld = new bool[TouchControls.FanMax];
         float lockCheck;
 
         // ---- auto battle ("Авто" button): AI fights for AutoTime seconds, then the button cools down ----
@@ -32,7 +32,7 @@ namespace Kagegan
             if (Touch != null && Touch.Buttons.TryGetValue("capri", out var capBtn)) capBtn.gameObject.SetActive(f != null && f.Kit is ReinaKit);
             TechPage = 0;
             autoReadyAt = 0f;
-            if (Touch != null) Touch.OnButton = OnTouch;
+            if (Touch != null) { Touch.OnButton = OnTouch; Touch.OnFan = Tech; Touch.SetFan(false); }
             RefreshTechLabels();
             if (f != null && PadInput.ConnectedCount > 0 && !Save.Data.padHintShown)
             {
@@ -47,7 +47,7 @@ namespace Kagegan
         {
             if (F == null || TimeFx.Paused) return;
             if (id == "auto") { if (down) ToggleAuto(); return; }
-            if (AutoOn && id != "swap") return; // the AI has the controls
+            if (AutoOn) return; // the AI has the controls
             switch (id)
             {
                 case "light": if (down) F.Press(Cmd.Light); break;
@@ -56,9 +56,7 @@ namespace Kagegan
                 case "dodge": if (down) F.Press(Cmd.Dodge); break;
                 case "jump": if (down) F.Press(Cmd.Jump); break;
                 case "grab": if (down) F.Press(Cmd.Grab); break;
-                case "tech0": Tech(SlotToTech(0), down); break;
-                case "tech1": Tech(SlotToTech(1), down); break;
-                case "swap": if (down) { TechPage = 1 - TechPage; RefreshTechLabels(); Sfx.Play(SfxId.Click, 0.6f); } break;
+                case "techs": if (down) { Touch.ToggleFan(); Sfx.Play(SfxId.Click, 0.6f, Touch.FanOpen ? 1.2f : 0.9f); Haptics.Light(); } break;
                 case "ult": if (down) F.Press(Cmd.Ult); break;
                 case "capri":
                     if (down && F.Kit is ReinaKit rk)
@@ -98,7 +96,8 @@ namespace Kagegan
 
         void Tech(int i, bool down)
         {
-            if (i >= F.Kit.Techs.Length) return;
+            if (F == null || TimeFx.Paused || (AutoOn && down)) return;
+            if (i >= F.Kit.Techs.Length || i >= techHeld.Length) return;
             var t = F.Kit.Techs[i];
             if (t == null) return;
             if (t.Hold)
@@ -112,11 +111,11 @@ namespace Kagegan
         public void RefreshTechLabels()
         {
             if (Touch == null || F == null) return;
-            for (int s = 0; s < 2; s++)
+            Touch.FanCount = Mathf.Min(F.Kit.Techs.Length, TouchControls.FanMax);
+            for (int i = 0; i < Touch.FanCount; i++)
             {
-                int i = SlotToTech(s);
-                if (!Touch.Buttons.TryGetValue("tech" + s, out var b)) continue;
-                if (i < F.Kit.Techs.Length && F.Kit.Techs[i] != null)
+                var b = Touch.Fan[i];
+                if (F.Kit.Techs[i] != null)
                 {
                     var t = F.Kit.Techs[i];
                     b.Label.text = t.Short ?? t.Name;
@@ -212,9 +211,9 @@ namespace Kagegan
             if (Input.GetKeyDown(KeyCode.L)) F.Press(Cmd.Dodge);
             if (Input.GetKeyDown(KeyCode.U)) F.Press(Cmd.Grab);
             if (Input.GetKeyDown(KeyCode.R)) F.Press(Cmd.Ult);
-            if (Input.GetKeyDown(KeyCode.Tab)) SwapPage();
+            if (Input.GetKeyDown(KeyCode.Tab)) Touch?.ToggleFan();
             if (Input.GetKeyDown(KeyCode.T)) CycleTarget();
-            KeyTech(KeyCode.Alpha1, 0); KeyTech(KeyCode.Alpha2, 1); KeyTech(KeyCode.Alpha3, 2); KeyTech(KeyCode.Alpha4, 3);
+            KeyTech(KeyCode.Alpha1, 0); KeyTech(KeyCode.Alpha2, 1); KeyTech(KeyCode.Alpha3, 2); KeyTech(KeyCode.Alpha4, 3); KeyTech(KeyCode.Alpha5, 4); KeyTech(KeyCode.Alpha6, 5);
 
             // gamepad (remappable, see PadInput)
             PadInput.Poll();
@@ -233,7 +232,16 @@ namespace Kagegan
             blockKey = Input.GetKey(KeyCode.LeftShift) || PadInput.Held(PadAction.Block);
         }
 
-        void SwapPage() { TechPage = 1 - TechPage; RefreshTechLabels(); Sfx.Play(SfxId.Click, 0.6f); }
+        int PageCount => Mathf.Max(1, (Mathf.Min(F.Kit.Techs.Length, TouchControls.FanMax) + 1) / 2);
+
+        void SwapPage()
+        {
+            TechPage = (TechPage + 1) % PageCount;
+            Sfx.Play(SfxId.Click, 0.6f);
+            var a = SlotToTech(0) < F.Kit.Techs.Length ? F.Kit.Techs[SlotToTech(0)] : null;
+            var b = SlotToTech(1) < F.Kit.Techs.Length ? F.Kit.Techs[SlotToTech(1)] : null;
+            Hud.Popup("Техники: " + (a != null ? a.Short ?? a.Name : "—") + " / " + (b != null ? b.Short ?? b.Name : "—"), new Color(0.75f, 0.6f, 1f));
+        }
 
         void KeyTech(KeyCode k, int i)
         {
@@ -277,15 +285,23 @@ namespace Kagegan
         void UpdateCooldowns()
         {
             if (Touch == null) return;
-            for (int s = 0; s < 2; s++)
+            int ready = 0;
+            for (int i = 0; i < Touch.FanCount && i < F.Kit.Techs.Length; i++)
             {
-                int i = SlotToTech(s);
-                if (!Touch.Buttons.TryGetValue("tech" + s, out var b) || i >= F.Kit.Techs.Length) continue;
+                var b = Touch.Fan[i];
                 var t = F.Kit.Techs[i];
                 if (t == null) continue;
                 float cd = t.Cooldown > 0f ? Mathf.Clamp01(t.Cd / t.Cooldown) : 0f;
                 bool affordable = F.InfiniteChakra || F.Chakra >= t.Cost;
-                b.CooldownFill.fillAmount = affordable ? cd : 1f;
+                if (affordable && cd <= 0f && !F.Kit.TechsLocked) ready++;
+                if (!b.gameObject.activeSelf) continue;
+                b.CooldownFill.fillAmount = F.Kit.TechsLocked ? 1f : affordable ? cd : 1f;
+                b.Label.text = t.Cd > 0.05f ? Mathf.CeilToInt(t.Cd) + "с" : t.Short ?? t.Name;
+            }
+            if (Touch.Buttons.TryGetValue("techs", out var tb))
+            {
+                tb.Label.text = F.Kit.TechsLocked ? "Блок" : "Техники " + ready;
+                if (!Touch.FanOpen && tb.Ring != null) tb.Ring.color = ready > 0 ? new Color(0.72f, 0.58f, 1f) : new Color(0.35f, 0.32f, 0.42f);
             }
             if (Touch.Buttons.TryGetValue("ult", out var u))
             {
@@ -324,8 +340,9 @@ namespace Kagegan
         void OnDisable()
         {
             StopAuto(false);
-            for (int i = 0; i < techHeld.Length; i++) if (techHeld[i] && F != null) F.SetTechHeld(i, false);
+            for (int i = 0; i < techHeld.Length; i++) if (techHeld[i] && F != null) { techHeld[i] = false; F.SetTechHeld(i, false); }
             blockTouch = false;
+            Touch?.SetFan(false);
         }
     }
 }

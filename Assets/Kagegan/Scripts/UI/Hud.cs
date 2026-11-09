@@ -287,8 +287,7 @@ namespace Kagegan
                 chakra.fillAmount = p.Chakra / p.MaxChakra;
                 rage.fillAmount = p.Rage / 100f;
                 rage.color = p.Rage >= 100f ? Color.Lerp(new Color(1f, 0.6f, 0.1f), Color.white, Mathf.PingPong(Time.unscaledTime * 3f, 1f)) : new Color(1f, 0.6f, 0.1f);
-                var mk = p.Kit as MugenKit;
-                storedText.text = mk != null && mk.Stored > 0f ? "Накоплено: " + Mathf.RoundToInt(mk.Stored) : "";
+                storedText.text = p.Kit != null ? p.Kit.GaugeText : "";
 
                 // combo
                 int combo = p.ComboDealt;

@@ -177,9 +177,7 @@ namespace Kagegan
             new Def { id = "dodge", label = "Рывок", icon = "dodge", pos = new Vector2(-180, 400), size = 133, color = new Color(0.16f, 0.42f, 0.42f, 1f) },
             new Def { id = "jump", label = "Прыжок", icon = "jump", pos = new Vector2(-595, 135), size = 112, color = new Color(0.24f, 0.24f, 0.52f, 1f) },
             new Def { id = "grab", label = "Захват", icon = "grab", pos = new Vector2(-595, 330), size = 112, color = new Color(0.42f, 0.22f, 0.42f, 1f) },
-            new Def { id = "tech0", label = "Т1", icon = null, pos = new Vector2(-595, 530), size = 135, color = new Color(0.3f, 0.2f, 0.45f, 1f) },
-            new Def { id = "tech1", label = "Т2", icon = null, pos = new Vector2(-410, 565), size = 135, color = new Color(0.3f, 0.2f, 0.45f, 1f) },
-            new Def { id = "swap", label = "Смена", icon = "swap", pos = new Vector2(-595, 715), size = 100, color = new Color(0.2f, 0.2f, 0.25f, 1f) },
+            new Def { id = "techs", label = "Техники", icon = null, pos = new Vector2(-595, 540), size = 140, color = new Color(0.45f, 0.3f, 0.75f, 1f) },
             new Def { id = "ult", label = "УЛЬТА", icon = "ult", pos = new Vector2(-180, 595), size = 145, color = new Color(0.82f, 0.52f, 0.1f, 1f) },
             new Def { id = "auto", label = "АВТО", icon = null, pos = new Vector2(-180, 765), size = 100, color = new Color(0.3f, 0.75f, 0.95f, 1f) },
             // context action (trip from the ground / break a hold): hidden until the situation allows it
@@ -209,12 +207,13 @@ namespace Kagegan
             if (Save.TryGetLayout("stick", out var sp)) { baseRt.anchoredPosition = sp; Stick.ResetRest(); }
 
             foreach (var d in Defs) MakeButton(d);
+            BuildFan();
             if (Buttons.TryGetValue("capri", out var cb)) { Capri = CapriButton.Attach(cb); cb.gameObject.SetActive(false); }
             ApplyScaleAlpha();
             SetContext(null);
         }
 
-        void MakeButton(Def d)
+        TouchButton MakeButton(Def d, bool register = true)
         {
             var rt = UIKit.Box(Root, "Btn_" + d.id, new Vector2(1, 0), d.pos, new Vector2(d.size, d.size));
             // unified style: dark translucent disc, white glyph, colour only in the thin ring
@@ -244,8 +243,89 @@ namespace Kagegan
             string id = d.id;
             b.Down = () => OnButton?.Invoke(id, true);
             b.Up = () => OnButton?.Invoke(id, false);
+            if (!register) return b;
             if (Save.TryGetLayout(d.id, out var p)) rt.anchoredPosition = p;
             Buttons[d.id] = b;
+            return b;
+        }
+
+        // ---- technique fan: one "Техники" button opens up to 6 technique buttons in an arc around it ----
+        public const int FanMax = 6;
+        public readonly TouchButton[] Fan = new TouchButton[FanMax];
+        public bool FanOpen { get; private set; }
+        public int FanCount = 5;
+        public Action<int, bool> OnFan;
+        float fanT, fanCloseAt;
+        const float FanRadius = 235f, FanSize = 122f;
+
+        void BuildFan()
+        {
+            for (int i = 0; i < FanMax; i++)
+            {
+                var d = new Def { id = "tf" + i, label = "", icon = null, pos = Vector2.zero, size = FanSize, color = new Color(0.45f, 0.3f, 0.75f, 1f) };
+                var b = MakeButton(d, false);
+                int slot = i;
+                b.Down = () => { KeepFanOpen(); OnFan?.Invoke(slot, true); };
+                b.Up = () => OnFan?.Invoke(slot, false);
+                b.gameObject.SetActive(false);
+                Fan[i] = b;
+            }
+        }
+
+        public void ToggleFan() { SetFan(!FanOpen); }
+
+        public void SetFan(bool open)
+        {
+            if (LayoutEditor.Editing) open = false;
+            FanOpen = open;
+            if (open) KeepFanOpen();
+        }
+
+        /// <summary>Each technique press keeps the fan open a while, so techniques can be chained.</summary>
+        public void KeepFanOpen() { fanCloseAt = Time.unscaledTime + 4f; }
+
+        /// <summary>Where fan slot i sits for n techniques: an arc from straight up to lower-left, toward the free middle of the screen.</summary>
+        Vector2 FanPos(int i, int n)
+        {
+            var c = ((RectTransform)Buttons["techs"].transform).anchoredPosition;
+            float a0 = 92f, a1 = n <= 4 ? 182f : 215f;
+            float a = (n <= 1 ? a0 : Mathf.Lerp(a0, a1, i / (float)(n - 1))) * Mathf.Deg2Rad;
+            var p = c + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * FanRadius * Save.Data.buttonScale;
+            // keep it on screen even if the player dragged the main button to an edge
+            var size = Root.rect.size;
+            float m = FanSize * 0.55f * Save.Data.buttonScale;
+            p.x = Mathf.Clamp(p.x, -size.x + m, -m);
+            p.y = Mathf.Clamp(p.y, m, size.y - m);
+            return p;
+        }
+
+        void Update()
+        {
+            if (Root == null || !Buttons.ContainsKey("techs")) return;
+            if (FanOpen && Time.unscaledTime > fanCloseAt)
+            {
+                bool anyHeld = false;
+                for (int i = 0; i < FanMax; i++) if (Fan[i] != null && Fan[i].Held) anyHeld = true;
+                if (anyHeld) KeepFanOpen(); else FanOpen = false;
+            }
+            float target = FanOpen ? 1f : 0f;
+            if (fanT == 0f && !FanOpen) return;
+            fanT = Mathf.MoveTowards(fanT, target, Time.unscaledDeltaTime / 0.14f);
+            float e = 1f - (1f - fanT) * (1f - fanT);
+            var c = ((RectTransform)Buttons["techs"].transform).anchoredPosition;
+            int n = Mathf.Clamp(FanCount, 0, FanMax);
+            for (int i = 0; i < FanMax; i++)
+            {
+                var b = Fan[i];
+                bool on = i < n && fanT > 0.01f;
+                if (b.gameObject.activeSelf != on) b.gameObject.SetActive(on);
+                if (!on) continue;
+                var rt = (RectTransform)b.transform;
+                rt.anchoredPosition = Vector2.LerpUnclamped(c, FanPos(i, n), e);
+                if (!b.Held) rt.localScale = Vector3.one * (Save.Data.buttonScale * Mathf.Lerp(0.3f, 1f, e));
+            }
+            var tb = Buttons["techs"];
+            if (tb.Ring != null && FanOpen) tb.Ring.color = Color.Lerp(new Color(0.7f, 0.55f, 1f), Color.white, 0.5f + 0.5f * Mathf.Sin(Time.unscaledTime * 6f));
         }
 
         public void ApplyScaleAlpha()
@@ -276,6 +356,7 @@ namespace Kagegan
         public void SetEditMode(bool on)
         {
             LayoutEditor.Editing = on;
+            if (on) { FanOpen = false; fanT = 0f; foreach (var fb in Fan) if (fb != null) fb.gameObject.SetActive(false); }
             SetContext(null); // the context button is shown (and draggable) only while editing the layout
             // the joystick base becomes draggable in edit mode through a helper button
             if (on && Stick.Base.GetComponent<TouchButton>() == null)

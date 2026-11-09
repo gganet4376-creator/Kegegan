@@ -34,6 +34,16 @@ namespace Kagegan
         MeshFilter mf;
         float age;
         readonly List<Fighter> hit = new List<Fighter>(4);
+        /// <summary>Lets a returning blade hit the same fighters again.</summary>
+        public void ResetHits() { hit.Clear(); }
+
+        /// <summary>Turns the projectile around so it flies back at its old owner on the reflector's side.</summary>
+        public void Reflect(Fighter by, float speedMul = 1.2f)
+        {
+            var old = Owner;
+            Team = by.Team; Owner = by; Vel = -Vel * speedMul; Homing = old; HomingRate = old != null ? 3f : 0f; hit.Clear(); hit.Add(by);
+            Life = Mathf.Max(Life, age + 1.5f);
+        }
         static readonly Collider[] overlap = new Collider[8];
 
         public static void InitPool(Transform parent)
@@ -189,7 +199,7 @@ namespace Kagegan
                 if (res == HitResult.Parried)
                 {
                     // reflect back at the shooter
-                    Team = f.Team; Owner = f; Vel = -Vel * 1.2f; Homing = h.Attacker; HomingRate = 3f; hit.Clear(); hit.Add(f);
+                    Reflect(f);
                     Sfx.Play(SfxId.Parry, 0.8f, 1.2f);
                     return false;
                 }

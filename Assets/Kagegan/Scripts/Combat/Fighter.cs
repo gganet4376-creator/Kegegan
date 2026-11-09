@@ -130,6 +130,7 @@ namespace Kagegan
         void OnDisable() { All.Remove(this); GrassBend.Forget(this); }
 
         // ================== commands ==================
+        public Vector3 MoveInput => moveInput;
         public void SetMove(Vector3 worldDir) { moveInput = Vector3.ClampMagnitude(KMath.Flat(worldDir), 1f); }
         public void SetBlock(bool held)
         {
@@ -245,9 +246,12 @@ namespace Kagegan
         }
 
         // ================== input buffer ==================
+        /// <summary>Scripted technique chains hold queued inputs until they finish.</summary>
+        public float BufferLockUntil;
+
         void ConsumeBuffer()
         {
-            if (buffered == Cmd.None) return;
+            if (buffered == Cmd.None || Time.time < BufferLockUntil) return;
             var c = buffered;
             buffered = Cmd.None;
             switch (c)
@@ -651,6 +655,7 @@ namespace Kagegan
                     Fx.Smoke(Center, 0.6f, new Color(0.7f, 0.85f, 1f, 0.5f), 6);
                     Sfx.Play(SfxId.Teleport, 0.7f);
                     if (IsPlayer) Hud.Popup("ИДЕАЛЬНОЕ УКЛОНЕНИЕ", new Color(0.6f, 0.9f, 1f));
+                    if (Kit != null) Kit.OnPerfectDodge(h.Attacker);
                     return HitResult.PerfectDodge;
                 }
                 return HitResult.Miss;
@@ -683,6 +688,7 @@ namespace Kagegan
                         h.Attacker.CancelMove();
                         h.Attacker.Stun(0.8f);
                     }
+                    if (Kit != null) Kit.OnParry(h.Attacker);
                     return HitResult.Parried;
                 }
                 float staminaDmg = h.Stamina * (h.Kind == HitKind.Heavy ? 1.6f : 1f) * (h.Kind >= HitKind.Technique ? 1.4f : 1f);
@@ -724,6 +730,7 @@ namespace Kagegan
             }
 
             Kit?.OnDamaged(ref h);
+            if (h.Attacker != null && h.Attacker != this && h.Attacker.Kit != null) h.Attacker.Kit.BeforeHitLanded(this, ref h);
 
             float combo = Mathf.Max(0.35f, 1f - ComboTaken * 0.06f);
             float dmg = h.Damage * DefenseMul * (1f - DamageReduction) * combo;

@@ -157,7 +157,7 @@ namespace Kagegan
                 new Step { text = "«Мощный» — тяжёлый удар, сбивает с ног", button = "heavy", done = () => p.State == FState.Attack && p.CurMove != null && p.CurMove == p.Kit.Heavy },
                 new Step { text = "«Рывок» — уклонение. Рывок в момент удара врага даёт контрудар", button = "dodge", done = () => p.State == FState.Dodge },
                 new Step { text = "Удерживай «Блок», чтобы защищаться (тратит выносливость)", button = "block", done = () => { blockTime = p.State == FState.Block ? blockTime + Time.deltaTime : 0f; return blockTime > 0.4f; } },
-                new Step { text = "Т1 / Т2 — техники, расходуют чакру (синяя полоса)", button = "tech0", done = () => { foreach (var t in p.Kit.Techs) if (t != null && t.Cd > 0f) return true; return false; } },
+                new Step { text = "«Техники» — открой веер способностей и выбери любую (тратят чакру)", button = "techs", done = () => { foreach (var t in p.Kit.Techs) if (t != null && t.Cd > 0f) return true; return false; } },
             };
             foreach (var s in steps)
             {

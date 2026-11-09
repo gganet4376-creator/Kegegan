@@ -27,9 +27,33 @@ namespace Kagegan
         public virtual bool Intercept(ref HitInfo h) => false;
         public virtual void OnDamaged(ref HitInfo h) { }
         public virtual void OnHitLanded(Fighter target, ref HitInfo h) { }
+        /// <summary>Called before damage is applied to a target this kit's fighter hit; may scale h.Damage.</summary>
+        public virtual void BeforeHitLanded(Fighter target, ref HitInfo h) { }
         public virtual void OnDeath() { }
         /// <summary>Called when a dodge starts (acrobatic kits swap the roll for flips, add afterimages).</summary>
         public virtual void OnDodge(Vector3 dir) { }
+        /// <summary>Called after a frame-perfect dodge (the attack whiffed through the dodge window).</summary>
+        public virtual void OnPerfectDodge(Fighter attacker) { }
+        /// <summary>Called after a successful parry.</summary>
+        public virtual void OnParry(Fighter attacker) { }
+        /// <summary>Techniques temporarily unusable (overheat).</summary>
+        public virtual bool TechsLocked => false;
+        /// <summary>Optional resource gauge text for the HUD (heat, overheat...). Empty hides it.</summary>
+        public virtual string GaugeText => "";
+
+        /// <summary>Set by <see cref="Run"/> when a chained move was cut off (hit, death, state change).</summary>
+        protected bool RunInterrupted;
+
+        /// <summary>Plays one move of a scripted chain and waits for it to finish; sets <see cref="RunInterrupted"/> if it didn't.</summary>
+        protected IEnumerator Run(Move m)
+        {
+            if (!F.Alive || (F.State != FState.Idle && F.State != FState.Attack)) { RunInterrupted = true; yield break; }
+            F.StartMove(m);
+            F.BufferLockUntil = Time.time + m.Total / Mathf.Max(0.1f, m.AnimSpeed * SpeedMul) + 0.05f;
+            while (F.Alive && F.State == FState.Attack && F.CurMove == m) yield return null;
+            RunInterrupted = !(F.Alive && F.State == FState.Idle);
+            if (RunInterrupted) F.BufferLockUntil = 0f;
+        }
 
         /// <summary>Damage multiplier applied to outgoing hits (modes, buffs).</summary>
         public virtual float OutgoingMul(Move m) => 1f;
@@ -39,7 +63,7 @@ namespace Kagegan
         {
             if (i < 0 || i >= Techs.Length) return false;
             var t = Techs[i];
-            if (t == null || !t.Ready(F) || !F.CanAct || F.Hacked) return false;
+            if (t == null || TechsLocked || !t.Ready(F) || !F.CanAct || F.Hacked) return false;
             if (t.Use == null || !t.Use(F)) return false;
             if (!F.InfiniteChakra) F.Chakra -= t.Cost;
             t.Cd = F.NoCooldowns ? 0.2f : t.Cooldown;

@@ -19,6 +19,8 @@ namespace Kagegan
         public const float HookContact = 0.24f, ThrowContact = 0.35f, DashContact = 0.27f; // library part 2
         // KayKit Character Animations (CC0), registered with a "KK_" prefix
         public const float KickContact = 0.39f; // right foot fully out, hip height
+        // sword and blade clips (UAL2 Sword_Regular_*, KayKit Melee_*): blade at the end of its arc, estimated from playback
+        public const float SwordAContact = 0.3f, SwordBContact = 0.3f, SwordCContact = 0.36f, BladeContact = 0.38f, SpinContact = 0.45f;
         // root speeds of the locomotion loops (m/s), measured from the root-motion version of the library
         public const float WalkSpeed = 0.97f, JogSpeed = 5.36f, SprintSpeed = 8.25f;
 
