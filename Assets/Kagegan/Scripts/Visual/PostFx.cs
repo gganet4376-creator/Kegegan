@@ -124,7 +124,7 @@ namespace Kagegan
             if (grade == null) return;
             switch (id)
             {
-                case ArenaId.Forest: Grade(new Color(1f, 0.98f, 0.92f), 10f, 12f); break;      // warm afternoon
+                case ArenaId.Forest: Grade(new Color(1f, 0.98f, 0.92f), 12f, 20f); break;      // warm afternoon, lush greens
                 case ArenaId.City: Grade(new Color(0.9f, 0.95f, 1.06f), 16f, -6f); break;      // cold storm
                 case ArenaId.MoonTemple: Grade(new Color(0.95f, 0.92f, 1.06f), 12f, 6f); break; // violet night
                 default: Grade(new Color(1.02f, 1f, 0.95f), 8f, 10f); break;                   // bright dojo
@@ -137,6 +137,13 @@ namespace Kagegan
             grade.contrast.value = contrast;
             grade.saturation.value = saturation;
             grade.postExposure.value = 0.15f; // offsets the slight darkening of neutral tonemapping
+            if (smh != null)
+            {
+                // the forest gets the painted look: golden sunlit areas, teal-blue shade
+                bool forest = currentGrade == ArenaId.Forest;
+                smh.shadows.value = forest ? new Vector4(0.93f, 1f, 1.1f, 0f) : new Vector4(0.96f, 0.99f, 1.07f, 0f);
+                smh.highlights.value = forest ? new Vector4(1.08f, 1.03f, 0.9f, 0f) : new Vector4(1.05f, 1.01f, 0.95f, 0f);
+            }
         }
 
         /// <summary>Brief lens fringe on heavy impacts (scaled like camera shake).</summary>

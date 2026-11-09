@@ -40,8 +40,9 @@ namespace Kagegan
         /// Height fog and sun haze. heightFog: x = ground height, y = thinning per metre up, z = density (0 = off),
         /// w = camera distance where it starts. fogSun 0..1: the haze turns sun-coloured when looking into the light.
         /// </summary>
-        public static void SetAtmosphere(Vector4 heightFog, float fogSun)
+        public static void SetAtmosphere(Vector4 heightFog, float fogSun, float moss = 0f)
         {
+            Shader.SetGlobalFloat("_KageMoss", moss);
             Shader.SetGlobalVector("_KageHeightFog", heightFog);
             Shader.SetGlobalFloat("_KageFogSun", fogSun);
         }

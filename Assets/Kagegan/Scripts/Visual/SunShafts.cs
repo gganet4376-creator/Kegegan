@@ -48,12 +48,75 @@ namespace Kagegan
             mr.sharedMaterial = mat;
             mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             mr.receiveShadows = false;
+            MakeMotes();
+        }
+
+        // golden dust drifting in the light, behind the lane where the shafts fall
+        ParticleSystem motes;
+        Material moteMat;
+
+        void MakeMotes()
+        {
+            var go = new GameObject("SunMotes");
+            go.transform.SetParent(transform, false);
+            go.transform.position = new Vector3(0f, 2.6f, Arena.LaneDepth + 3.5f);
+            motes = go.AddComponent<ParticleSystem>();
+            motes.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            var main = motes.main;
+            main.loop = true;
+            main.startLifetime = new ParticleSystem.MinMaxCurve(6f, 10f);
+            main.startSpeed = 0f;
+            main.startSize = new ParticleSystem.MinMaxCurve(0.035f, 0.08f);
+            main.maxParticles = 90;
+            main.simulationSpace = ParticleSystemSimulationSpace.World;
+            var sh = motes.shape;
+            sh.shapeType = ParticleSystemShapeType.Box;
+            sh.scale = new Vector3(36f, 4.5f, 8f);
+            var vel = motes.velocityOverLifetime;
+            vel.enabled = true;
+            vel.space = ParticleSystemSimulationSpace.World;
+            vel.x = new ParticleSystem.MinMaxCurve(-0.08f, 0.12f);
+            vel.y = new ParticleSystem.MinMaxCurve(-0.05f, 0.06f);
+            vel.z = new ParticleSystem.MinMaxCurve(-0.05f, 0.05f);
+            var noise = motes.noise;
+            noise.enabled = true;
+            noise.strength = 0.12f;
+            noise.frequency = 0.4f;
+            noise.quality = ParticleSystemNoiseQuality.Low;
+            // fade in and out so no speck pops
+            var col = motes.colorOverLifetime;
+            col.enabled = true;
+            var g = new Gradient();
+            g.SetKeys(new[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(Color.white, 1f) },
+                      new[] { new GradientAlphaKey(0f, 0f), new GradientAlphaKey(1f, 0.25f), new GradientAlphaKey(1f, 0.7f), new GradientAlphaKey(0f, 1f) });
+            col.color = g;
+            var r = go.GetComponent<ParticleSystemRenderer>();
+            moteMat = new Material(Mat.FxAdd) { name = "SunMotes", mainTexture = Mat.SoftDot };
+            moteMat.SetFloat("_Fog", 0f);
+            r.sharedMaterial = moteMat;
+            r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            r.receiveShadows = false;
+            var em = motes.emission;
+            em.rateOverTime = 0f;
+            motes.Play();
+        }
+
+        void UpdateMotes(int n, float strength, Color sun)
+        {
+            if (motes == null) return;
+            var em = motes.emission;
+            // as many motes as the preset allows shafts (Low: none)
+            em.rateOverTime = n * 1.1f;
+            var main = motes.main;
+            float k = Mathf.Clamp01(strength) * 0.7f;
+            main.startColor = new Color(sun.r * k, sun.g * k * 0.92f, sun.b * k * 0.7f, 1f);
         }
 
         void OnDestroy()
         {
             if (mesh != null) Destroy(mesh);
             if (mat != null) Destroy(mat);
+            if (moteMat != null) Destroy(moteMat);
         }
 
         void Build(int n)
@@ -93,7 +156,7 @@ namespace Kagegan
             if (cam == null || l.sqrMagnitude < 0.01f || day <= 0f) n = 0;
             if (n != built) { Build(n); vBuf = n > 0 ? new Vector3[n * 4] : null; cBuf = n > 0 ? new Color[n * 4] : null; }
             mr.enabled = n > 0;
-            if (n == 0) return;
+            if (n == 0) { UpdateMotes(0, 0f, sun); return; }
 
             l.Normalize();
             Vector3 a = -l; // the way the light travels
@@ -101,6 +164,7 @@ namespace Kagegan
             // shafts only show when the camera looks toward the light
             float face = Mathf.Clamp01(Vector3.Dot(cam.transform.forward, l) * 0.8f + 0.45f);
             float t = Time.time;
+            UpdateMotes(n, day * face, sun);
             for (int i = 0; i < n; i++)
             {
                 var s = shafts[i];

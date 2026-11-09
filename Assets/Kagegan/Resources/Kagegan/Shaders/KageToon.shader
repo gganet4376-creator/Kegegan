@@ -25,6 +25,7 @@ Shader "Kagegan/Toon"
         _Cutoff ("Alpha cutoff (foliage)", Range(0,1)) = 0
         _Translucent ("Foliage: sun shining through", Range(0,1)) = 0
         _TransGreen ("Foliage: only on green parts (trunk + leaves in one mesh)", Range(0,1)) = 0
+        _Moss ("Moss on upward faces (rocks)", Range(0,1)) = 0
         [Enum(UnityEngine.Rendering.CullMode)] _Cull ("Cull", Float) = 2
     }
     SubShader
@@ -35,7 +36,8 @@ Shader "Kagegan/Toon"
             #include "UnityCG.cginc"
             fixed4 _Color, _ShadowTint, _RimColor, _FlashColor, _EmitColor;
             half _Flash, _CharFx, _Emit, _Fade, _Wind, _WindObj, _GrassContact, _VColor, _Cutoff, _WindHeight, _Flutter;
-            half _Translucent, _TransGreen;
+            half _Translucent, _TransGreen, _Moss;
+            half _KageMoss;           // global moss amount for the arena (forest), 0 = off
             half _KageTransl;         // global foliage translucency scale (0 = off)
             half _KageCharTones;      // fighters: third (core) shadow tone + warm skin edge, 0 = off
             float4 _KageWind;         // xy = wind direction on the ground, z = strength, w = speed
@@ -207,6 +209,14 @@ Shader "Kagegan/Toon"
                 // weather on scenery only (fighters have _CharFx > 0; glowing parts stay as they are)
                 half scenery = (1.0 - saturate(_CharFx * 10.0)) * (1.0 - i.color.a);
                 half wetHere = 0;
+                if (_Moss * _KageMoss > 0)
+                {
+                    // moss grows on the tops of rocks; a cheap wavy noise breaks the edge into patches
+                    half wav = sin(i.wpos.x * 2.3 + sin(i.wpos.z * 1.7) * 2.0) * sin(i.wpos.z * 2.1 + i.wpos.y * 3.1);
+                    half cover = smoothstep(0.2, 0.7, n.y + wav * 0.22) * _Moss * _KageMoss * scenery;
+                    half lumT = dot(tex.rgb, half3(0.3, 0.59, 0.11));
+                    albedo = lerp(albedo, half3(0.25, 0.4, 0.11) * (0.7 + 0.6 * lumT), cover);
+                }
                 if (_KageSnow > 0)
                 {
                     half cover = smoothstep(0.5, 0.85, n.y + frac(sin(dot(floor(i.wpos.xz * 3.0), float2(12.99, 78.23))) * 437.58) * 0.12) * _KageSnow * scenery;

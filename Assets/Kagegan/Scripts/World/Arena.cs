@@ -718,7 +718,7 @@ namespace Kagegan
         {
             var cl = CurLook;
             WorldLighting.SetSun(sunDir, SunNow, AmbNow);
-            WorldLighting.SetAtmosphere(HeightFog(Id), FogSun(Id) * (cl.HasValue ? Mathf.Clamp01(cl.Value.Sun) : 1f));
+            WorldLighting.SetAtmosphere(HeightFog(Id), FogSun(Id) * (cl.HasValue ? Mathf.Clamp01(cl.Value.Sun) : 1f), Id == ArenaId.Forest ? 1f : 0f);
             if (cl.HasValue)
             {
                 var l = cl.Value;
@@ -1064,6 +1064,7 @@ namespace Kagegan
                 }
                 float kind = (float)rnd.NextDouble();
                 float tall = (0.35f + 0.3f * (float)rnd.NextDouble()) * (GraphicsQuality.Current >= GraphicsPreset.High ? 1.3f : 1f);
+                if (forest) tall *= low ? 1.15f : 1.35f; // lush knee-high forest grass (taller costs no triangles)
                 if (Blocked(p, 0.12f)) continue;
                 // between the camera and the lane: only short grass, never tall or bushy clumps that cover the fighters
                 bool camSide = p.z < -LaneDepth - 0.5f;
@@ -1107,7 +1108,10 @@ namespace Kagegan
                     float yaw = (float)rnd.NextDouble() * Mathf.PI * 2f;
                     Vector3 off = new Vector3(Mathf.Sin(yaw), 0, Mathf.Cos(yaw)) * 0.07f * (float)rnd.NextDouble();
                     float h = tall * (0.6f + 0.5f * (float)rnd.NextDouble());
-                    Color tip = Color.Lerp(tint * 1.25f, new Color(0.85f, 0.85f, 0.45f), 0.12f + 0.15f * (float)rnd.NextDouble());
+                    // tips catch the sun: the forest grass goes a bright yellow-green at the top
+                    Color tip = forest
+                        ? Color.Lerp(tint * 1.3f, new Color(0.78f, 0.9f, 0.32f), 0.25f + 0.2f * (float)rnd.NextDouble())
+                        : Color.Lerp(tint * 1.25f, new Color(0.85f, 0.85f, 0.45f), 0.12f + 0.15f * (float)rnd.NextDouble());
                     // roots are darker: the base of a clump sits in its own shade
                     mb.Blade(p + off, h, width + 0.025f * (float)rnd.NextDouble(), yaw, lean + 0.35f * (float)rnd.NextDouble(), Mat.C(tint * 0.45f), Mat.C(tip));
                 }
@@ -1331,7 +1335,7 @@ namespace Kagegan
             Sky(new Color(0.45f, 0.62f, 0.75f), new Color(0.7f, 0.78f, 0.8f), new Color(0.4f, 0.5f, 0.35f), "sky_forest");
             PhotoGround("forest", new Color(0.43f, 0.485f, 0.27f), new Color(0.568f, 0.529f, 0.366f), 3.6f, 0f, 0.6f);
             Ground(mb, 70f, new Color(0.38f, 0.55f, 0.27f), new Color(0.48f, 0.42f, 0.27f), new Color(0.2f, 0.32f, 0.18f), 21);
-            Grass(360, 2f, 30f, new Color(0.35f, 0.58f, 0.22f), 7);
+            Grass(360, 2f, 30f, new Color(0.36f, 0.6f, 0.2f), 7);
             var rnd = new System.Random(4);
             // dense ring of background trees
             for (int i = 0; i < 46; i++)

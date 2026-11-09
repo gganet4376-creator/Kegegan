@@ -18,7 +18,7 @@ namespace Kagegan
 
         // material name in the model -> texture, alpha-cut foliage?, wind amount
         // WindH = plant height (m) that gets the full bend; Flutter = leaf shiver
-        struct MatInfo { public string Tex; public bool Cut, GrassContact; public float Wind; public float WindH; public float Flutter; public Color Tint; }
+        struct MatInfo { public string Tex; public bool Cut, GrassContact, Moss; public float Wind; public float WindH; public float Flutter; public Color Tint; }
         static readonly KeyValuePair<string, MatInfo>[] Table =
         {
             new KeyValuePair<string, MatInfo>("Leaves_NormalTree", new MatInfo { Tex = "Nature/Textures/Leaves_NormalTree_C", Cut = true, Wind = 0.6f, WindH = 9f, Flutter = 1f }),
@@ -27,7 +27,7 @@ namespace Kagegan
             new KeyValuePair<string, MatInfo>("Bark_NormalTree", new MatInfo { Tex = "Nature/Textures/Bark_NormalTree", Wind = 0.6f, WindH = 9f }),
             new KeyValuePair<string, MatInfo>("Bark_TwistedTree", new MatInfo { Tex = "Nature/Textures/Bark_TwistedTree", Wind = 0.6f, WindH = 9f }),
             new KeyValuePair<string, MatInfo>("Bark_DeadTree", new MatInfo { Tex = "Nature/Textures/Bark_DeadTree", Wind = 0.6f, WindH = 9f }),
-            new KeyValuePair<string, MatInfo>("Rocks", new MatInfo { Tex = "Nature/Textures/Rocks_Diffuse" }),
+            new KeyValuePair<string, MatInfo>("Rocks", new MatInfo { Tex = "Nature/Textures/Rocks_Diffuse", Moss = true }),
             new KeyValuePair<string, MatInfo>("Mushrooms", new MatInfo { Tex = "Nature/Textures/Mushrooms" }),
             new KeyValuePair<string, MatInfo>("Flowers", new MatInfo { Tex = "Nature/Textures/Flowers", Cut = true, GrassContact = true, Wind = 1f, WindH = 0.6f, Flutter = 0.6f }),
             new KeyValuePair<string, MatInfo>("Grass", new MatInfo { Tex = "Nature/Textures/Grass", Cut = true, GrassContact = true, Wind = 1f, WindH = 0.6f, Flutter = 0.4f }),
@@ -117,6 +117,7 @@ namespace Kagegan
             {
                 if (info.Tint.a > 0f) m.SetColor("_Color", info.Tint);
                 if (info.GrassContact) m.SetFloat("_GrassContact", 1f);
+                if (info.Moss) m.SetFloat("_Moss", 1f);
                 if (info.Cut) { m.SetFloat("_Cutoff", 0.5f); m.SetFloat("_Cull", 0f); m.EnableKeyword("KAGE_CLIP"); }
                 if (info.Wind > 0f) { m.SetFloat("_Wind", info.Wind); m.SetFloat("_WindObj", 1f); m.SetFloat("_WindHeight", info.WindH); m.SetFloat("_Flutter", info.Flutter); }
                 // leaves and grass cards let the sun through; a swaying model without cut-outs may carry its trunk too
