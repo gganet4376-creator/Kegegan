@@ -425,7 +425,7 @@ namespace Kagegan
             }
         }
 
-        public static Arena Build(ArenaId id, Transform parent, WeatherType weather = WeatherType.Clear)
+        public static Arena Build(ArenaId id, Transform parent, WeatherType weather = WeatherType.Clear, TimeOfDay? forceTod = null)
         {
             if (Current != null) Destroy(Current.gameObject);
             Destructible.All.Clear();
@@ -449,7 +449,7 @@ namespace Kagegan
                 case ArenaId.City: a.BuildCity(stat); break;
                 default: a.BuildMoon(stat); break;
             }
-            a.ApplyTimeOfDay(PickTimeOfDay(id));
+            a.ApplyTimeOfDay(forceTod ?? PickTimeOfDay(id));
             BackdropBand(stat, a.treeMb, id);
             SilhouetteLayers(stat, id, a.Winter);
             // muted scenery, full-colour fighters: the eye goes to the fight (night arenas are muted already)
@@ -618,7 +618,7 @@ namespace Kagegan
             Shader.SetGlobalTexture("_KageSkyTex", skyTex != null ? (Texture)skyTex : Texture2D.grayTexture);
             Shader.SetGlobalColor("_KageSkyTint", skyTex != null ? Color.Lerp(Color.white, horizon, 0.18f) * tintC : horizon);
             var mb = new MeshBuilder();
-            int lat = skyTex != null ? 18 : 10, lon = skyTex != null ? 32 : 16;
+            int lat = skyTex != null ? 24 : 16, lon = skyTex != null ? 48 : 32; // smooth enough that the dome never shows flat "walls"
             int start = 0;
             for (int y = 0; y <= lat; y++)
             {

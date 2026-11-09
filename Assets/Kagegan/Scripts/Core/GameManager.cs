@@ -106,8 +106,9 @@ namespace Kagegan
             Hud.Root.gameObject.SetActive(false);
             Touch.SetVisible(false);
             Hud.SetTraining(false);
-            Arena.Build(ArenaId.Dojo, WorldRoot);
-            SetShowcase((CharacterId)Save.Data.lastCharacter);
+            // the menu always gets the bright daytime dojo: a random sunset tinted the whole backdrop orange
+            Arena.Build(ArenaId.Dojo, WorldRoot, WeatherType.Clear, Arena.TimeOfDay.Day);
+            SetShowcase((CharacterId)Mathf.Clamp(Save.Data.lastCharacter, 0, (int)CharacterId.Reina));
             CameraRig.Inst.MenuMode = true;
             CameraRig.Inst.Snap();
             Sfx.PlayTrack("menu", 0);
@@ -118,7 +119,11 @@ namespace Kagegan
         public void SetShowcase(CharacterId id)
         {
             if (showcase != null) Destroy(showcase.gameObject);
-            showcase = Roster.CreateShowcase(id, Vector3.zero, WorldRoot);
+            try { showcase = Roster.CreateShowcase(id, Vector3.zero, WorldRoot); }
+            catch (System.Exception e) { Debug.LogException(e); showcase = null; }
+            // a broken save or a model that failed to load must never leave the menu without a fighter
+            if (showcase == null && id != CharacterId.Kaito) showcase = Roster.CreateShowcase(CharacterId.Kaito, Vector3.zero, WorldRoot);
+            if (showcase == null) return;
             showcase.FaceInstant(new Vector3(0.9f, 0f, -4f)); // towards the menu camera
             CameraRig.Inst.MenuFocus = Vector3.zero;
             Fx.Smoke(showcase.Center, 0.8f, new Color(1f, 1f, 1f, 0.5f), 6);
