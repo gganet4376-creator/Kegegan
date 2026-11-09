@@ -26,6 +26,8 @@ namespace Kagegan
         public Color outline = new Color(0.07f, 0.05f, 0.09f);
         /// <summary>Name of a baked body in Resources/Kagegan/Chars (e.g. "lucy"); empty = procedural body from the fields above.</summary>
         public string model;
+        /// <summary>Colour multiplier for a baked body (lets minions share one model).</summary>
+        public Color tint = Color.white;
     }
 
     /// <summary>
@@ -303,6 +305,7 @@ namespace Kagegan
             mpb.SetColor(IdOutlineColor, L.outline);
             mpb.SetColor(IdFlashColor, Color.white);
             mpb.SetFloat("_CharFx", 1f); // back-light edge + toon highlight, fighters only
+            if (model != null) mpb.SetColor("_Color", L.tint);
             Smr.SetPropertyBlock(mpb);
             SetLids(0.1f);
         }

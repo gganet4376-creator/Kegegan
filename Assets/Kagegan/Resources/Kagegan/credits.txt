@@ -87,3 +87,5 @@
 
 
 Звуки монострун Люси и аниме-эффекты: Kenney "Sci-Fi Sounds" (CC0); "Whip sound" — reemax (CC-BY 3.0); "Fire whip hit (Yo Frankie)" — Lamoot (CC-BY 3.0), opengameart.org. Обработка — скрипты проекта.
+
+Модели персонажей (CC BY 4.0, Sketchfab): infinitymanpk — "Anime Boy Ninja Character", "Anime Boy Dragon Guider"; acerendigo — "Black Samurai in Red Armor in Anime Style"; APO — "Cyber Agent (Universal type)"; tnnv — "Tsukuyomi Ninja"; kirirato — "Oni Gurl"; Kai Xiang (kirikom9000) — "Cyborg Oni"; DanlyVostok — "Game Ready Low Poly Tactical Character", "Lowpoly anime character CyberStyle". Модели переделаны под скелет игры. creativecommons.org/licenses/by/4.0

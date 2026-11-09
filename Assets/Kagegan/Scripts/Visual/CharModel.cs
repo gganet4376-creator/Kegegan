@@ -54,7 +54,12 @@ namespace Kagegan
                 var mat = new Material(Mat.Toon) { name = "KageToon_" + name, enableInstancing = true };
                 mat.SetFloat("_VColor", 0f);   // colour comes from the atlas only
                 mat.SetFloat("_Cull", 0f);     // jacket, hair strands and straps are single-sided sheets
-                if (atlas != null) mat.SetTexture("_MainTex", atlas);
+                if (atlas != null)
+                {
+                    mat.SetTexture("_MainTex", atlas);
+                    // hair cards, lashes and lace come with an alpha channel: cut them out instead of drawing the card
+                    if (UnityEngine.Experimental.Rendering.GraphicsFormatUtility.HasAlphaChannel(atlas.graphicsFormat)) mat.SetFloat("_Cutoff", 0.4f);
+                }
                 cm.Toon = mat;
                 return cm;
             }

@@ -6,8 +6,21 @@
 - This work is based on "LUCY (EDGERUNNER)" (https://sketchfab.com/3d-models/lucy-edgerunner-1042ed786b0946b6b1aa910cfb37e96c) by Adwerd Jr. (https://sketchfab.com/Adwerd.Jr.) licensed under CC-BY-NC-4.0 (http://creativecommons.org/licenses/by-nc/4.0/)
   Изменения: модель привязана к скелету игры (21 кость, веса скиннинга), руки и ноги выпрямлены в стойку покоя,
   текстуры из оригинальной загрузки собраны в один атлас 2048, добавлен упрощённый LOD для слабых телефонов,
-  контурные оболочки удалены (контур рисует шейдер игры). Используется для Кайто, Генрю, Мугена и двойников.
+  контурные оболочки удалены (контур рисует шейдер игры). Используется для Рэйны.
   Лицензия некоммерческая: игра Kagegan Mobile распространяется бесплатно и не продаётся.
+
+## Модели персонажей (CC BY 4.0, Sketchfab)
+Изменения во всех моделях: привязка к скелету игры (21 кость, веса скиннинга), руки и ноги выпрямлены в стойку покоя,
+текстуры собраны в один атлас, добавлен упрощённый LOD для слабых телефонов, часть мелких деталей удалена.
+- Кайто: "Anime Boy Ninja Character - Fully Rigged" — infinitymanpk — https://sketchfab.com/3d-models/anime-boy-ninja-character-fully-rigged-2bca956058144a339b28c218c38b6e9b
+- Генрю: "Black Samurai in Red Armor in Anime Style" — acerendigo — https://sketchfab.com/3d-models/black-samurai-in-red-armor-in-anime-style-d5ae87f5d22c43e19bb1b6610c126ca7
+- Муген: "Cyber Agent (Universal type)" — APO — https://sketchfab.com/3d-models/cyber-agent-universal-type-e16d7823a67b4a16826d66c121391d90
+- Дзякура: "Anime Boy Dragon Guider" — infinitymanpk — https://sketchfab.com/3d-models/anime-boy-dragon-guider-b1f29fe70fd74844866c4d82868caf6d
+- Райдэн: "Tsukuyomi Ninja" — tnnv — https://sketchfab.com/3d-models/tsukuyomi-ninja-aef866a40515448698e91c0865d97b62
+- Сэйгэцу: "Oni Gurl" — kirirato — https://sketchfab.com/3d-models/oni-gurl-76a1aa04f7a544589c455b448bbc5efd
+- Кибер-они: "Cyborg Oni" — Kai Xiang (kirikom9000) — https://sketchfab.com/3d-models/cyborg-oni-30c027e40cb14c7a9f98ba6c047acc1d
+- Враги: "Game Ready Low Poly Tactical Character" и "Lowpoly anime character CyberStyle" — DanlyVostok — https://sketchfab.com/3d-models/game-ready-low-poly-tactical-character-68213c7d97a04b1b963599180210f5bd , https://sketchfab.com/3d-models/lowpoly-anime-character-cyberstyle-9c284506f1e247348acd0de4151974d6
+Лицензия: http://creativecommons.org/licenses/by/4.0/
 
 ## Анимации (CC0)
 - "Universal Animation Library" (Standard) — Quaternius — https://quaternius.itch.io/universal-animation-library

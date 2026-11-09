@@ -55,7 +55,7 @@ namespace Kagegan
                         skin = new Color(0.98f, 0.84f, 0.72f), top = new Color(0.14f, 0.2f, 0.42f), sleeve = new Color(0.14f, 0.2f, 0.42f), top2 = new Color(0.9f, 0.9f, 0.92f),
                         pants = new Color(0.16f, 0.17f, 0.22f), shoes = new Color(0.1f, 0.1f, 0.12f), hair = new Color(0.1f, 0.32f, 0.38f),
                         eye = new Color(0.35f, 0.95f, 1f), accent = new Color(0.78f, 0.12f, 0.12f), hairStyle = HairStyle.Spiky, headband = false, scarf = true,
-                        bareForearms = true, eyeGlow = 0.45f, model = "lucy"
+                        bareForearms = true, eyeGlow = 0.45f, model = "kaito"
                     };
                 case CharacterId.Genryu:
                     return new Look
@@ -63,7 +63,7 @@ namespace Kagegan
                         skin = new Color(0.98f, 0.84f, 0.72f), top = new Color(0.16f, 0.15f, 0.25f), sleeve = new Color(0.16f, 0.15f, 0.25f), top2 = new Color(0.1f, 0.1f, 0.12f),
                         pants = new Color(0.14f, 0.13f, 0.2f), shoes = new Color(0.1f, 0.1f, 0.1f), hair = new Color(0.08f, 0.08f, 0.14f),
                         eye = new Color(0.95f, 0.15f, 0.1f), accent = new Color(0.62f, 0.13f, 0.12f), hairStyle = HairStyle.LongSpiky, armor = true,
-                        eyeGlow = 0.8f, hairLength = 1.1f, bareForearms = false, model = "lucy"
+                        eyeGlow = 0.8f, hairLength = 1.1f, bareForearms = false, model = "genryu"
                     };
                 case CharacterId.Reina:
                     return new Look
@@ -80,7 +80,7 @@ namespace Kagegan
                         skin = new Color(0.96f, 0.92f, 0.96f), top = new Color(0.95f, 0.94f, 0.98f), sleeve = new Color(0.95f, 0.94f, 0.98f), top2 = new Color(0.4f, 0.25f, 0.6f),
                         pants = new Color(0.9f, 0.88f, 0.94f), shoes = new Color(0.3f, 0.25f, 0.4f), hair = new Color(0.97f, 0.96f, 1f),
                         eye = new Color(0.75f, 0.5f, 1f), accent = new Color(0.55f, 0.3f, 0.8f), hairStyle = HairStyle.LongWhite, horns = true, robe = true,
-                        palmEyes = true, eyeGlow = 0.9f, hairLength = 0.55f, longSleeves = true, model = "lucy"
+                        palmEyes = true, eyeGlow = 0.9f, hairLength = 0.55f, longSleeves = true, model = "mugen"
                     };
             }
         }
@@ -195,7 +195,26 @@ namespace Kagegan
                     L.hairStyle = HairStyle.Short; L.hair = new Color(0.95f, 0.95f, 0.95f); L.armor = true; L.accent = new Color(0.95f, 0.93f, 0.86f); L.bulk = 1.25f; L.height = 1.05f;
                     L.skin = new Color(0.92f, 0.9f, 0.92f); L.eye = new Color(1f, 0.3f, 0.3f); L.eyeGlow = 0.9f; break;
             }
+            ApplyMinionModel(L, t);
             return L;
+        }
+
+        /// <summary>Two baked bodies shared by all minions; a per-type tint keeps the factions readable.</summary>
+        static void ApplyMinionModel(Look L, MinionType t)
+        {
+            switch (t)
+            {
+                case MinionType.ForestBandit: L.model = "merc"; L.tint = new Color(0.78f, 0.92f, 0.72f); break;
+                case MinionType.ForestThrower: L.model = "merc"; L.tint = new Color(0.95f, 0.85f, 0.7f); break;
+                case MinionType.CityBrute: L.model = "merc"; L.tint = new Color(0.8f, 0.86f, 1f); break;
+                case MinionType.CityMerc: L.model = "merc"; L.tint = Color.white; break;
+                case MinionType.MoonBone: L.model = "merc"; L.tint = new Color(1f, 0.97f, 0.9f); break;
+                case MinionType.ForestAssassin: L.model = "cyber"; L.tint = new Color(0.8f, 0.8f, 0.85f); break;
+                case MinionType.SnakeAdept: L.model = "cyber"; L.tint = new Color(0.85f, 0.75f, 1f); break;
+                case MinionType.CityBomber: L.model = "cyber"; L.tint = new Color(1f, 0.85f, 0.7f); break;
+                case MinionType.MoonGuard: L.model = "cyber"; L.tint = new Color(0.92f, 0.92f, 1.05f); break;
+                case MinionType.MoonPriest: L.model = "cyber"; L.tint = new Color(1.05f, 1.02f, 1.1f); break;
+            }
         }
 
         public static string MinionName(MinionType t)
@@ -255,7 +274,7 @@ namespace Kagegan
                     {
                         skin = new Color(0.9f, 0.92f, 0.88f), top = new Color(0.75f, 0.72f, 0.62f), sleeve = new Color(0.75f, 0.72f, 0.62f), top2 = new Color(0.45f, 0.25f, 0.6f),
                         pants = new Color(0.5f, 0.48f, 0.42f), hair = new Color(0.06f, 0.06f, 0.08f), eye = new Color(1f, 0.85f, 0.15f), eyeGlow = 0.9f,
-                        accent = new Color(0.5f, 0.25f, 0.65f), hairStyle = HairStyle.LongStraight, robe = true, longSleeves = true
+                        accent = new Color(0.5f, 0.25f, 0.65f), hairStyle = HairStyle.LongStraight, robe = true, longSleeves = true, model = "dzyakura"
                     };
                     kit = new SerpentKit(); stance = StanceKind.Serpent; run = RunStyle.Glide; hp = 1500f; speed = 6f;
                     break;
@@ -264,7 +283,7 @@ namespace Kagegan
                     {
                         skin = new Color(0.98f, 0.86f, 0.75f), top = new Color(0.85f, 0.85f, 0.88f), sleeve = new Color(0.85f, 0.85f, 0.88f), top2 = new Color(0.35f, 0.25f, 0.55f),
                         pants = new Color(0.15f, 0.15f, 0.22f), hair = new Color(0.1f, 0.1f, 0.2f), eye = new Color(1f, 0.15f, 0.15f), eyeGlow = 1f,
-                        accent = new Color(0.35f, 0.25f, 0.55f), hairStyle = HairStyle.Spiky, cape = true, bareForearms = false
+                        accent = new Color(0.35f, 0.25f, 0.55f), hairStyle = HairStyle.Spiky, cape = true, bareForearms = false, model = "tsukuyomi"
                     };
                     kit = new ThunderKit(); stance = StanceKind.Thunder; run = RunStyle.Ninja; hp = 1700f; speed = 6.8f;
                     break;
@@ -273,7 +292,7 @@ namespace Kagegan
                     {
                         skin = new Color(0.97f, 0.96f, 1f), top = new Color(0.97f, 0.96f, 1f), sleeve = new Color(0.97f, 0.96f, 1f), top2 = new Color(0.4f, 0.3f, 0.6f),
                         pants = new Color(0.95f, 0.94f, 1f), hair = new Color(0.98f, 0.98f, 1f), eye = new Color(0.85f, 0.75f, 1f), eyeGlow = 1f,
-                        accent = new Color(0.45f, 0.3f, 0.7f), hairStyle = HairStyle.LongWhite, robe = true, horns = true, longSleeves = true, hairLength = 1.3f
+                        accent = new Color(0.45f, 0.3f, 0.7f), hairStyle = HairStyle.LongWhite, robe = true, horns = true, longSleeves = true, hairLength = 1.3f, model = "seigetsu"
                     };
                     kit = new MoonKit(); stance = StanceKind.Moon; run = RunStyle.Glide; hp = 2000f; speed = 6.2f; scale = 1.12f;
                     break;
