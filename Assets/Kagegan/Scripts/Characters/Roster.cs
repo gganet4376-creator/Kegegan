@@ -195,6 +195,10 @@ namespace Kagegan
                     L.top = new Color(0.9f, 0.88f, 0.82f); L.sleeve = L.top; L.top2 = new Color(0.6f, 0.55f, 0.5f); L.pants = new Color(0.7f, 0.68f, 0.62f);
                     L.hairStyle = HairStyle.Short; L.hair = new Color(0.95f, 0.95f, 0.95f); L.armor = true; L.accent = new Color(0.95f, 0.93f, 0.86f); L.bulk = 1.25f; L.height = 1.05f;
                     L.skin = new Color(0.92f, 0.9f, 0.92f); L.eye = new Color(1f, 0.3f, 0.3f); L.eyeGlow = 0.9f; break;
+                case MinionType.CityCyber:
+                    L.top = new Color(0.16f, 0.2f, 0.24f); L.sleeve = new Color(0.55f, 0.6f, 0.65f); L.top2 = new Color(0.1f, 0.5f, 0.45f); L.pants = new Color(0.14f, 0.16f, 0.2f);
+                    L.hairStyle = HairStyle.Short; L.hair = new Color(0.15f, 0.15f, 0.18f); L.armor = true; L.accent = new Color(0.3f, 1f, 0.85f);
+                    L.eye = new Color(0.3f, 1f, 0.85f); L.eyeGlow = 1f; break;
             }
             ApplyMinionModel(L, t);
             return L;
@@ -215,6 +219,7 @@ namespace Kagegan
                 case MinionType.CityBomber: L.model = "cyber"; L.tint = new Color(1f, 0.85f, 0.7f); break;
                 case MinionType.MoonGuard: L.model = "cyber"; L.tint = new Color(0.92f, 0.92f, 1.05f); break;
                 case MinionType.MoonPriest: L.model = "cyber"; L.tint = new Color(1.05f, 1.02f, 1.1f); break;
+                case MinionType.CityCyber: L.model = "cyber"; L.tint = new Color(0.85f, 1f, 0.98f); break;
             }
         }
 
@@ -227,10 +232,11 @@ namespace Kagegan
                 case MinionType.ForestThrower: return "Метатель";
                 case MinionType.SnakeAdept: return "Змеиный адепт";
                 case MinionType.CityBrute: return "Громила";
-                case MinionType.CityMerc: return "Наёмник молний";
+                case MinionType.CityMerc: return "Наёмник";
                 case MinionType.CityBomber: return "Подрывник";
                 case MinionType.MoonGuard: return "Лунный страж";
                 case MinionType.MoonPriest: return "Лунный жрец";
+                case MinionType.CityCyber: return "Киберсолдат";
                 default: return "Костяной воин";
             }
         }
@@ -241,7 +247,7 @@ namespace Kagegan
             float hp, speed;
             switch (t)
             {
-                case MinionType.ForestAssassin: case MinionType.CityMerc: case MinionType.MoonGuard: arch = Archetype.Striker; hp = 110f; speed = 6.4f; break;
+                case MinionType.ForestAssassin: case MinionType.CityMerc: case MinionType.MoonGuard: case MinionType.CityCyber: arch = Archetype.Striker; hp = 110f; speed = 6.4f; break;
                 case MinionType.ForestThrower: case MinionType.CityBomber: case MinionType.MoonPriest: arch = Archetype.Ranged; hp = 90f; speed = 5.6f; break;
                 case MinionType.CityBrute: case MinionType.MoonBone: arch = Archetype.Heavy; hp = 190f; speed = 4.8f; break;
                 default: arch = Archetype.Brawler; hp = 120f; speed = 5.8f; break;
@@ -254,8 +260,9 @@ namespace Kagegan
             f.DamageMul = tune.enemyDamage * (1f + wave * 0.15f);
             f.Weight = arch == Archetype.Heavy ? 1.4f : 1f;
             f.MaxChakra = 60f; f.Chakra = 40f; f.ChakraRegen = 5f;
-            var brain = f.gameObject.AddComponent<AIBrain>();
+            var brain = f.gameObject.AddComponent<MinionBrain>();
             brain.Setup(f, arch, tune);
+            brain.Init(t);
             return f;
         }
 

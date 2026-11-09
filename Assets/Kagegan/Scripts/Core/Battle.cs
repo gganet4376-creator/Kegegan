@@ -71,8 +71,8 @@ namespace Kagegan
                                 new[] { MinionType.ForestThrower, MinionType.ForestAssassin, MinionType.ForestBandit, MinionType.ForestThrower } };
                     break;
                 case 1:
-                    g = new[] { new[] { MinionType.CityMerc, MinionType.CityBrute, MinionType.CityBomber },
-                                new[] { MinionType.CityMerc, MinionType.CityMerc, MinionType.CityBrute, MinionType.CityBomber } };
+                    g = new[] { new[] { MinionType.CityMerc, MinionType.CityCyber, MinionType.CityBomber },
+                                new[] { MinionType.CityMerc, MinionType.CityCyber, MinionType.CityBrute, MinionType.CityBomber } };
                     break;
                 default:
                     g = new[] { new[] { MinionType.MoonGuard, MinionType.MoonPriest, MinionType.MoonBone },
@@ -268,7 +268,7 @@ namespace Kagegan
                 Hud.Banner("СЛЕДУЮЩАЯ ЛОКАЦИЯ: " + WaveName(w).ToUpperInvariant(), UIKit.Paper);
                 yield return new WaitForSecondsRealtime(0.6f);
             }
-            Projectile.ClearAll(); Beam.ClearAll(); Hazard.ClearAll(); Fx.ClearAll();
+            Projectile.ClearAll(); Beam.ClearAll(); Hazard.ClearAll(); Fx.ClearAll(); MineTrap.ClearAll(); Squad.Reset();
             var arenaId = ArenaFor(w);
             var arena = Arena.Build(arenaId, GameManager.Inst.WorldRoot, WeatherSystem.Choose(arenaId, true));
             PerfProbe.SkipFrames(3); // the arena build hitch is loading, not combat
@@ -424,7 +424,7 @@ namespace Kagegan
             Sfx.Jingle("victory");
             Player.Shout(Player.Kit.WinLine);
             Player.SetInvulnerable(4f);
-            Projectile.ClearAll(); Hazard.ClearAll(); Beam.ClearAll();
+            Projectile.ClearAll(); Hazard.ClearAll(); Beam.ClearAll(); MineTrap.ClearAll(); Squad.Reset();
             yield return new WaitForSeconds(2.2f);
         }
 

@@ -215,7 +215,7 @@ namespace Kagegan
         {
             if (Battle != null) { Battle.Cleanup(); Destroy(Battle.gameObject); Battle = null; }
             FinisherFx.Cancel();
-            Projectile.ClearAll(); Beam.ClearAll(); Hazard.ClearAll(); Fx.ClearAll();
+            Projectile.ClearAll(); Beam.ClearAll(); Hazard.ClearAll(); Fx.ClearAll(); MineTrap.ClearAll(); Squad.Reset();
             Hud.SetBoss(null);
             for (int i = Fighter.All.Count - 1; i >= 0; i--)
                 if (Fighter.All[i] != null && Fighter.All[i] != showcase) Destroy(Fighter.All[i].gameObject);
