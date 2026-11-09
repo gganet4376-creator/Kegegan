@@ -137,7 +137,10 @@ namespace Kagegan.EditorTools
             PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Android, "com.kagegan.mobile");
             PlayerSettings.SetScriptingBackend(NamedBuildTarget.Android, ScriptingImplementation.IL2CPP);
             PlayerSettings.SetManagedStrippingLevel(NamedBuildTarget.Android, ManagedStrippingLevel.Low);
-            PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
+            // ARMv7 too: budget phones (Helio G36 Redmi/POCO and other Android Go builds) ship a 32-bit-only system
+            // on 64-bit chips, and an ARM64-only APK is refused there as "incompatible with your phone"
+            PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARMv7 | AndroidArchitecture.ARM64;
+            PlayerSettings.Android.buildApkPerCpuArchitecture = false; // one APK that installs everywhere
             PlayerSettings.Android.minSdkVersion = AndroidSdkVersions.AndroidApiLevel24;
             PlayerSettings.defaultInterfaceOrientation = UIOrientation.AutoRotation;
             PlayerSettings.allowedAutorotateToLandscapeLeft = true;
