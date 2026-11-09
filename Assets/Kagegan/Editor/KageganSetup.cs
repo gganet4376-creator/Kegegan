@@ -185,6 +185,49 @@ namespace Kagegan.EditorTools
             PlayerSettings.runInBackground = false;
             PlayerSettings.SplashScreen.show = false;
             SetActiveInputHandlingBoth();
+            EnsurePadAxes();
+        }
+
+        /// <summary>Adds raw joystick axes kpad0..kpad19 (all pads) to the Input Manager: the gamepad layer reads
+        /// triggers, D-pad and right stick from them and the remap wizard learns which is which.</summary>
+        public static void EnsurePadAxes()
+        {
+            try
+            {
+                var assets = AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/InputManager.asset");
+                if (assets == null || assets.Length == 0) return;
+                var so = new SerializedObject(assets[0]);
+                var axes = so.FindProperty("m_Axes");
+                if (axes == null) return;
+                var have = new System.Collections.Generic.HashSet<string>();
+                for (int i = 0; i < axes.arraySize; i++) have.Add(axes.GetArrayElementAtIndex(i).FindPropertyRelative("m_Name").stringValue);
+                bool changed = false;
+                for (int a = 0; a < 20; a++)
+                {
+                    string name = "kpad" + a;
+                    if (have.Contains(name)) continue;
+                    axes.arraySize++;
+                    var e = axes.GetArrayElementAtIndex(axes.arraySize - 1);
+                    e.FindPropertyRelative("m_Name").stringValue = name;
+                    e.FindPropertyRelative("descriptiveName").stringValue = "";
+                    e.FindPropertyRelative("descriptiveNegativeName").stringValue = "";
+                    e.FindPropertyRelative("negativeButton").stringValue = "";
+                    e.FindPropertyRelative("positiveButton").stringValue = "";
+                    e.FindPropertyRelative("altNegativeButton").stringValue = "";
+                    e.FindPropertyRelative("altPositiveButton").stringValue = "";
+                    e.FindPropertyRelative("gravity").floatValue = 0f;
+                    e.FindPropertyRelative("dead").floatValue = 0.15f;
+                    e.FindPropertyRelative("sensitivity").floatValue = 1f;
+                    e.FindPropertyRelative("snap").boolValue = false;
+                    e.FindPropertyRelative("invert").boolValue = false;
+                    e.FindPropertyRelative("type").intValue = 2;      // joystick axis
+                    e.FindPropertyRelative("axis").intValue = a;      // 0 = X, 1 = Y, 2 = 3rd axis ...
+                    e.FindPropertyRelative("joyNum").intValue = 0;    // any controller
+                    changed = true;
+                }
+                if (changed) { so.ApplyModifiedPropertiesWithoutUndo(); AssetDatabase.SaveAssets(); Debug.Log("Kagegan: gamepad axes added to the Input Manager."); }
+            }
+            catch (Exception e) { Debug.LogWarning("Kagegan: could not add gamepad axes: " + e.Message); }
         }
 
         /// <summary>The game uses the legacy Input Manager (touch, keys, gamepad buttons); make sure it is enabled.</summary>

@@ -155,7 +155,7 @@ namespace Kagegan
             // 1) impact frame: the world turns to paper, the fighters to ink, for two or three frames
             Ink(true);
             Sfx.Play(SfxId.HeavyHit, 1f, 0.7f);
-            Haptics.Heavy();
+            Haptics.Ult();
             yield return new WaitForSecondsRealtime(0.05f);
             Ink(false);
 

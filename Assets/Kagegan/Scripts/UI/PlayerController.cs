@@ -34,6 +34,11 @@ namespace Kagegan
             autoReadyAt = 0f;
             if (Touch != null) Touch.OnButton = OnTouch;
             RefreshTechLabels();
+            if (f != null && PadInput.ConnectedCount > 0 && !Save.Data.padHintShown)
+            {
+                Save.Data.padHintShown = true;
+                Hud.Popup("Геймпад подключён. Курки и крестовина: Настройки → Геймпад", new Color(0.6f, 0.9f, 1f));
+            }
         }
 
         public int SlotToTech(int slot) => TechPage * 2 + slot;
@@ -150,6 +155,7 @@ namespace Kagegan
                 {
                     Vector2 keys = new Vector2(Input.GetAxisRaw("Horizontal"), Input.GetAxisRaw("Vertical"));
                     if (keys.sqrMagnitude > stick.sqrMagnitude) stick = Vector2.ClampMagnitude(keys, 1f);
+                    if (keys.sqrMagnitude > 0.1f && PadInput.ConnectedCount > 0 && !Input.anyKey) PadInput.MarkActive();
                     ReadButtons();
                 }
                 catch (System.Exception) { legacyInputOk = false; Debug.LogWarning("Kagegan: legacy Input Manager disabled — keyboard/gamepad off, touch still works."); }
@@ -199,18 +205,35 @@ namespace Kagegan
 
         void ReadButtons()
         {
-            if (Input.GetKeyDown(KeyCode.J) || Input.GetKeyDown(KeyCode.JoystickButton0)) F.Press(Cmd.Light);
-            if (Input.GetKeyDown(KeyCode.K) || Input.GetKeyDown(KeyCode.JoystickButton2)) F.Press(Cmd.Heavy);
-            if (Input.GetKeyDown(KeyCode.Space) || Input.GetKeyDown(KeyCode.JoystickButton3)) F.Press(Cmd.Jump);
-            if (Input.GetKeyDown(KeyCode.L) || Input.GetKeyDown(KeyCode.JoystickButton1)) F.Press(Cmd.Dodge);
+            // keyboard
+            if (Input.GetKeyDown(KeyCode.J)) F.Press(Cmd.Light);
+            if (Input.GetKeyDown(KeyCode.K)) F.Press(Cmd.Heavy);
+            if (Input.GetKeyDown(KeyCode.Space)) F.Press(Cmd.Jump);
+            if (Input.GetKeyDown(KeyCode.L)) F.Press(Cmd.Dodge);
             if (Input.GetKeyDown(KeyCode.U)) F.Press(Cmd.Grab);
-            if (Input.GetKeyDown(KeyCode.R) || Input.GetKeyDown(KeyCode.JoystickButton9)) F.Press(Cmd.Ult);
-            if (Input.GetKeyDown(KeyCode.Tab) || Input.GetKeyDown(KeyCode.JoystickButton6)) { TechPage = 1 - TechPage; RefreshTechLabels(); }
-            if (Input.GetKeyDown(KeyCode.T) || Input.GetKeyDown(KeyCode.JoystickButton8)) CycleTarget();
-            blockKey = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.JoystickButton4);
+            if (Input.GetKeyDown(KeyCode.R)) F.Press(Cmd.Ult);
+            if (Input.GetKeyDown(KeyCode.Tab)) SwapPage();
+            if (Input.GetKeyDown(KeyCode.T)) CycleTarget();
             KeyTech(KeyCode.Alpha1, 0); KeyTech(KeyCode.Alpha2, 1); KeyTech(KeyCode.Alpha3, 2); KeyTech(KeyCode.Alpha4, 3);
-            PadTech(KeyCode.JoystickButton5, 0);
+
+            // gamepad (remappable, see PadInput)
+            PadInput.Poll();
+            if (PadInput.Down(PadAction.Light)) F.Press(Cmd.Light);
+            if (PadInput.Down(PadAction.Heavy)) F.Press(Cmd.Heavy);
+            if (PadInput.Down(PadAction.Jump)) F.Press(Cmd.Jump);
+            if (PadInput.Down(PadAction.Dodge)) F.Press(Cmd.Dodge); // also mashes out of grabs
+            if (PadInput.Down(PadAction.Grab)) { if (!F.TryTrip() && !F.TryMountNearby()) F.Press(Cmd.Grab); }
+            if (PadInput.Down(PadAction.Ult)) F.Press(Cmd.Ult);
+            if (PadInput.Down(PadAction.TechPage)) SwapPage();
+            if (PadInput.Down(PadAction.Target)) CycleTarget();
+            if (PadInput.Down(PadAction.Capri) && F.Kit is ReinaKit rk) { if (rk.SummonCapri()) Haptics.Light(); }
+            PadTech(PadAction.SlotA, SlotToTech(0));
+            PadTech(PadAction.SlotB, SlotToTech(1));
+            PadTech(PadAction.Tech1, 0); PadTech(PadAction.Tech2, 1); PadTech(PadAction.Tech3, 2); PadTech(PadAction.Tech4, 3);
+            blockKey = Input.GetKey(KeyCode.LeftShift) || PadInput.Held(PadAction.Block);
         }
+
+        void SwapPage() { TechPage = 1 - TechPage; RefreshTechLabels(); Sfx.Play(SfxId.Click, 0.6f); }
 
         void KeyTech(KeyCode k, int i)
         {
@@ -225,18 +248,17 @@ namespace Kagegan
             else if (Input.GetKeyDown(k)) F.Press(Cmd.Tech, i);
         }
 
-        void PadTech(KeyCode k, int slot)
+        void PadTech(PadAction a, int i)
         {
-            int i = SlotToTech(slot);
             if (i >= F.Kit.Techs.Length) return;
             var t = F.Kit.Techs[i];
             if (t == null) return;
             if (t.Hold)
             {
-                if (Input.GetKeyDown(k)) F.SetTechHeld(i, true);
-                if (Input.GetKeyUp(k)) F.SetTechHeld(i, false);
+                if (PadInput.Down(a)) F.SetTechHeld(i, true);
+                if (PadInput.Up(a)) F.SetTechHeld(i, false);
             }
-            else if (Input.GetKeyDown(k)) F.Press(Cmd.Tech, i);
+            else if (PadInput.Down(a)) F.Press(Cmd.Tech, i);
         }
 
         public void CycleTarget()

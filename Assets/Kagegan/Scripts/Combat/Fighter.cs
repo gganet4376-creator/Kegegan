@@ -677,7 +677,7 @@ namespace Kagegan
                     TimeFx.HitStop(0.12f);
                     TimeFx.SlowMo(0.35f, 0.4f);
                     CameraRig.Shake(0.2f);
-                    if (IsPlayer) { Haptics.Medium(); Hud.Popup("ПАРИРОВАНИЕ!", new Color(1f, 0.9f, 0.4f)); }
+                    if (IsPlayer) { Haptics.Parry(); Hud.Popup("ПАРИРОВАНИЕ!", new Color(1f, 0.9f, 0.4f)); }
                     if (h.Attacker != null && h.Proj == null && (h.Attacker.transform.position - transform.position).sqrMagnitude < 16f)
                     {
                         h.Attacker.CancelMove();

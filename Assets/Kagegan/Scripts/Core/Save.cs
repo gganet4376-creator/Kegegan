@@ -5,6 +5,7 @@ using UnityEngine;
 namespace Kagegan
 {
     [Serializable] public class LayoutEntry { public string id; public float x, y; }
+    [Serializable] public class PadBind { public int action; public int code; } // code: 0..19 joystick button, 100+axis*2(+1 negative)
 
     [Serializable]
     public class RunRecord
@@ -26,6 +27,10 @@ namespace Kagegan
         public bool dynamicResolution = true;
         public int targetFps = 30;
         public bool vibration = true;
+        public float vibeStrength = 1f;     // phone/controller haptics strength 0.5..1.5
+        public bool padRumble = true;       // rumble in the gamepad itself
+        public List<PadBind> padBinds = new List<PadBind>(); // custom gamepad mapping (empty = defaults)
+        public bool padHintShown;
         public float music = 0.55f, sfx = 0.9f;
         public bool showFps;
         public bool perfDetail;             // with showFps: frame ms, 1% low, CPU/GPU, draw calls, heat
@@ -70,6 +75,7 @@ namespace Kagegan
             if (data == null) data = new SaveData();
             if (data.layout == null) data.layout = new List<LayoutEntry>();
             if (data.layoutVersion < LayoutVersion) { data.layout.Clear(); data.layoutVersion = LayoutVersion; }
+            if (data.padBinds == null) data.padBinds = new List<PadBind>();
             if (data.records == null) data.records = new List<RunRecord>();
         }
 

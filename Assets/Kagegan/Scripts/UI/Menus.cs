@@ -11,7 +11,7 @@ namespace Kagegan
     {
         Transform canvas;
         readonly List<RectTransform> screens = new List<RectTransform>();
-        RectTransform main, charSel, diffSel, bossSel, settings, layout, pause, defeat, results, ending, confirm;
+        RectTransform main, charSel, diffSel, bossSel, settings, settingsContent, padScreen, layout, pause, defeat, results, ending, confirm;
         Text charName, charTitle, charDesc, endingLine, resultsTitle, resultsRank, resultsBody, settingsBody;
         readonly Button[] charButtons = new Button[4];
         readonly Button[] diffButtons = new Button[3];
@@ -33,6 +33,7 @@ namespace Kagegan
             BuildDifficulty();
             BuildBossSelect();
             BuildSettings();
+            BuildPad();
             BuildLayout();
             BuildPause();
             BuildDefeat();
@@ -183,10 +184,18 @@ namespace Kagegan
         void BuildSettings()
         {
             settings = Screen("Settings", new Color(0.03f, 0.02f, 0.05f, 0.88f));
-            UIKit.Label(UIKit.Box(settings, "T", new Vector2(0.5f, 1), new Vector2(0, -80), new Vector2(1400, 100)), "НАСТРОЙКИ", 70, UIKit.Paper, TextAnchor.MiddleCenter, FontStyle.Bold);
-            float y = -150;
+            UIKit.Label(UIKit.Box(settings, "T", new Vector2(0.5f, 1), new Vector2(0, -70), new Vector2(1400, 100)), "НАСТРОЙКИ", 66, UIKit.Paper, TextAnchor.MiddleCenter, FontStyle.Bold);
+            // rows live in a scroll view (touch drag, gamepad focus scrolls it)
+            var view = UIKit.Rect(settings, "View", new Vector2(0.5f, 0), new Vector2(0.5f, 1), new Vector2(-680, 160), new Vector2(680, -130));
+            view.gameObject.AddComponent<RectMask2D>();
+            var viewImg = view.gameObject.AddComponent<Image>(); viewImg.color = new Color(0, 0, 0, 0); viewImg.raycastTarget = true;
+            settingsContent = UIKit.Rect(view, "Content", new Vector2(0, 1), new Vector2(1, 1));
+            settingsContent.pivot = new Vector2(0.5f, 1);
+            var sr = view.gameObject.AddComponent<ScrollRect>();
+            sr.viewport = view; sr.content = settingsContent; sr.horizontal = false; sr.movementType = ScrollRect.MovementType.Elastic; sr.scrollSensitivity = 40f;
+            float y = -34;
             int row = 0;
-            Func<float> nextY = () => y - (row++) * 54;
+            Func<float> nextY = () => y - (row++) * 60;
 
             SettingRow("Качество графики", () => Names.Preset((GraphicsPreset)Save.Data.graphics), d =>
             {
@@ -205,7 +214,9 @@ namespace Kagegan
                 GraphicsQuality.ResetFpsGovernor();
             }, nextY());
             SettingRow("Обучение в бою", () => Save.Data.tutorialDone ? "Пройдено" : "Показать", d => { Save.Data.tutorialDone = !Save.Data.tutorialDone; }, nextY());
-            SettingRow("Виброотдача", () => Save.Data.vibration ? "Вкл" : "Выкл", d => { Save.Data.vibration = !Save.Data.vibration; if (Save.Data.vibration) Haptics.Medium(); }, nextY());
+            SettingRow("Виброотдача телефона", () => Save.Data.vibration ? "Вкл" : "Выкл", d => { Save.Data.vibration = !Save.Data.vibration; if (Save.Data.vibration) Haptics.Heavy(); }, nextY());
+            SettingRow("Сила вибрации", () => Mathf.RoundToInt(Haptics.Strength * 100) + "%", d => { Save.Data.vibeStrength = Mathf.Clamp(Haptics.Strength + d * 0.25f, 0.5f, 1.5f); Haptics.ClearCache(); Haptics.Heavy(); }, nextY());
+            SettingRow("Вибрация геймпада", () => Save.Data.padRumble ? "Вкл" : "Выкл", d => { Save.Data.padRumble = !Save.Data.padRumble; if (Save.Data.padRumble) Haptics.Heavy(); }, nextY());
             SettingRow("Музыка", () => Mathf.RoundToInt(Save.Data.music * 100) + "%", d => { Save.Data.music = Mathf.Clamp01(Save.Data.music + d * 0.1f); Sfx.RefreshVolume(); }, nextY());
             SettingRow("Звуки", () => Mathf.RoundToInt(Save.Data.sfx * 100) + "%", d => { Save.Data.sfx = Mathf.Clamp01(Save.Data.sfx + d * 0.1f); Sfx.Play(SfxId.Hit); }, nextY());
             // off -> FPS -> detailed profiler (frame ms, 1% low, CPU/GPU, draw calls, heat)
@@ -228,14 +239,16 @@ namespace Kagegan
             SettingRow("Размер кнопок", () => Mathf.RoundToInt(Save.Data.buttonScale * 100) + "%", d => { Save.Data.buttonScale = Mathf.Clamp(Save.Data.buttonScale + d * 0.05f, 0.7f, 1.6f); GameManager.Inst.Touch.ApplyScaleAlpha(); }, nextY());
             SettingRow("Прозрачность кнопок", () => Mathf.RoundToInt(Save.Data.buttonAlpha * 100) + "%", d => { Save.Data.buttonAlpha = Mathf.Clamp(Save.Data.buttonAlpha + d * 0.05f, 0.3f, 1f); GameManager.Inst.Touch.ApplyScaleAlpha(); }, nextY());
 
-            UIKit.Button(settings, "Расположение кнопок", new Vector2(0.5f, 0), new Vector2(-560, 90), new Vector2(520, 100), ShowLayout, new Color(0.2f, 0.3f, 0.5f, 0.95f), 34);
-            UIKit.Button(settings, "Сбросить прогресс", new Vector2(0.5f, 0), new Vector2(0, 90), new Vector2(480, 100), () => Show(confirm), new Color(0.4f, 0.1f, 0.1f, 0.95f), 34);
-            UIKit.Button(settings, "Готово", new Vector2(0.5f, 0), new Vector2(520, 90), new Vector2(400, 100), () => { Save.Write(); settingsBack?.Invoke(); }, UIKit.Accent, 40);
+            settingsContent.sizeDelta = new Vector2(0, row * 60 + 10);
+            UIKit.Button(settings, "Расположение кнопок", new Vector2(0.5f, 0), new Vector2(-690, 80), new Vector2(380, 96), ShowLayout, new Color(0.2f, 0.3f, 0.5f, 0.95f), 30);
+            UIKit.Button(settings, "Геймпад", new Vector2(0.5f, 0), new Vector2(-270, 80), new Vector2(380, 96), ShowPad, new Color(0.2f, 0.3f, 0.5f, 0.95f), 32);
+            UIKit.Button(settings, "Сбросить прогресс", new Vector2(0.5f, 0), new Vector2(150, 80), new Vector2(380, 96), () => Show(confirm), new Color(0.4f, 0.1f, 0.1f, 0.95f), 30);
+            UIKit.Button(settings, "Готово", new Vector2(0.5f, 0), new Vector2(560, 80), new Vector2(360, 96), () => { Save.Write(); settingsBack?.Invoke(); }, UIKit.Accent, 38);
         }
 
         void SettingRow(string label, Func<string> value, Action<int> change, float y)
         {
-            var rowRt = UIKit.Box(settings, "Row", new Vector2(0.5f, 1), new Vector2(0, y), new Vector2(1300, 52));
+            var rowRt = UIKit.Box(settingsContent, "Row", new Vector2(0.5f, 1), new Vector2(0, y), new Vector2(1300, 54));
             UIKit.Img(rowRt, new Color(1, 1, 1, 0.05f));
             UIKit.Label(UIKit.Box(rowRt, "L", new Vector2(0, 0.5f), new Vector2(30, 0), new Vector2(700, 80), new Vector2(0, 0.5f)), label, 34, Color.white, TextAnchor.MiddleLeft);
             var valueText = UIKit.Label(UIKit.Box(rowRt, "V", new Vector2(1, 0.5f), new Vector2(-260, 0), new Vector2(300, 80)), "", 34, UIKit.Gold, TextAnchor.MiddleCenter, FontStyle.Bold);
@@ -245,6 +258,18 @@ namespace Kagegan
             settingsRefresh.Add(refresh);
             refresh();
         }
+
+        // ===================== gamepad =====================
+        PadRemap padRemap;
+        void BuildPad()
+        {
+            padScreen = Screen("Pad", new Color(0.03f, 0.02f, 0.05f, 0.92f));
+            padRemap = padScreen.gameObject.AddComponent<PadRemap>();
+            padRemap.Build(padScreen);
+            padRemap.OnDone = () => ShowSettings(settingsBack);
+        }
+
+        public void ShowPad() { Show(padScreen); padRemap.Refresh(); }
 
         public void ShowSettings(Action back)
         {
@@ -323,7 +348,7 @@ namespace Kagegan
                 var p = b.Player;
                 defeatInfo.text = where + (p != null ? "\nНанесено урона: " + Mathf.RoundToInt(p.Stats.damageDealt) + "   Макс. серия: " + p.Stats.maxCombo : "");
             }
-            Haptics.Heavy();
+            Haptics.Ko();
         }
 
         // ===================== results =====================

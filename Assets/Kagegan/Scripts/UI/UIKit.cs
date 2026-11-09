@@ -85,6 +85,7 @@ namespace Kagegan
             var es = new GameObject("EventSystem");
             es.AddComponent<EventSystem>();
             es.AddComponent<StandaloneInputModule>();
+            PadFocus.Attach(es);
             UnityEngine.Object.DontDestroyOnLoad(es);
         }
 

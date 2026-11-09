@@ -151,7 +151,7 @@ namespace Kagegan
                 }
             }
             bool pausePressed = false;
-            try { pausePressed = Input.GetKeyDown(KeyCode.Escape) || Input.GetKeyDown(KeyCode.JoystickButton7); } catch (System.Exception) { }
+            try { pausePressed = Input.GetKeyDown(KeyCode.Escape) || PadInput.Down(PadAction.Pause); } catch (System.Exception) { }
             if (!inMenu && pausePressed && Battle != null) Pause(!TimeFx.Paused);
         }
 

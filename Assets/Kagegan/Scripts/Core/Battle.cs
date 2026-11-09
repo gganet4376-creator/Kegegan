@@ -413,7 +413,7 @@ namespace Kagegan
             // boss defeat: slow motion close-up, then the victory pose
             TimeFx.SlowMo(1.4f, 0.2f);
             if (Boss != null) CameraRig.Cinematic(Boss.Center, KMath.Flat(Player.transform.position - Boss.transform.position).normalized + Vector3.up * 0.2f, 5f, 1f, 1.6f);
-            Haptics.Heavy();
+            Haptics.Ko();
             yield return new WaitForSecondsRealtime(1.5f);
             Player.Celebrate(2.5f);
             CameraRig.Cinematic(Player.Center, Player.transform.forward + Vector3.up * 0.1f, 4f, 0.6f, 2f);
