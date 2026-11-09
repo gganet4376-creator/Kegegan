@@ -31,17 +31,41 @@ namespace Kagegan
         public static int PerfDegrade { get; private set; }
 
         /// <summary>
-        /// One more step of frame-rate rescue once the resolution is already at its floor:
-        /// lighter post-processing, fewer capsule shadows, then no MSAA / bloom. Returns false when nothing is left.
+        /// One more step of frame-rate rescue once the resolution is already at its floor (or the phone is heating up):
+        /// lighter post-processing and fewer particles, then no MSAA / fewer lights and shadows, then no bloom and
+        /// shorter grass. Works on every preset. Returns false when nothing is left.
         /// </summary>
         public static bool DegradeForPerf()
         {
-            if (Current < GraphicsPreset.High || PerfDegrade >= 3) return false;
+            if (PerfDegrade >= 3) return false;
             PerfDegrade++;
-            if (PerfDegrade == 1) ShadowCasters = Mathf.Min(ShadowCasters, 2);
-            if (PerfDegrade == 2) QualitySettings.antiAliasing = 0;
-            PostFx.Degrade(PerfDegrade);
+            ApplyDegrade();
             return true;
+        }
+
+        /// <summary>Takes one rescue step back (the phone cooled down and holds its frame rate).</summary>
+        public static bool RestoreForPerf()
+        {
+            if (PerfDegrade <= 0) return false;
+            int keep = PerfDegrade - 1;
+            float scale = CurrentRenderScale;
+            Apply(Current);          // back to the preset's own values (fires Changed: weather, shadows, grass refresh)
+            SetRenderScale(scale, false);
+            PerfDegrade = keep;
+            ApplyDegrade();
+            return true;
+        }
+
+        static void ApplyDegrade()
+        {
+            int d = PerfDegrade;
+            if (d >= 1) { ShadowCasters = Mathf.Min(ShadowCasters, 2); ParticleMul *= 0.75f; }
+            if (d >= 2) { QualitySettings.antiAliasing = 0; ShadowCasters = Mathf.Min(ShadowCasters, 1); DynamicLights = Mathf.Min(DynamicLights, 2); }
+            if (d >= 3) { ShadowCasters = 0; ParticleMul *= 0.75f; DynamicLights = Mathf.Min(DynamicLights, 1); }
+            if (ShadowCasters == 0) Shader.SetGlobalFloat("_KageCasterCount", 0f);
+            Shader.SetGlobalFloat("_KageDynLightCount", DynamicLights);
+            GrassBend.ApplyDistance();
+            PostFx.Degrade(d);
         }
 
         static PropertyInfo urpRenderScale;
@@ -153,10 +177,11 @@ namespace Kagegan
                     MaxActiveEnemies = 5; DebrisPerBreak = 10; GroundDetail = true; ShadowCasters = 4;
                     QualitySettings.antiAliasing = 2;
                     break;
-                default: // Ultra: flagship phones (full resolution, 4x MSAA, dense particles and weather)
-                    BaseRenderScale = 1f; Outlines = true; DynamicLights = 4; ParticleMul = 1.25f; WeatherMul = 1.4f;
+                default: // Ultra: flagship phones. 0.9 of a 2.6K panel is still sharper than High, and 2x MSAA instead
+                         // of 4x: flagship SoCs throttle hard after a few minutes, a lighter frame keeps them cool
+                    BaseRenderScale = 0.9f; Outlines = true; DynamicLights = 4; ParticleMul = 1.25f; WeatherMul = 1.4f;
                     MaxActiveEnemies = 5; DebrisPerBreak = 14; GroundDetail = true; ShadowCasters = 6;
-                    QualitySettings.antiAliasing = 4;
+                    QualitySettings.antiAliasing = 2;
                     break;
             }
 
@@ -219,8 +244,8 @@ namespace Kagegan
         // (120 -> 60 -> 40 -> 30). A target the phone can't hold therefore lands on 30 with uneven frames.
         // When the chosen rate isn't held for a few seconds (or the phone heats up) step down to a rate it can
         // hold - 90 or 60 - for this session only; try the higher rate again later if there is headroom.
-        static float govLow, govGood; static int govUps;
-        public static void ResetGovernor() { govLow = 0f; govGood = 0f; govUps = 0; }
+        static float govLow, govGood, heatTimer, coolTime; static int govUps, restores;
+        public static void ResetGovernor() { govLow = 0f; govGood = 0f; govUps = 0; heatTimer = coolTime = 0f; restores = 0; }
 
         void Governor(float dt)
         {
@@ -243,6 +268,25 @@ namespace Kagegan
                     govLow = govGood = 0f;
                 }
             }
+            // Heat (Android ADPF advice): shed load *before* the OS throttles the clocks, which halves the frame rate
+            // for the rest of the session. Headroom >= 0.85 or "moderate" status: one rescue step every 8 s.
+            // Cooled down (headroom < 0.65, status light or none) and holding the rate: undo one step every 25 s.
+            float head = PerfProbe.Headroom;
+            bool hot = thermal >= 2 || (!float.IsNaN(head) && head >= 0.85f);
+            bool cool = thermal <= 1 && (float.IsNaN(head) || head < 0.65f);
+            heatTimer += dt;
+            if (hot)
+            {
+                coolTime = 0f;
+                if (heatTimer >= 8f) { heatTimer = 0f; GraphicsQuality.DegradeForPerf(); }
+            }
+            else if (cool && GraphicsQuality.PerfDegrade > 0 && restores < 4 && Fps >= Mathf.Min(tgt, 60) * 0.95f)
+            {
+                coolTime += dt;
+                if (coolTime >= 25f) { coolTime = 0f; restores++; GraphicsQuality.RestoreForPerf(); } // capped: no endless ping-pong
+            }
+            else coolTime = 0f;
+
             if (tgt < wanted && thermal < 2 && govUps < 2)
             {
                 if (Fps > tgt * 0.97f) govGood += dt; else govGood = 0f;

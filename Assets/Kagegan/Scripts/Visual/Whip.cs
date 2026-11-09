@@ -12,7 +12,9 @@ namespace Kagegan
     public class Whip : MonoBehaviour
     {
         const int N = 20;
-        const float RestLen = 2.2f, HandleLen = 0.24f, MaxLen = 5.2f;
+        const float RestLen = 2.2f, MaxLen = 5.2f;
+        float HandleLen = 0.24f;
+        bool mono;
 
         Fighter f;
         Transform hand, forearm;
@@ -34,14 +36,20 @@ namespace Kagegan
 
         float floorY, floorCheck;
 
-        public static Whip Attach(Fighter fighter, Color glow)
+        /// <summary>
+        /// Attaches a whip to the right (or left) hand. <paramref name="monowire"/>: a glowing filament that runs out of
+        /// the fingers (no leather, no handle) and keeps a faint glow even at rest.
+        /// </summary>
+        public static Whip Attach(Fighter fighter, Color glow, bool leftHand = false, bool monowire = false)
         {
-            var go = new GameObject("Whip");
+            var go = new GameObject(leftHand ? "WhipL" : "Whip");
             go.transform.SetParent(fighter.transform, false);
             var w = go.AddComponent<Whip>();
-            w.f = fighter; w.glowColor = glow;
-            w.hand = fighter.Rig.Bones[(int)B.HandR];
-            w.forearm = fighter.Rig.Bones[(int)B.LArmR];
+            w.f = fighter; w.glowColor = glow; w.mono = monowire;
+            if (monowire) w.HandleLen = 0.06f;
+            w.hand = fighter.Rig.Bones[(int)(leftHand ? B.HandL : B.HandR)];
+            w.forearm = fighter.Rig.Bones[(int)(leftHand ? B.LArmL : B.LArmR)];
+            if (w.hand == null || w.forearm == null) { Destroy(go); return null; }
             w.Build();
             return w;
         }
@@ -66,12 +74,24 @@ namespace Kagegan
 
         void Build()
         {
+            if (mono)
+            {
+                // monowire: a thin hot filament, dark-orange core with a bright tip, inside a soft additive halo
+                Color core = glowColor;
+                lash = Line("Lash", Mat.FxAlphaSolid, N, new AnimationCurve(new Keyframe(0, 0.016f), new Keyframe(0.7f, 0.011f), new Keyframe(1, 0.005f)), Color.white);
+                lash.startColor = new Color(core.r * 0.75f, core.g * 0.55f, core.b * 0.4f, 1f);
+                lash.endColor = Color.Lerp(core, Color.white, 0.25f);
+                handle = Line("Handle", Mat.FxAddSolid, 4, new AnimationCurve(new Keyframe(0, 0.035f), new Keyframe(1, 0.02f)), core * 0.8f);
+                glow = Line("LashGlow", Mat.FxAddSolid, N, new AnimationCurve(new Keyframe(0, 0.06f), new Keyframe(1, 0.028f)), Color.clear);
+                glow.enabled = false;
+                return;
+            }
             // braided leather: dark at the handle, slightly lighter towards the fall and cracker
             lash = Line("Lash", Mat.FxAlphaSolid, N, new AnimationCurve(new Keyframe(0, 0.034f), new Keyframe(0.6f, 0.02f), new Keyframe(1, 0.007f)), Color.white);
             lash.startColor = new Color(0.09f, 0.07f, 0.06f, 1f);
             lash.endColor = new Color(0.2f, 0.17f, 0.14f, 1f);
             handle = Line("Handle", Mat.FxAlphaSolid, 4, new AnimationCurve(new Keyframe(0, 0.05f), new Keyframe(0.15f, 0.06f), new Keyframe(0.2f, 0.045f), new Keyframe(1, 0.04f)), new Color(0.06f, 0.06f, 0.07f, 1f));
-            handle.startColor = new Color(0.25f, 0.9f, 0.45f, 1f); // lit pommel ring
+            handle.startColor = new Color(glowColor.r * 0.7f, glowColor.g * 0.7f, glowColor.b * 0.7f, 1f); // lit pommel ring
             glow = Line("LashGlow", Mat.FxAddSolid, N, new AnimationCurve(new Keyframe(0, 0.09f), new Keyframe(1, 0.04f)), Color.clear);
             glow.enabled = false;
         }
@@ -245,7 +265,9 @@ namespace Kagegan
             handle.SetPosition(3, basePos);
             lash.SetPositions(p);
 
-            glowAmt = Mathf.MoveTowards(glowAmt, 0f, dt * 2.6f);
+            // a monowire never goes fully dark: a faint shimmering halo shows where the strings are
+            float rest = mono ? 0.22f + 0.06f * Mathf.Sin(Time.time * 7f + (hand.GetInstanceID() & 7)) : 0f;
+            glowAmt = Mathf.MoveTowards(glowAmt, rest, dt * 2.6f);
             bool on = glowAmt > 0.01f;
             if (glow.enabled != on) glow.enabled = on;
             if (on)

@@ -45,7 +45,7 @@ namespace Kagegan
             if (asset != null)
             {
                 asset.supportsHDR = on;
-                asset.msaaSampleCount = ultra ? 4 : (on ? 2 : 1);
+                asset.msaaSampleCount = on ? 2 : 1; // 4x on a 2.6K panel cost a lot of bandwidth (and heat) for little gain
                 asset.supportsCameraDepthTexture = on; // depth of field reads it
             }
             if (cam == null) return;
@@ -69,13 +69,13 @@ namespace Kagegan
             bloom.intensity.value = ultra ? 0.65f : 0.5f;
             bloom.threshold.value = 1.25f;
             bloom.scatter.value = 0.62f;
-            bloom.highQualityFiltering.value = ultra;
-            bloom.maxIterations.value = ultra ? 6 : 5;
+            bloom.highQualityFiltering.value = false; // HQ (bicubic) upsampling is a known mobile cost
+            bloom.maxIterations.value = 5;
             vignette.intensity.value = 0.22f;
             vignette.smoothness.value = 0.45f;
             dof.mode.value = DepthOfFieldMode.Gaussian;
             dof.gaussianMaxRadius.value = ultra ? 1.1f : 0.8f;
-            dof.highQualitySampling.value = ultra;
+            dof.highQualitySampling.value = false;
             chroma.intensity.value = 0f;
             // film-like split: cool shadows, warm highlights (baked into the grading LUT, no extra pass)
             smh.shadows.value = new Vector4(0.96f, 0.99f, 1.07f, 0f);

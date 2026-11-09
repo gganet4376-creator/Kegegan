@@ -68,10 +68,10 @@ namespace Kagegan
                 case CharacterId.Reina:
                     return new Look
                     {
-                        // original design: crimson ponytail, graphite tech-suit with acid-green circuit accents
-                        skin = new Color(0.95f, 0.8f, 0.7f), top = new Color(0.12f, 0.13f, 0.15f), sleeve = new Color(0.12f, 0.13f, 0.15f), top2 = new Color(0.35f, 1f, 0.55f),
+                        // original design: crimson ponytail, graphite tech-suit with hot-orange circuit accents
+                        skin = new Color(0.95f, 0.8f, 0.7f), top = new Color(0.12f, 0.13f, 0.15f), sleeve = new Color(0.12f, 0.13f, 0.15f), top2 = new Color(1f, 0.52f, 0.12f),
                         pants = new Color(0.1f, 0.1f, 0.12f), shoes = new Color(0.2f, 0.22f, 0.24f), hair = new Color(0.55f, 0.07f, 0.12f),
-                        eye = new Color(0.4f, 1f, 0.6f), accent = new Color(0.35f, 1f, 0.55f), hairStyle = HairStyle.LongStraight, hairLength = 0.8f,
+                        eye = new Color(0.4f, 1f, 0.6f), accent = new Color(1f, 0.52f, 0.12f), hairStyle = HairStyle.LongStraight, hairLength = 0.8f,
                         bareForearms = false, eyeGlow = 0.7f, height = 0.97f, bulk = 0.92f, model = "lucy"
                     };
                 default:

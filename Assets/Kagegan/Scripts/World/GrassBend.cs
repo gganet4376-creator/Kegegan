@@ -91,6 +91,7 @@ namespace Kagegan
                 default: far = 44f; break;
             }
             far *= DistanceMul;
+            if (GraphicsQuality.PerfDegrade >= 3) far *= 0.7f; // heat rescue: fewer far blades to shade
             Shader.SetGlobalVector(IdFade, new Vector4(far * 0.7f, far, 0f, 0f));
         }
 

@@ -1014,7 +1014,7 @@ namespace Kagegan
                 case GraphicsPreset.Low: count /= 3; blades = 4; break;
                 case GraphicsPreset.Medium: blades = 7; break;
                 case GraphicsPreset.High: count *= 2; blades = 9; break;
-                default: count *= 3; blades = 10; break;
+                default: count = count * 5 / 2; blades = 9; break; // was x3 / 10 blades: ~25% fewer triangles
             }
             count = Mathf.Max(20, Mathf.RoundToInt(count * GrassBend.DensityMul));
             bool low = GraphicsQuality.Current == GraphicsPreset.Low;

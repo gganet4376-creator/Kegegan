@@ -11,7 +11,7 @@ namespace Kagegan
     /// </summary>
     public class ReinaKit : Kit
     {
-        public static readonly Color Wire = new Color(0.35f, 1f, 0.55f);    // monowire glow (acid green)
+        public static readonly Color Wire = new Color(1f, 0.52f, 0.12f);    // monowire glow (hot orange, like the anime)
         public static readonly Color Hack = new Color(0.55f, 1f, 0.35f);
         public static readonly Color Over = new Color(1f, 0.3f, 0.75f);     // overload (magenta)
 
@@ -116,13 +116,20 @@ namespace Kagegan
 
         Transform Hand => F.Rig.Bones[(int)B.HandR];
 
-        // the monowire is a physical whip in her right hand (verlet lash); the old VFX line is the fallback
-        Whip whip;
+        Transform HandL => F.Rig.Bones[(int)B.HandL];
+
+        // two monowires, one from each hand (verlet lashes); the old VFX line is the fallback
+        Whip whip, whipL;
 
         public override void Tick(float dt)
         {
             base.Tick(dt);
-            if (whip == null && F != null && F.Rig != null && Hand != null) whip = Whip.Attach(F, Wire);
+            if (whip == null && F != null && F.Rig != null && Hand != null) whip = Whip.Attach(F, Wire, false, true);
+            if (whipL == null && F != null && F.Rig != null && HandL != null && !leftFailed)
+            {
+                whipL = Whip.Attach(F, Wire, true, true);
+                leftFailed = whipL == null;
+            }
             if (Ult == null || F == null) return;
             bool duo = Capri != null && Capri.Present;
             Ult.Name = duo ? OverdriveName : baseUltName;
@@ -136,17 +143,29 @@ namespace Kagegan
             }
         }
         float aiCapriAt;
+        bool leftFailed;
 
         void Lash(Vector3 to, Color c, float life, float sweep)
         {
             // called on the contact frame: a fast roll so the tip snaps almost at once (a real cracker breaks the sound barrier)
-            if (whip != null) whip.Strike(to, Mathf.Clamp(life * 0.8f, 0.18f, 0.32f), sweep);
+            // a swing from the left (sweep < 0) comes from the left hand; an overhead one (sweep 0) uses both wires
+            float dur = Mathf.Clamp(life * 0.8f, 0.18f, 0.32f);
+            var w = sweep < -0.01f && whipL != null ? whipL : whip;
+            if (w != null)
+            {
+                w.Strike(to, dur, sweep);
+                if (Mathf.Abs(sweep) < 0.01f && whipL != null && w != whipL) whipL.Strike(to + Vector3.up * 0.15f, dur * 1.1f, -0.4f);
+            }
             else Fx.Wire(Hand, to, c, life, sweep);
         }
 
         void Tether(Vector3 to)
         {
-            if (whip != null) whip.Hold(to);
+            if (whip != null)
+            {
+                whip.Hold(to);
+                if (whipL != null) whipL.Hold(to + Vector3.up * 0.2f); // both wires bind the target
+            }
             else Fx.Wire(Hand, to, Wire, 0.06f, 0f);
         }
 
