@@ -11,9 +11,11 @@ namespace Kagegan
     {
         Transform canvas;
         readonly List<RectTransform> screens = new List<RectTransform>();
-        RectTransform main, charSel, diffSel, bossSel, settings, settingsContent, padScreen, layout, pause, defeat, results, ending, confirm;
+        RectTransform main, charSel, skillScreen, diffSel, bossSel, settings, settingsContent, padScreen, layout, pause, defeat, results, ending, confirm;
         Text charName, charTitle, charDesc, endingLine, resultsTitle, resultsRank, resultsBody, settingsBody;
         readonly Button[] charButtons = new Button[4];
+        readonly Button[] skillButtons = new Button[3];
+        Text skillTitle, skillPoints;
         readonly Button[] diffButtons = new Button[3];
         readonly Button[] bossButtons = new Button[3];
         Button bossDiffButton, sparringButton;
@@ -30,6 +32,7 @@ namespace Kagegan
             canvas = c;
             BuildMain();
             BuildCharSelect();
+            BuildSkills();
             BuildDifficulty();
             BuildBossSelect();
             BuildSettings();
@@ -80,7 +83,8 @@ namespace Kagegan
         {
             charSel = Screen("CharSelect", new Color(0, 0, 0, 0));
             charSel.GetComponent<Image>().raycastTarget = false;
-            var left = UIKit.Rect(charSel, "Info", new Vector2(0, 0.18f), new Vector2(0, 1), new Vector2(30, 0), new Vector2(820, -30));
+            charSel.gameObject.AddComponent<SafeArea>();
+            var left = UIKit.Rect(charSel, "Info", new Vector2(0, 0.28f), new Vector2(0, 1), new Vector2(30, 0), new Vector2(820, -30));
             UIKit.Img(left, new Color(0.05f, 0.04f, 0.07f, 0.75f));
             charName = UIKit.Label(UIKit.Box(left, "Name", new Vector2(0.5f, 1), new Vector2(0, -70), new Vector2(740, 100)), "", 80, UIKit.Paper, TextAnchor.MiddleLeft, FontStyle.Bold);
             charTitle = UIKit.Label(UIKit.Box(left, "Title", new Vector2(0.5f, 1), new Vector2(0, -145), new Vector2(740, 50)), "", 36, UIKit.Gold, TextAnchor.MiddleLeft);
@@ -88,10 +92,71 @@ namespace Kagegan
             for (int i = 0; i < charButtons.Length; i++)
             {
                 int idx = i;
-                charButtons[i] = UIKit.Button(charSel, Roster.Name((CharacterId)i), new Vector2(0, 0), new Vector2(160 + i * 250, 90), new Vector2(235, 120), () => SelectChar((CharacterId)idx), UIKit.Ink, 40);
+                charButtons[i] = UIKit.Button(charSel, Roster.Name((CharacterId)i), new Vector2(0, 0), Vector2.zero, new Vector2(235, 110), () => SelectChar((CharacterId)idx), UIKit.Ink, 34);
+                var card = (RectTransform)charButtons[i].transform;
+                card.anchorMin = new Vector2(i / 4f, 0f);
+                card.anchorMax = new Vector2((i + 1f) / 4f, 0f);
+                card.offsetMin = new Vector2(12f, 145f);
+                card.offsetMax = new Vector2(-12f, 255f);
             }
-            UIKit.Button(charSel, "Назад", new Vector2(1, 0), new Vector2(-560, 90), new Vector2(240, 110), ShowMain, new Color(0.15f, 0.12f, 0.14f, 0.9f));
-            UIKit.Button(charSel, "Далее", new Vector2(1, 0), new Vector2(-220, 90), new Vector2(340, 120), CharNext, UIKit.Accent, 46);
+            UIKit.Button(charSel, "Назад", new Vector2(0, 0), new Vector2(150, 65), new Vector2(260, 100), ShowMain, new Color(0.15f, 0.12f, 0.14f, 0.9f));
+            UIKit.Button(charSel, "Навыки", new Vector2(0.5f, 0), new Vector2(0, 65), new Vector2(300, 100), ShowSkills, UIKit.Ink, 38);
+            UIKit.Button(charSel, "Далее", new Vector2(1, 0), new Vector2(-160, 65), new Vector2(300, 100), CharNext, UIKit.Accent, 42);
+        }
+
+        void BuildSkills()
+        {
+            skillScreen = Screen("Skills", new Color(0.03f, 0.02f, 0.05f, 0.94f));
+            skillScreen.gameObject.AddComponent<SafeArea>();
+            skillTitle = UIKit.Label(UIKit.Box(skillScreen, "Title", new Vector2(0.5f, 1f), new Vector2(0f, -90f), new Vector2(1150f, 90f)), "", 60, UIKit.Paper, TextAnchor.MiddleCenter, FontStyle.Bold);
+            skillPoints = UIKit.Label(UIKit.Box(skillScreen, "Points", new Vector2(0.5f, 1f), new Vector2(0f, -170f), new Vector2(1100f, 65f)), "", 34, UIKit.Gold);
+            for (int i = 0; i < skillButtons.Length; i++)
+            {
+                int attribute = i;
+                skillButtons[i] = UIKit.Button(skillScreen, "", new Vector2(0.5f, 0.5f), new Vector2(0f, 180f - i * 160f),
+                    new Vector2(1000f, 125f), () => BuySkill(attribute), UIKit.Ink, 33);
+            }
+            UIKit.Label(UIKit.Box(skillScreen, "Hint", new Vector2(0.5f, 0f), new Vector2(0f, 180f), new Vector2(1100f, 60f)),
+                "Победа над боссом даёт одно очко выбранному бойцу", 27, UIKit.Paper);
+            UIKit.Button(skillScreen, "Назад", new Vector2(0.5f, 0f), new Vector2(0f, 70f), new Vector2(300f, 100f),
+                () => Show(charSel), UIKit.Ink, 38);
+        }
+
+        void ShowSkills()
+        {
+            Show(skillScreen);
+            RefreshSkills();
+        }
+
+        void RefreshSkills()
+        {
+            var skills = Save.Skills(selected);
+            skillTitle.text = "НАВЫКИ · " + Roster.Name(selected).ToUpperInvariant();
+            skillPoints.text = "Свободно очков: " + skills.points;
+            int[] levels = { skills.health, skills.stamina, skills.chakra };
+            string[] names = { "ЗДОРОВЬЕ", "ВЫНОСЛИВОСТЬ", "ЧАКРА" };
+            for (int i = 0; i < skillButtons.Length; i++)
+            {
+                string suffix = levels[i] == 3 ? "МАКСИМУМ" : "+5% за очко";
+                UIKit.SetLabel(skillButtons[i], names[i] + "   " + levels[i] + "/3   ·   " + suffix);
+                skillButtons[i].interactable = skills.points > 0 && levels[i] < 3;
+            }
+        }
+
+        void BuySkill(int attribute)
+        {
+            var skills = Save.Skills(selected);
+            if (skills.points <= 0) return;
+            switch (attribute)
+            {
+                case 0: if (skills.health >= 3) return; skills.health++; break;
+                case 1: if (skills.stamina >= 3) return; skills.stamina++; break;
+                case 2: if (skills.chakra >= 3) return; skills.chakra++; break;
+                default: return;
+            }
+            skills.points--;
+            Save.Write();
+            RefreshSkills();
         }
 
         public void ShowCharSelect()
@@ -129,9 +194,21 @@ namespace Kagegan
             for (int i = 0; i < 3; i++)
             {
                 int idx = i;
-                diffButtons[i] = UIKit.Button(diffSel, "", new Vector2(0.5f, 0.5f), new Vector2(-560 + i * 560, 30), new Vector2(520, 380), () => GameManager.Inst.StartBattle(BattleMode.BossRush, selected, (Difficulty)idx), UIKit.Ink, 36);
+                diffButtons[i] = UIKit.Button(diffSel, "", new Vector2(0.5f, 0.5f), new Vector2(0f, 30f), new Vector2(520, 380), () => GameManager.Inst.StartBattle(BattleMode.BossRush, selected, (Difficulty)idx), UIKit.Ink, 32);
+                FitCard(diffButtons[i], i);
             }
             UIKit.Button(diffSel, "Назад", new Vector2(0.5f, 0), new Vector2(0, 110), new Vector2(300, 110), ShowCharSelect, new Color(0.15f, 0.12f, 0.14f, 0.9f));
+        }
+
+        static void FitCard(Button button, int index)
+        {
+            var rect = (RectTransform)button.transform;
+            float y = rect.anchoredPosition.y;
+            float halfHeight = rect.sizeDelta.y * 0.5f;
+            rect.anchorMin = new Vector2(index / 3f, 0.5f);
+            rect.anchorMax = new Vector2((index + 1f) / 3f, 0.5f);
+            rect.offsetMin = new Vector2(20f, y - halfHeight);
+            rect.offsetMax = new Vector2(-20f, y + halfHeight);
         }
 
         public void ShowDifficulty()
@@ -157,7 +234,8 @@ namespace Kagegan
             for (int i = 0; i < 3; i++)
             {
                 int idx = i;
-                bossButtons[i] = UIKit.Button(bossSel, "", new Vector2(0.5f, 0.5f), new Vector2(-560 + i * 560, 40), new Vector2(520, 320), () => GameManager.Inst.StartBattle(BattleMode.BossOnly, selected, bossDiff, idx), UIKit.Ink, 34);
+                bossButtons[i] = UIKit.Button(bossSel, "", new Vector2(0.5f, 0.5f), new Vector2(0f, 40f), new Vector2(520, 320), () => GameManager.Inst.StartBattle(BattleMode.BossOnly, selected, bossDiff, idx), UIKit.Ink, 32);
+                FitCard(bossButtons[i], i);
             }
             bossDiffButton = UIKit.Button(bossSel, "", new Vector2(0.5f, 0), new Vector2(-220, 110), new Vector2(400, 110), () =>
             {

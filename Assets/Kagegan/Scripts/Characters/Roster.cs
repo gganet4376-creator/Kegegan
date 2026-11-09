@@ -118,6 +118,13 @@ namespace Kagegan
             float speed = id == CharacterId.Kaito ? 6.6f : id == CharacterId.Genryu ? 5.5f : id == CharacterId.Reina ? 6.9f : 6.1f;
             var f = FighterFactory.Make(Name(id), LookFor(id), Stance(id), Run(id), KitFor(id), Team.Player, pos, FighterRoot, hp, speed);
             f.IsPlayer = true;
+            var skills = Save.Skills(id);
+            f.MaxHp *= 1f + skills.health * 0.05f;
+            f.Hp = f.MaxHp;
+            f.MaxStamina *= 1f + skills.stamina * 0.05f;
+            f.Stamina = f.MaxStamina;
+            f.MaxChakra *= 1f + skills.chakra * 0.05f;
+            f.Chakra = f.MaxChakra;
             f.Anim.PlaySteps = true;
             f.Anim.VictoryPose = Victory(id);
             f.VictoryClip = VictoryClip(id);

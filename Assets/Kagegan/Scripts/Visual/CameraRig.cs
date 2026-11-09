@@ -75,8 +75,9 @@ namespace Kagegan
             if (MenuMode)
             {
                 // same side as the battle camera (-z), looking at the arena's backdrop and sky, never at the bare camera-side rim
-                l = MenuFocus + new Vector3(-0.55f, 1.0f, 0f);
-                p = MenuFocus + new Vector3(0.6f, 1.35f, -MenuDistance);
+                float drift = Mathf.Sin(Time.unscaledTime * 0.22f);
+                l = MenuFocus + new Vector3(-0.55f + drift * 0.06f, 1.0f, 0f);
+                p = MenuFocus + new Vector3(0.6f + drift * 0.18f, 1.35f + Mathf.Sin(Time.unscaledTime * 0.16f) * 0.035f, -MenuDistance);
                 return;
             }
             if (Time.unscaledTime < cineUntil)

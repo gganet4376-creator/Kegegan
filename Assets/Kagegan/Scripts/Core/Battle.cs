@@ -336,6 +336,13 @@ namespace Kagegan
 
         void OnEnemyDied(Fighter f, Fighter killer)
         {
+            if (f == Boss && Mode != BattleMode.Training && Player != null && Player.Alive)
+            {
+                var skills = Save.Skills(Character);
+                skills.points = Mathf.Min(9, skills.points + 1);
+                Save.Write();
+                Hud.Popup("+1 ОЧКО НАВЫКОВ", UIKit.Gold);
+            }
             StartCoroutine(RemoveCorpse(f, f.IsBoss ? 6f : 2.5f));
         }
 

@@ -5,6 +5,12 @@ using UnityEngine;
 namespace Kagegan
 {
     [Serializable] public class LayoutEntry { public string id; public float x, y; }
+    [Serializable]
+    public class FighterSkills
+    {
+        public int character, points, health, stamina, chakra;
+    }
+
     [Serializable] public class PadBind { public int action; public int code; } // code: 0..19 joystick button, 100+axis*2(+1 negative)
 
     [Serializable]
@@ -43,6 +49,8 @@ namespace Kagegan
         public List<LayoutEntry> layout = new List<LayoutEntry>();
         public int layoutVersion;           // bumped when the default button layout changes; older custom layouts are reset
         public List<RunRecord> records = new List<RunRecord>();
+        public List<FighterSkills> skills = new List<FighterSkills>();
+        public bool skillHistoryMigrated;
         public int lastCharacter;
         public int lastDifficulty;
         public bool tutorialDone;           // first-fight hints were shown (settings can turn them back on)
@@ -77,12 +85,42 @@ namespace Kagegan
             if (data.layoutVersion < LayoutVersion) { data.layout.Clear(); data.layoutVersion = LayoutVersion; }
             if (data.padBinds == null) data.padBinds = new List<PadBind>();
             if (data.records == null) data.records = new List<RunRecord>();
+            if (data.skills == null) data.skills = new List<FighterSkills>();
+            foreach (var skill in data.skills)
+            {
+                if (skill == null) continue;
+                skill.points = Mathf.Max(0, skill.points);
+                skill.health = Mathf.Clamp(skill.health, 0, 3);
+                skill.stamina = Mathf.Clamp(skill.stamina, 0, 3);
+                skill.chakra = Mathf.Clamp(skill.chakra, 0, 3);
+            }
+            if (!data.skillHistoryMigrated)
+            {
+                // Existing completed Boss Rush records earned one point per boss.
+                foreach (var record in data.records)
+                {
+                    if (record == null || !record.cleared || record.character < 0 || record.character > (int)CharacterId.Reina) continue;
+                    var skills = Skills((CharacterId)record.character);
+                    skills.points = Mathf.Min(9, skills.points + 3);
+                }
+                data.skillHistoryMigrated = true;
+                Write();
+            }
         }
 
         public static void Write()
         {
             PlayerPrefs.SetString(Key, JsonUtility.ToJson(Data));
             PlayerPrefs.Save();
+        }
+
+        public static FighterSkills Skills(CharacterId character)
+        {
+            foreach (var skill in Data.skills)
+                if (skill != null && skill.character == (int)character) return skill;
+            var created = new FighterSkills { character = (int)character };
+            Data.skills.Add(created);
+            return created;
         }
 
         public static RunRecord Record(CharacterId c, Difficulty d)

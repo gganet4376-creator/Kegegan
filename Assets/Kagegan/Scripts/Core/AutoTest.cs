@@ -219,6 +219,7 @@ namespace Kagegan
             // in-battle screens: HUD, pause, defeat, results
             Begin("training_hud");
             GM.StartBattle(BattleMode.Training, CharacterId.Kaito, Difficulty.Warrior);
+            while (GM.IsLoading) yield return null;
             yield return Wait(3f); yield return Shot("training_hud");
             Driver(); yield return Wait(5f); yield return Shot("training_bot");
             EndScenario();
@@ -251,6 +252,7 @@ namespace Kagegan
                         Save.Data.weather = (int)w + 2;
                         if (a == ArenaId.Dojo) GM.StartBattle(BattleMode.Training, CharacterId.Kaito, Difficulty.Warrior);
                         else GM.StartBattle(BattleMode.BossOnly, CharacterId.Kaito, Difficulty.Warrior, a == ArenaId.Forest ? 0 : a == ArenaId.City ? 1 : 2);
+                        while (GM.IsLoading) yield return null;
                         yield return Wait(3.5f);
                         yield return Shot(name + "_a");
                         Driver();
@@ -284,6 +286,7 @@ namespace Kagegan
                 string name = "rush_" + r.c + "_" + r.d;
                 Begin(name);
                 GM.StartBattle(BattleMode.BossRush, r.c, r.d);
+                while (GM.IsLoading) yield return null;
                 float t0 = Time.realtimeSinceStartup, nextShot = 15f;
                 int lastWave = -1;
                 string outcome = "timeout";

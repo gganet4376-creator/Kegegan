@@ -20,6 +20,9 @@ namespace Kagegan
         Fighter showcase;
         float showcaseTimer;
         bool inMenu;
+        LoadingScreen loading;
+        Coroutine loadingRoutine;
+        public bool IsLoading { get; private set; }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Bootstrap()
@@ -87,18 +90,32 @@ namespace Kagegan
             Menus = Canvas.gameObject.AddComponent<Menus>();
             Menus.Build(Canvas.transform);
             ScreenFader.Create(Canvas.transform);
+            loading = LoadingScreen.Create();
             PlayerCtl = gameObject.AddComponent<PlayerController>();
         }
 
-        void Start()
+        IEnumerator Start()
         {
+            IsLoading = true;
+            loading.Show("Подготовка графики");
+            yield return null;
+            yield return StartCoroutine(ShaderWarmup.Run());
             ShowMenu();
+            loading.Hide();
+            IsLoading = false;
             if (AutoTest.Requested) gameObject.AddComponent<AutoTest>();
         }
 
         // ===================== menu =====================
         public void ShowMenu()
         {
+            if (loadingRoutine != null)
+            {
+                StopCoroutine(loadingRoutine);
+                loadingRoutine = null;
+                loading.Hide();
+                IsLoading = false;
+            }
             ScreenFader.Flash(1f);
             TimeFx.Clear();
             CleanupBattle();
@@ -157,11 +174,47 @@ namespace Kagegan
             }
             bool pausePressed = false;
             try { pausePressed = Input.GetKeyDown(KeyCode.Escape) || PadInput.Down(PadAction.Pause); } catch (System.Exception) { }
-            if (!inMenu && pausePressed && Battle != null) Pause(!TimeFx.Paused);
+            if (!inMenu && !IsLoading && pausePressed && Battle != null) Pause(!TimeFx.Paused);
         }
 
         // ===================== battle =====================
         public void StartBattle(BattleMode mode, CharacterId c, Difficulty d, int bossIndex = 0)
+        {
+            if (IsLoading) return;
+            IsLoading = true;
+            loadingRoutine = StartCoroutine(LoadBattle(mode, c, d, bossIndex));
+        }
+
+        IEnumerator LoadBattle(BattleMode mode, CharacterId c, Difficulty d, int bossIndex)
+        {
+            TimeFx.Clear();
+            Menus.HideAll();
+            loading.Show("Подготовка арены");
+            // Let the overlay render before the arena and fighters are built on the main thread.
+            yield return null;
+            yield return null;
+            bool ok = true;
+            try { StartBattleNow(mode, c, d, bossIndex); }
+            catch (System.Exception e)
+            {
+                ok = false;
+                Debug.LogException(e);
+                CleanupBattle();
+                ShowMenu();
+            }
+            if (ok)
+            {
+                // the arena now renders under the opaque overlay: its first frames compile shaders and upload
+                // textures, so the hitch stays hidden instead of landing on the intro camera
+                for (int i = 0; i < 4; i++) yield return null;
+                yield return new WaitForSecondsRealtime(0.15f);
+            }
+            loading.Hide();
+            IsLoading = false;
+            loadingRoutine = null;
+        }
+
+        void StartBattleNow(BattleMode mode, CharacterId c, Difficulty d, int bossIndex)
         {
             Save.Data.lastCharacter = (int)c;
             Save.Data.lastDifficulty = (int)d;
@@ -197,7 +250,7 @@ namespace Kagegan
 
         public void Pause(bool on)
         {
-            if (Battle == null) return;
+            if (Battle == null || (on && IsLoading)) return;
             TimeFx.Paused = on;
             if (on) Menus.ShowPause(); else Menus.HideAll();
             AudioListener.pause = false;
