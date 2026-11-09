@@ -58,7 +58,8 @@ namespace Kagegan
         static readonly int IdFrame = Shader.PropertyToID("_Frame"), IdFlip = Shader.PropertyToID("_Flip"),
             IdGlitch = Shader.PropertyToID("_Glitch"), IdDissolve = Shader.PropertyToID("_Dissolve"),
             IdTint = Shader.PropertyToID("_Tint"), IdTintAmt = Shader.PropertyToID("_TintAmt"),
-            IdAlpha = Shader.PropertyToID("_Alpha"), IdQuality = Shader.PropertyToID("_Quality"), IdSeed = Shader.PropertyToID("_Seed");
+            IdAlpha = Shader.PropertyToID("_Alpha"), IdQuality = Shader.PropertyToID("_Quality"), IdSeed = Shader.PropertyToID("_Seed"),
+            IdTilt = Shader.PropertyToID("_Tilt"), IdShear = Shader.PropertyToID("_Shear");
 
         static bool LoadResources()
         {
@@ -106,14 +107,22 @@ namespace Kagegan
         float glitch, glitchTarget = 0.08f, dissolve = 1f, alpha = 1f, flip = 1f;
         float laughUntil;
 
-        class GhostQ { public MeshRenderer r; public MaterialPropertyBlock b; public float life, max; public int frame; public Color tint; public float flip; }
+        class GhostQ { public MeshRenderer r; public MaterialPropertyBlock b; public float life, max; public int frame; public Color tint; public float flip, tilt, shear; }
+
+        // 2D puppet motion: lean into movement, smear on fast moves, squash/stretch spring kicked by actions
+        Vector3 lastPos;
+        float tilt, shear, sqX, sqY, sqVX, sqVY, tiltKick;
+        Vector3 lookAhead;
+
+        /// <summary>Kicks the squash/stretch spring: x &gt; 0 widens, y &gt; 0 stretches up.</summary>
+        void Pop(float x, float y) { sqVX += x; sqVY += y; }
         readonly List<GhostQ> ghosts = new List<GhostQ>();
 
         // brain
         Vector3 vel;
         Vector3 offsetSide = Vector3.right;
         float nextActionAt, nextIdleAt, nextDodgeAt, followUpAt, relocateAt, noEnemySince = -1f;
-        float blinkReady, corruptReady, burstReady, possessReady;
+        float blinkReady, corruptReady, burstReady, possessReady, clawReady;
         bool busy, dealing;
         Coroutine action;
 
@@ -174,8 +183,9 @@ namespace Kagegan
             // side away from the current target, a little behind Lucy
             offsetSide = owner.Target != null && Vector3.Dot(owner.Target.transform.position - owner.transform.position, owner.transform.right) > 0f ? Vector3.left : Vector3.right;
             transform.position = HoverPoint();
+            lastPos = transform.position;
             float now = Time.time;
-            blinkReady = now + 2f; corruptReady = now + 4f; burstReady = now + 1f; possessReady = now + 6f;
+            blinkReady = now + 2f; corruptReady = now + 3f; burstReady = now + 1f; possessReady = now + 5f; clawReady = now;
             StartCoroutine(SummonRoutine());
         }
 
@@ -200,6 +210,17 @@ namespace Kagegan
             if (!Clips.ContainsKey(name)) return;
             clip = name;
             clipT = 0f;
+            switch (name)
+            {
+                case "attack": Pop(-2.2f, 3.2f); break;    // whip-out stretch
+                case "burst": Pop(4f, -3f); break;         // wide shockwave squash
+                case "blink": Pop(-3f, 3.5f); break;
+                case "surprise": Pop(-1.5f, 4f); break;
+                case "hurt": Pop(2.5f, -2.5f); tiltKick = 0.35f * flip; break;
+                case "laugh": Pop(1.2f, -1f); break;
+                case "possess": Pop(-3.5f, 2f); break;
+                case "appear": Pop(-2f, 4f); break;
+            }
         }
 
         int Frame(string name, float t)
@@ -240,6 +261,7 @@ namespace Kagegan
             glitch = Mathf.MoveTowards(glitch, glitchTarget, dt * 3f);
             float flicker = phase == Phase.Live && Random.value < dt * 0.8f ? 0.5f : 0f; // a rare unstable twitch
             Apply(body, mpb, Frame(clip, clipT), flip, Mathf.Clamp01(glitch + flicker), dissolve, Color.white, 0f, alpha);
+            Puppet(dt);
 
             // ground blob under her (soft, darker when she floats low)
             float h = Mathf.Max(0.2f, transform.position.y);
@@ -256,9 +278,59 @@ namespace Kagegan
                 if (g.life <= 0f) { g.r.gameObject.SetActive(false); continue; }
                 float k = g.life / g.max;
                 Apply(g.r, g.b, g.frame, g.flip, 0.6f, 1f - k * 0.9f, g.tint, 0.85f, k * 0.75f);
+                g.b.SetFloat(IdTilt, g.tilt); g.b.SetFloat(IdShear, g.shear * k);
+                g.r.SetPropertyBlock(g.b);
             }
 
             if (riftT.gameObject.activeSelf && cam != null) riftT.rotation = Quaternion.LookRotation(cam.transform.forward, Vector3.up);
+        }
+
+        /// <summary>
+        /// Makes the flat drawing move like an animated character rather than a sticker: she leans into her motion and
+        /// toward whoever she is about to hit, smears on fast moves, breathes, and squashes/stretches on every action.
+        /// </summary>
+        void Puppet(float dt)
+        {
+            if (dt <= 0f) return;
+            Vector3 d = transform.position - lastPos;
+            lastPos = transform.position;
+            if (d.sqrMagnitude > 2.5f * 2.5f) d = Vector3.zero; // a blink is a cut, not a move
+            Vector3 v = d / dt;
+            lookAhead = Vector3.Lerp(lookAhead, v, 1f - Mathf.Exp(-dt * 10f));
+            Vector3 right = cam_right();
+            float vx = Vector3.Dot(lookAhead, right), vy = lookAhead.y;
+            float speed = lookAhead.magnitude;
+
+            // lean: into the motion, toward the target while attacking, plus a slow idle sway
+            float lean = -Mathf.Clamp(vx * 0.045f, -0.4f, 0.4f);
+            if (clip == "attack" || clip == "burst" || clip == "possess")
+            {
+                float toT = Vector3.Dot(FocusPoint() - transform.position, right);
+                lean += -Mathf.Sign(toT) * 0.22f;
+            }
+            else if (clip == "laugh") lean += Mathf.Sin(Time.time * 15f) * 0.07f;
+            else if (clip == "hurt" || clip == "surprise") lean += flip * 0.18f;
+            lean += Mathf.Sin(Time.time * 1.3f + seed) * 0.06f;
+            tiltKick = Mathf.MoveTowards(tiltKick, 0f, dt * 2.5f);
+            tilt = Mathf.Lerp(tilt, lean + tiltKick, 1f - Mathf.Exp(-dt * 9f));
+            // smear: the top trails behind on fast moves (anime smear frame)
+            shear = Mathf.Lerp(shear, -Mathf.Clamp(vx * 0.03f, -0.35f, 0.35f), 1f - Mathf.Exp(-dt * 14f));
+
+            // squash/stretch spring around 0; velocity stretches along the move
+            const float K = 260f, C = 15f;
+            sqVX += (-K * sqX - C * sqVX) * dt; sqX += sqVX * dt;
+            sqVY += (-K * sqY - C * sqVY) * dt; sqY += sqVY * dt;
+            sqX = Mathf.Clamp(sqX, -0.35f, 0.4f); sqY = Mathf.Clamp(sqY, -0.35f, 0.45f);
+            float stretch = Mathf.Clamp(speed * 0.012f, 0f, 0.22f);
+            float horiz = Mathf.Abs(vx) > Mathf.Abs(vy) ? 1f : 0f;
+            float breathe = Mathf.Sin(Time.time * 2.6f + seed) * 0.025f;
+            float sx = 1f + sqX + stretch * horiz - stretch * (1f - horiz) * 0.5f - breathe * 0.5f;
+            float sy = 1f + sqY + stretch * (1f - horiz) - stretch * horiz * 0.5f + breathe;
+            body.transform.localScale = new Vector3(Size * Mathf.Max(0.5f, sx), Size * Mathf.Max(0.5f, sy), 1f);
+
+            mpb.SetFloat(IdTilt, tilt);
+            mpb.SetFloat(IdShear, shear);
+            body.SetPropertyBlock(mpb);
         }
 
         void Apply(MeshRenderer r, MaterialPropertyBlock b, int frame, float fl, float gl, float dis, Color tint, float tintAmt, float a)
@@ -285,8 +357,24 @@ namespace Kagegan
         Vector3 HoverPoint()
         {
             var o = Owner.transform;
-            float bob = Mathf.Sin(Time.time * 1.7f + seed) * 0.12f;
-            return o.position + o.TransformDirection(offsetSide) * 1.15f - o.forward * 0.55f + Vector3.up * (HoverHeight + bob);
+            float tt = Time.time + seed;
+            // a lazy figure-eight drift instead of a fixed spot
+            Vector3 drift = o.right * (Mathf.Sin(tt * 0.9f) * 0.3f) + Vector3.up * (Mathf.Sin(tt * 1.7f) * 0.14f + Mathf.Sin(tt * 3.1f) * 0.04f);
+            // in a fight she prowls at the enemy's flank, not behind Lucy
+            var t = phase == Phase.Live ? CurrentTarget() : null;
+            if (t != null)
+            {
+                Vector3 to = KMath.Flat(t.transform.position - o.position);
+                float dist = to.magnitude;
+                if (dist > 0.5f && dist < 8f)
+                {
+                    Vector3 fwd = to / dist;
+                    Vector3 side = Vector3.Cross(Vector3.up, fwd) * (Vector3.Dot(offsetSide, Vector3.right) >= 0f ? 1f : -1f);
+                    Vector3 anchor = o.position + fwd * Mathf.Min(dist * 0.6f, dist - 1.1f);
+                    return anchor + side * 1.5f + Vector3.up * HoverHeight + drift;
+                }
+            }
+            return o.position + o.TransformDirection(offsetSide) * 1.15f - o.forward * 0.55f + Vector3.up * HoverHeight + drift;
         }
 
         void Follow(float dt)
@@ -319,6 +407,8 @@ namespace Kagegan
             free.frame = frame >= 0 ? frame : Frame(clip, clipT);
             free.tint = tint;
             free.flip = flip;
+            free.tilt = tilt;
+            free.shear = shear;
         }
 
         // ---------- despawn ----------
@@ -503,6 +593,8 @@ namespace Kagegan
                     if (now >= possessReady && (comboing || Random.value < 0.25f) && toTarget < 12f && t.State != FState.Cinematic) { Run(PossessRoutine(t)); return; }
                     if (now >= corruptReady && toTarget < 14f && !t.Overloaded) { Run(CorruptRoutine(t)); return; }
                     if (now >= blinkReady && toTarget < 10f && t.State != FState.Cinematic) { Run(BlinkRoutine(t)); return; }
+                    // her bread and butter: swoop in, two claw rakes, back out
+                    if (now >= clawReady && toTarget < 9f && t.State != FState.Cinematic) { Run(ClawRoutine(t)); return; }
                 }
             }
 
@@ -541,7 +633,7 @@ namespace Kagegan
             yield return r;
             busy = false;
             action = null;
-            nextActionAt = Time.time + Random.Range(2.2f, 3.5f);
+            nextActionAt = Time.time + Random.Range(0.9f, 1.6f);
             glitchTarget = 0.08f;
             alpha = 1f;
         }
@@ -572,7 +664,9 @@ namespace Kagegan
             Ghost(transform.position + cam_right() * 0.12f, Red, 0.32f);
             Ghost(transform.position - cam_right() * 0.12f, Green, 0.32f);
             transform.position = p;
+            lastPos = p;
             vel = Vector3.zero;
+            Pop(2.6f, -2.4f); // lands from the blink squashed, then springs back
             glitch = Mathf.Max(glitch, 0.8f);
             if (GraphicsQuality.ParticleMul > 0.5f) Fx.Electric(p, Random.value < 0.5f ? Red : Green, 0.6f, 1);
         }
@@ -582,7 +676,7 @@ namespace Kagegan
         // Digital Blink: three hops around the target with claw strikes
         IEnumerator BlinkRoutine(Fighter t)
         {
-            blinkReady = Time.time + 6f;
+            blinkReady = Time.time + 4f;
             Sfx.Play(SfxId.Teleport, 0.7f, 1.3f);
             float a0 = Random.value * Mathf.PI * 2f;
             for (int i = 0; i < 3; i++)
@@ -607,10 +701,62 @@ namespace Kagegan
             BlinkTo(HoverPoint());
         }
 
+        // Claw Swoop: a fast smeared flight (not a blink) to the target's flank, wind-up, two rakes, flight back
+        IEnumerator ClawRoutine(Fighter t)
+        {
+            clawReady = Time.time + 2.2f;
+            Vector3 right = cam_right();
+            float side = Vector3.Dot(transform.position - t.transform.position, right) >= 0f ? 1f : -1f;
+            // anticipation: pull back and crouch before the dash
+            PlayClip("look");
+            Pop(1.8f, -2.2f);
+            Vector3 start = transform.position;
+            Vector3 back = start + right * side * 0.35f + Vector3.up * 0.15f;
+            for (float k = 0f; k < 1f; k += Time.deltaTime / 0.14f)
+            {
+                transform.position = Vector3.Lerp(start, back, Mathf.SmoothStep(0f, 1f, k));
+                yield return null;
+            }
+            if (!Usable(t)) yield break;
+            // dash: ease-in flight with a couple of afterimages
+            Sfx.Play(SfxId.Whoosh, 0.6f, 1.4f);
+            PlayClip("attack");
+            Vector3 from = transform.position;
+            Vector3 dest = t.transform.position + right * side * 1.05f + Vector3.up * 1.15f;
+            int ghostsLeft = GraphicsQuality.Current <= GraphicsPreset.Low ? 1 : 2;
+            for (float k = 0f; k < 1f; k += Time.deltaTime / 0.16f)
+            {
+                if (!Usable(t)) yield break;
+                dest = t.transform.position + right * side * 1.05f + Vector3.up * 1.15f;
+                transform.position = Vector3.Lerp(from, dest, k * k);
+                if (ghostsLeft > 0 && k > 0.4f * (3 - ghostsLeft)) { ghostsLeft--; Ghost(transform.position, ghostsLeft % 2 == 0 ? Red : Green, 0.18f); }
+                yield return null;
+            }
+            for (int i = 0; i < 2; i++)
+            {
+                if (!Usable(t)) yield break;
+                if (i > 0) { PlayClip("attack"); yield return new WaitForSeconds(0.07f); }
+                Color c = i == 0 ? Red : Green;
+                if (Deal(t, 3f, 0.6f, 0.25f, false, HitKind.Technique, c))
+                {
+                    Fx.Slash(t.transform, new Vector3(0, 1.05f, 0), new Vector3(0, Random.Range(0f, 360f), i == 0 ? -35f : 35f), c, 1.5f, 0.12f);
+                    Sfx.Play(SfxId.Hit, 0.55f, 1.6f + i * 0.15f);
+                    tiltKick = -side * 0.3f;
+                }
+                Pop(i == 0 ? 2.5f : -2f, i == 0 ? -2f : 2.5f);
+                yield return new WaitForSeconds(0.13f);
+            }
+            PlayClip("laugh");
+            laughUntil = Time.time + 0.5f;
+            // recoil away instead of snapping: Follow takes over smoothly
+            vel = (right * side * 6f + Vector3.up * 2f);
+            yield return new WaitForSeconds(0.1f);
+        }
+
         // Neural Corruption: slowed reactions, one technique locked, glitch noise on the victim
         IEnumerator CorruptRoutine(Fighter t)
         {
-            corruptReady = Time.time + 12f;
+            corruptReady = Time.time + 9f;
             PlayClip("hack");
             glitchTarget = 0.4f;
             Sfx.Play(SfxId.Energy, 0.8f, 1.6f);
@@ -645,7 +791,7 @@ namespace Kagegan
         // Blackwall Burst: a red/black pulse that shoves enemies away from Lucy and breaks their attack
         IEnumerator BurstRoutine()
         {
-            burstReady = Time.time + 9f;
+            burstReady = Time.time + 7f;
             Vector3 mid = Owner.transform.position + Owner.transform.forward * 1.1f + Vector3.up * 1.3f;
             BlinkTo(mid);
             PlayClip("burst");
@@ -675,7 +821,7 @@ namespace Kagegan
         // Digital Possession: she dives into the target, its body glitches in place (a free combo window), then she bursts out
         IEnumerator PossessRoutine(Fighter t)
         {
-            possessReady = Time.time + 16f;
+            possessReady = Time.time + 12f;
             PlayClip("possess");
             glitchTarget = 0.7f;
             Sfx.Play(SfxId.Whoosh, 0.8f, 1.5f);
@@ -757,8 +903,8 @@ namespace Kagegan
         public void OnOwnerHit(Fighter target)
         {
             if (dealing || phase != Phase.Live || Scripted || busy || target == null || !target.Alive) return;
-            if (Owner.ComboDealt < 3 || Time.time < followUpAt || Random.value > 0.35f) return;
-            followUpAt = Time.time + 3f;
+            if (Owner.ComboDealt < 2 || Time.time < followUpAt || Random.value > 0.6f) return;
+            followUpAt = Time.time + 1.6f;
             Run(FollowUpRoutine(target));
         }
 

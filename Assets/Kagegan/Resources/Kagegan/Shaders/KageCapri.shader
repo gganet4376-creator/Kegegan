@@ -17,6 +17,8 @@ Shader "Kagegan/Capri"
         _Alpha ("Alpha", Range(0,1)) = 1
         _Quality ("Quality 0 low, 1 full", Float) = 1
         _Seed ("Seed", Float) = 0
+        _Tilt ("Roll in the view plane (radians)", Float) = 0
+        _Shear ("Top offset / height (smear)", Float) = 0
     }
     SubShader
     {
@@ -32,7 +34,7 @@ Shader "Kagegan/Capri"
             #include "UnityCG.cginc"
 
             sampler2D _MainTex;
-            float _Grid, _Frame, _Flip, _Glitch, _Dissolve, _TintAmt, _Alpha, _Quality, _Seed;
+            float _Grid, _Frame, _Flip, _Glitch, _Dissolve, _TintAmt, _Alpha, _Quality, _Seed, _Tilt, _Shear;
             fixed4 _Tint;
             half _KageInk, _KageGlow;
             fixed4 _KageAmbient, _KageLightColor;
@@ -47,7 +49,12 @@ Shader "Kagegan/Capri"
                 v2f o;
                 float3 scale = float3(length(unity_ObjectToWorld._m00_m10_m20), length(unity_ObjectToWorld._m01_m11_m21), 1);
                 float3 pivot = UnityObjectToViewPos(float3(0, 0, 0));
-                float3 vpos = pivot + float3(v.vertex.x * scale.x * _Flip, v.vertex.y * scale.y, 0);
+                // 2D puppet deformation: smear (top slides along the motion) then a roll around the cell centre
+                float2 q = float2(v.vertex.x * scale.x * _Flip, v.vertex.y * scale.y);
+                q.x += (v.vertex.y + 0.5) * scale.y * _Shear;
+                float sn = sin(_Tilt), cs = cos(_Tilt);
+                q = float2(q.x * cs - q.y * sn, q.x * sn + q.y * cs);
+                float3 vpos = pivot + float3(q, 0);
                 o.pos = mul(UNITY_MATRIX_P, float4(vpos, 1));
                 o.uv = v.uv;
                 float f = floor(_Frame + 0.5);
