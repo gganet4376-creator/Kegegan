@@ -167,6 +167,14 @@ namespace Kagegan.EditorTools
                 if (fp != null && fp.CanWrite) fp.SetValue(null, true);
             }
             catch (Exception e) { Debug.LogWarning("Kagegan: frame pacing not set (" + e.Message + ")."); }
+            // isGame in the manifest: phone game launchers (Vivo/iQOO Game Center, Samsung Game Booster, Android game
+            // mode) only treat a recognised game with game-level CPU/GPU scheduling; otherwise it is run like an app
+            try
+            {
+                var ig = typeof(PlayerSettings.Android).GetProperty("androidIsGame", BindingFlags.Public | BindingFlags.Static);
+                if (ig != null && ig.CanWrite) ig.SetValue(null, true);
+            }
+            catch (Exception e) { Debug.LogWarning("Kagegan: isGame flag not set (" + e.Message + ")."); }
             // CPU/GPU frame times for the in-game profiler (PerfProbe); small overhead, no Development build needed
             try
             {

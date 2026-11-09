@@ -313,6 +313,9 @@ namespace Kagegan
             float target = Application.targetFrameRate > 0 ? Mathf.Min(Application.targetFrameRate, 60f) : 60f;
             float scale = GraphicsQuality.CurrentRenderScale;
             float floor = MinScale(GraphicsQuality.Current);
+            // every effects step is already taken and the game still crawls (a throttled GPU): resolution is the only
+            // lever left, so allow it lower than the preset's usual floor rather than sit at 15-30 fps
+            if (GraphicsQuality.PerfDegrade >= 3 && Fps < target * 0.7f) floor = Mathf.Min(floor, 0.55f);
             if (Fps < target * 0.88f && scale > floor + 0.001f && stuckDrops < 3)
             {
                 goodTime = 0f;
@@ -331,7 +334,8 @@ namespace Kagegan
                 if (++slowChecks >= 3)
                 {
                     slowChecks = 0;
-                    if (GraphicsQuality.DegradeForPerf()) { stuckDrops = 0; lastDropFps = 0f; }
+                    // ladder finished: let the resolution steps run again down to the emergency floor
+                    if (GraphicsQuality.DegradeForPerf() || GraphicsQuality.CurrentRenderScale > 0.551f) { stuckDrops = 0; lastDropFps = 0f; }
                 }
                 return;
             }
