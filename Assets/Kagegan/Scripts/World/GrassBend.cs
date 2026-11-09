@@ -36,6 +36,8 @@ namespace Kagegan
         static readonly int IdK = Shader.PropertyToID("_KageBendK");
         static readonly int IdCount = Shader.PropertyToID("_KageBendCount");
         static readonly int IdFade = Shader.PropertyToID("_KageGrassFade");
+        static readonly int IdView0 = Shader.PropertyToID("_KageGrassView0");
+        static readonly int IdView1 = Shader.PropertyToID("_KageGrassView1");
 
         public static void Init(GameObject host)
         {
@@ -152,6 +154,20 @@ namespace Kagegan
             Shader.SetGlobalVectorArray(IdBend, outP);
             Shader.SetGlobalFloatArray(IdK, outK);
             Shader.SetGlobalFloat(IdCount, outN);
+            PushSightLines();
+        }
+
+        /// <summary>The player and the current target: grass between them and the camera is pressed down.</summary>
+        static void PushSightLines()
+        {
+            var rig = CameraRig.Inst;
+            Transform a = rig != null && !rig.MenuMode ? rig.Player : null;
+            Transform b = rig != null && !rig.MenuMode ? rig.Target : null;
+            if (a == null) { a = b; b = null; }
+            Vector4 v0 = a != null ? new Vector4(a.position.x, a.position.y, a.position.z, 1f) : Vector4.zero;
+            Vector4 v1 = b != null ? new Vector4(b.position.x, b.position.y, b.position.z, 1f) : v0;
+            Shader.SetGlobalVector(IdView0, v0);
+            Shader.SetGlobalVector(IdView1, v1);
         }
 
         public static void Forget(Fighter fighter)

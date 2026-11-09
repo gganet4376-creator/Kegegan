@@ -4,7 +4,7 @@ Shader "Kagegan/Outline"
     Properties
     {
         _OutlineColor ("Color", Color) = (0.08,0.05,0.1,1)
-        _Width ("Width (px at 1080p)", Float) = 2.6
+        _Width ("Width (px at 1080p)", Float) = 1.9
     }
     SubShader
     {
@@ -37,7 +37,8 @@ Shader "Kagegan/Outline"
                 float2 off = mul((float2x2)UNITY_MATRIX_P, nView.xy);
                 float len = max(length(off), 1e-4);
                 float scale = max(_KageOutlineScale, 0.3);
-                o.pos.xy += (off / len) * (_Width * scale * 2.0 / max(_ScreenParams.y, 1.0)) * o.pos.w;
+                // in display pixels at 1080p: independent of the render scale (a 0.7x buffer used to make the line 1.4x thicker)
+                o.pos.xy += (off / len) * (_Width * scale * (2.0 / 1080.0)) * o.pos.w;
                 return o;
             }
 

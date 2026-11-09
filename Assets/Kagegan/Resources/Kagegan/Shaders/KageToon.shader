@@ -40,6 +40,7 @@ Shader "Kagegan/Toon"
             half _KageMoss;           // global moss amount for the arena (forest), 0 = off
             half _KageTransl;         // global foliage translucency scale (0 = off)
             half _KageCharTones;      // fighters: third (core) shadow tone + warm skin edge, 0 = off
+            fixed4 _KageCharFill;     // fighters: rgb = soft fill from the camera side, a = readability rim (scene-independent)
             float4 _KageWind;         // xy = wind direction on the ground, z = strength, w = speed
             half _KageGlow;           // emission multiplier (HDR presets)
             half _KageInk;            // 1 for the finisher impact frame: paper world, ink fighters
@@ -64,6 +65,24 @@ Shader "Kagegan/Toon"
             float _KageBendK[12];     // push strength 0..1 (fades out smoothly so the grass springs back)
             float _KageBendCount;
             float4 _KageGrassFade;    // x = distance where grass starts sinking into the ground, y = where it is gone
+            float4 _KageGrassView0;   // the two fighters in focus (feet position, w = 1 when set): grass on the
+            float4 _KageGrassView1;   // camera's line of sight to them is pressed down to short stubble
+
+            // 0..1: how much this grass point stands between the camera and the fighter standing at v
+            float KageSightLine(float3 wpos, float4 v)
+            {
+                float2 c = _WorldSpaceCameraPos.xz;
+                float2 ab = v.xz - c;
+                float l2 = max(dot(ab, ab), 0.01);
+                float along = dot(wpos.xz - c, ab) / l2;
+                float t = saturate(along);
+                float dperp = distance(wpos.xz, c + ab * t);
+                float width = lerp(0.35, 1.05, t);                     // a corridor as wide as the body at the fighter
+                float k = 1.0 - smoothstep(width * 0.55, width, dperp);
+                k *= 1.0 - smoothstep(1.0, 1.06, along);               // nothing behind the fighter
+                k *= 1.0 - smoothstep(3.0, 4.5, distance(wpos.xz, v.xz)); // only the last few metres before them
+                return k * v.w;
+            }
 
             #include "KageAtmo.cginc"
 
@@ -129,6 +148,15 @@ Shader "Kagegan/Toon"
                     float cd = distance(wpos.xz, _WorldSpaceCameraPos.xz);
                     float fade = saturate((cd - _KageGrassFade.x) / max(_KageGrassFade.y - _KageGrassFade.x, 0.1));
                     d.y -= fade * uv.y * 0.9;
+                }
+                // combat visibility: blades on the line of sight to the fighters bow down to stubble (no extra
+                // transparency or overdraw, it actually removes covered pixels) and grow back when the fight moves on
+                if (grass > 0.5 && _KageGrassView0.w > 0)
+                {
+                    float hide = max(KageSightLine(wpos, _KageGrassView0), KageSightLine(wpos, _KageGrassView1));
+                    float h = wpos.y + d.y - _KageGrassView0.y;
+                    d.y -= hide * max(0.0, h * 0.8 - 0.05);
+                    d.xz += normalize(wpos.xz - _WorldSpaceCameraPos.xz + 0.001) * hide * uv.y * 0.12;
                 }
                 // leaves shiver
                 float f = sin(t * 11.0 + dot(wpos, float3(3.7, 5.3, 4.1))) * (0.3 + gust) * _Flutter * str;
@@ -277,6 +305,19 @@ Shader "Kagegan/Toon"
                     half3 hw = normalize(l + vdir);
                     lit += _KageLightColor.rgb * pow(saturate(dot(n, hw)), 70.0) * 0.6 * wetHere * band1;
                     lit += _KageFogColor.rgb * pow(fres, 3.0) * 0.18 * wetHere;
+                }
+                if (_CharFx * (_KageCharFill.r + _KageCharFill.a) > 0)
+                {
+                    // fighter readability: a soft wrap fill from just above the camera, strongest when the sun is behind
+                    // the fighter (backlit forest), so faces, hair and armour never sink into the scenery. Not
+                    // shadowed on purpose - it stands in for the bounce light a film crew would add.
+                    half3 fd = normalize(vdir + half3(0, 0.45, 0));
+                    half fw = saturate(dot(n, fd) * 0.6 + 0.4);
+                    half backlit = saturate(0.4 + 0.6 * dot(l, -vdir));
+                    lit += albedo * _KageCharFill.rgb * fw * backlit * _CharFx;
+                    // a thin cool outline glow that keeps the silhouette readable on dark grass or at night
+                    half rr = smoothstep(0.62, 0.9, fres);
+                    lit += rr * _KageCharFill.a * lerp(albedo, half3(0.85, 0.92, 1.0), 0.6) * _CharFx;
                 }
                 if (_CharFx > 0)
                 {

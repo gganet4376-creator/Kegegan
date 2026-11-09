@@ -28,6 +28,10 @@ namespace Kagegan
             Shader.SetGlobalVector("_KageLightDir", dirToSun.normalized);
             Shader.SetGlobalColor("_KageLightColor", sun);
             Shader.SetGlobalColor("_KageAmbient", ambient);
+            // fighters get a camera-side fill derived from the scene light, plus a floor so they read at night too
+            Color fill = ambient * 0.5f + sun * 0.22f + new Color(0.05f, 0.05f, 0.06f);
+            fill.a = 0.2f;
+            Shader.SetGlobalColor("_KageCharFill", fill);
         }
 
         public static void SetFog(Color color, float start, float end, float max)
@@ -79,7 +83,7 @@ namespace Kagegan
             Shader.SetGlobalVectorArray(IdPos, posArr);
             Shader.SetGlobalVectorArray(IdCol, colArr);
             Shader.SetGlobalFloat("_KageDynLightCount", Mathf.Min(n, GraphicsQuality.DynamicLights));
-            Shader.SetGlobalFloat("_KageOutlineScale", Screen.height / 1080f * 1.15f);
+            Shader.SetGlobalFloat("_KageOutlineScale", 1.1f); // the outline shader is in 1080p display pixels already
             PushCasters();
         }
 

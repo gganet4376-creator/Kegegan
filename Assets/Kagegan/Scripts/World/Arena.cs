@@ -704,7 +704,7 @@ namespace Kagegan
         {
             switch (id)
             {
-                case ArenaId.Forest: return new Vector4(0f, 0.16f, 0.5f, 14f);   // blue morning mist between the trunks
+                case ArenaId.Forest: return new Vector4(0f, 0.2f, 0.32f, 20f);   // morning mist between the far trunks, clear around the fight
                 case ArenaId.City: return new Vector4(0f, 0.1f, 0.35f, 12f);     // rain haze between the buildings
                 case ArenaId.MoonTemple: return new Vector4(0f, 0.22f, 0.3f, 16f);
                 default: return new Vector4(0f, 0.25f, 0.22f, 18f);
@@ -1068,7 +1068,13 @@ namespace Kagegan
                 if (Blocked(p, 0.12f)) continue;
                 // between the camera and the lane: only short grass, never tall or bushy clumps that cover the fighters
                 bool camSide = p.z < -LaneDepth - 0.5f;
-                if (camSide) { tall = Mathf.Min(tall, 0.42f); if (kind >= 0.08f && kind < 0.22f) kind = 0.5f; }
+                if (camSide) { tall = Mathf.Min(tall, 0.32f); if (kind >= 0.08f && kind < 0.22f) kind = 0.5f; }
+                // the fight lane itself: ankle-to-shin high, no tall dry clumps or bushes around the fighters' legs
+                else if (Mathf.Abs(p.z) <= LaneDepth + 1f && Mathf.Abs(p.x) <= LaneHalf + 1f)
+                {
+                    tall = Mathf.Min(tall, 0.38f + 0.12f * (float)rnd.NextDouble());
+                    if (kind >= 0.08f && kind < 0.22f) kind = 0.5f;
+                }
                 // patches: large slow noise mixes lush and drier grass so the field is not one flat colour
                 float patch = Mathf.PerlinNoise(p.x * 0.07f + seed, p.z * 0.07f);
                 Color tint = Color.Lerp(c, Color.Lerp(c, straw, 0.45f), Mathf.Clamp01((patch - 0.45f) * 2.2f)) * (0.8f + 0.4f * (float)rnd.NextDouble());
@@ -1331,7 +1337,9 @@ namespace Kagegan
         {
             // warm low sun from behind the trees (long dappled shadows, backlit leaves, shafts toward the camera),
             // cool blue sky light in the shade and a blue-grey haze in the distance
-            Lighting(new Vector3(0.66f, 0.5f, 0.56f), new Color(1.06f, 0.9f, 0.68f), new Color(0.24f, 0.31f, 0.38f), new Color(0.62f, 0.72f, 0.8f), 11f, 72f, 0.74f);
+            // V2: sun more from the side (fighters half-lit instead of fully backlit, still shafts through the crowns),
+            // brighter sunlight, a green-tinted sky/bounce light instead of the cold blue, thin near mist, thick far haze
+            Lighting(new Vector3(0.8f, 0.56f, 0.24f), new Color(1.16f, 1.02f, 0.8f), new Color(0.33f, 0.41f, 0.4f), new Color(0.66f, 0.76f, 0.78f), 18f, 80f, 0.66f);
             Sky(new Color(0.45f, 0.62f, 0.75f), new Color(0.7f, 0.78f, 0.8f), new Color(0.4f, 0.5f, 0.35f), "sky_forest");
             PhotoGround("forest", new Color(0.43f, 0.485f, 0.27f), new Color(0.568f, 0.529f, 0.366f), 3.6f, 0f, 0.6f);
             Ground(mb, 70f, new Color(0.38f, 0.55f, 0.27f), new Color(0.48f, 0.42f, 0.27f), new Color(0.2f, 0.32f, 0.18f), 21);

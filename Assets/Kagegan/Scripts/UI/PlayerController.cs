@@ -112,6 +112,7 @@ namespace Kagegan
         {
             if (Touch == null || F == null) return;
             Touch.FanCount = Mathf.Min(F.Kit.Techs.Length, TouchControls.FanMax);
+            Touch.InvalidateFan();
             for (int i = 0; i < Touch.FanCount; i++)
             {
                 var b = Touch.Fan[i];
@@ -282,6 +283,8 @@ namespace Kagegan
             if (best != null) { F.Target = best; lockCheck = 3f; Sfx.Play(SfxId.Click, 0.6f, 1.4f); }
         }
 
+        readonly int[] techSecs = new int[TouchControls.FanMax];
+
         void UpdateCooldowns()
         {
             if (Touch == null) return;
@@ -296,7 +299,19 @@ namespace Kagegan
                 if (affordable && cd <= 0f && !F.Kit.TechsLocked) ready++;
                 if (!b.gameObject.activeSelf) continue;
                 b.CooldownFill.fillAmount = F.Kit.TechsLocked ? 1f : affordable ? cd : 1f;
-                b.Label.text = t.Cd > 0.05f ? Mathf.CeilToInt(t.Cd) + "с" : t.Short ?? t.Name;
+                // name stays put; seconds go over the icon, and an unusable technique is visibly greyed out
+                string nm = t.Short ?? t.Name;
+                if (b.Label.text != nm) b.Label.text = nm;
+                int secs = t.Cd > 0.05f ? Mathf.CeilToInt(t.Cd) : 0;
+                bool usable = secs == 0 && affordable && !F.Kit.TechsLocked;
+                if (b.Timer != null)
+                {
+                    if (b.Timer.enabled != (secs > 0)) b.Timer.enabled = secs > 0;
+                    if (secs > 0 && techSecs[i] != secs) b.Timer.text = secs.ToString();
+                }
+                techSecs[i] = secs;
+                if (b.Glyph != null) b.Glyph.color = new Color(1f, 1f, 1f, usable ? 0.95f : secs > 0 ? 0.18f : 0.4f);
+                b.Label.color = usable ? Color.white : new Color(0.68f, 0.68f, 0.74f, 1f);
             }
             if (Touch.Buttons.TryGetValue("techs", out var tb))
             {

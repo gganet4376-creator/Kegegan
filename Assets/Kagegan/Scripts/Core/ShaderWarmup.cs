@@ -12,7 +12,7 @@ namespace Kagegan
     public static class ShaderWarmup
     {
         static readonly string[] ShaderNames = { "KageToon", "KageSurface", "KageOutline", "KageFx", "KageCapri" };
-        const string CacheVersion = "kagegan_shader_warmup_v5";
+        const string CacheVersion = "kagegan_shader_warmup_v6";
 
         static string CacheKey => CacheVersion + "_" + Application.version + "_" + (int)GraphicsQuality.Current + "_" + SystemInfo.graphicsDeviceName + "_" + SystemInfo.graphicsDeviceType;
 

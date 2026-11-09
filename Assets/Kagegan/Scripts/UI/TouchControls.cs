@@ -95,6 +95,8 @@ namespace Kagegan
         public Action Down, Up;
         public Image Icon, CooldownFill, Glyph, Ring;
         public Text Label;
+        /// <summary>Cooldown seconds, drawn over the icon so the caption always stays readable.</summary>
+        public Text Timer;
         public bool Held { get; private set; }
         public Vector2 DefaultPos;
         int pointer = -99;
@@ -235,11 +237,20 @@ namespace Kagegan
             var capRt = UIKit.Box(rt, "Caption", new Vector2(0.5f, 0f), new Vector2(0, d.size * 0.2f), new Vector2(d.size * 1.1f, d.size * 0.26f));
             var label = UIKit.Label(capRt, d.label, d.size > 200 ? 40 : d.size > 140 ? 31 : 27, Color.white);
             label.fontStyle = FontStyle.Bold;
+            // never break a word across lines ("Перегру з"): shrink to fit the caption box instead
+            label.resizeTextForBestFit = true;
+            label.resizeTextMinSize = 15;
+            label.resizeTextMaxSize = label.fontSize;
+            var timerRt = UIKit.Box(rt, "Timer", new Vector2(0.5f, 0.5f), new Vector2(0, d.size * 0.08f), new Vector2(d.size * 0.8f, d.size * 0.42f));
+            var timer = UIKit.Label(timerRt, "", Mathf.RoundToInt(d.size * 0.3f), new Color(1f, 0.92f, 0.7f, 1f));
+            timer.fontStyle = FontStyle.Bold;
+            timer.enabled = false;
             if (glyph.sprite == null) { capRt.anchoredPosition = Vector2.zero; capRt.anchorMin = capRt.anchorMax = new Vector2(0.5f, 0.5f); label.fontSize += 4; }
             var b = rt.gameObject.AddComponent<TouchButton>();
             b.Setup(d.id, img, label, cd);
             b.Glyph = glyph;
             b.Ring = ringImg;
+            b.Timer = timer;
             string id = d.id;
             b.Down = () => OnButton?.Invoke(id, true);
             b.Up = () => OnButton?.Invoke(id, false);
@@ -278,26 +289,71 @@ namespace Kagegan
         {
             if (LayoutEditor.Editing) open = false;
             FanOpen = open;
-            if (open) KeepFanOpen();
+            if (open) { KeepFanOpen(); fanDirty = true; }
         }
 
         /// <summary>Each technique press keeps the fan open a while, so techniques can be chained.</summary>
         public void KeepFanOpen() { fanCloseAt = Time.unscaledTime + 4f; }
 
-        /// <summary>Where fan slot i sits for n techniques: an arc from straight up to lower-left, toward the free middle of the screen.</summary>
-        Vector2 FanPos(int i, int n)
+        readonly Vector2[] fanSlots = new Vector2[FanMax];
+        Vector4 fanKey = new Vector4(-1, 0, 0, 0);
+        Vector2 fanKeySize;
+        bool fanDirty = true;
+
+        /// <summary>
+        /// Picks a free on-screen spot for each of the n technique buttons: arcs around the "Техники" button
+        /// (up first, then sweeping left toward the free middle of the screen), skipping spots that would
+        /// overlap another visible control, each other, the HP bars at the top or the screen edge.
+        /// Works for any technique count and any custom button layout, so newly unlocked skills never stack.
+        /// </summary>
+        void LayoutFan(int n)
         {
             var c = ((RectTransform)Buttons["techs"].transform).anchoredPosition;
-            float a0 = 92f, a1 = n <= 4 ? 182f : 215f;
-            float a = (n <= 1 ? a0 : Mathf.Lerp(a0, a1, i / (float)(n - 1))) * Mathf.Deg2Rad;
-            var p = c + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * FanRadius * Save.Data.buttonScale;
-            // keep it on screen even if the player dragged the main button to an edge
+            float s = Save.Data.buttonScale;
             var size = Root.rect.size;
-            float m = FanSize * 0.55f * Save.Data.buttonScale;
-            p.x = Mathf.Clamp(p.x, -size.x + m, -m);
-            p.y = Mathf.Clamp(p.y, m, size.y - m);
-            return p;
+            float d = FanSize * s;
+            float need = d * 1.12f + 10f;            // caption is 1.1x the disc wide
+            float m = d * 0.58f;
+            float top = size.y - Mathf.Max(m, 150f);  // keep clear of the HP/name bars
+            var taken = new List<Vector3>();          // x, y, radius of things to avoid
+            foreach (var kv in Buttons)
+            {
+                if (kv.Key == "techs" || !kv.Value.gameObject.activeSelf) continue;
+                var r = (RectTransform)kv.Value.transform;
+                taken.Add(new Vector3(r.anchoredPosition.x, r.anchoredPosition.y, r.sizeDelta.x * 0.55f * s));
+            }
+            var tr = (RectTransform)Buttons["techs"].transform;
+            taken.Add(new Vector3(c.x, c.y, tr.sizeDelta.x * 0.55f * s));
+            int got = 0;
+            float r0 = Mathf.Max(FanRadius * s, tr.sizeDelta.x * 0.55f * s + d * 0.62f + 6f);
+            for (int ring = 0; ring < 4 && got < n; ring++)
+            {
+                float r = r0 + ring * need;
+                float step = 2f * Mathf.Asin(Mathf.Min(1f, need / (2f * r))) * Mathf.Rad2Deg;
+                float start = 88f + (ring % 2) * step * 0.5f;
+                for (float a = start; a <= 268f && got < n; a += step)
+                {
+                    float ar = a * Mathf.Deg2Rad;
+                    var p = c + new Vector2(Mathf.Cos(ar), Mathf.Sin(ar)) * r;
+                    if (p.x < -size.x + m || p.x > -m || p.y < m || p.y > top) continue;
+                    bool ok = true;
+                    foreach (var o in taken)
+                        if ((new Vector2(o.x, o.y) - p).sqrMagnitude < Sq(o.z + d * 0.56f + 6f)) { ok = false; break; }
+                    for (int k = 0; k < got && ok; k++)
+                        if ((fanSlots[k] - p).sqrMagnitude < need * need) ok = false;
+                    if (!ok) continue;
+                    fanSlots[got++] = p;
+                }
+            }
+            // crowded custom layout: fall back to a clamped column left of the button rather than stacking
+            for (; got < n; got++)
+                fanSlots[got] = new Vector2(Mathf.Clamp(c.x - need * (1 + got / 3), -size.x + m, -m),
+                                            Mathf.Clamp(c.y + need * (got % 3 - 1), m, top));
         }
+
+        static float Sq(float v) { return v * v; }
+
+        public void InvalidateFan() { fanDirty = true; }
 
         void Update()
         {
@@ -314,6 +370,12 @@ namespace Kagegan
             float e = 1f - (1f - fanT) * (1f - fanT);
             var c = ((RectTransform)Buttons["techs"].transform).anchoredPosition;
             int n = Mathf.Clamp(FanCount, 0, FanMax);
+            var key = new Vector4(n, c.x, c.y, Save.Data.buttonScale);
+            if (fanDirty || key != fanKey || fanKeySize != Root.rect.size)
+            {
+                fanKey = key; fanKeySize = Root.rect.size; fanDirty = false;
+                LayoutFan(n);
+            }
             for (int i = 0; i < FanMax; i++)
             {
                 var b = Fan[i];
@@ -321,7 +383,7 @@ namespace Kagegan
                 if (b.gameObject.activeSelf != on) b.gameObject.SetActive(on);
                 if (!on) continue;
                 var rt = (RectTransform)b.transform;
-                rt.anchoredPosition = Vector2.LerpUnclamped(c, FanPos(i, n), e);
+                rt.anchoredPosition = Vector2.LerpUnclamped(c, fanSlots[i], e);
                 if (!b.Held) rt.localScale = Vector3.one * (Save.Data.buttonScale * Mathf.Lerp(0.3f, 1f, e));
             }
             var tb = Buttons["techs"];
