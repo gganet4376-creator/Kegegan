@@ -59,9 +59,9 @@ namespace Kagegan
         static void ApplyDegrade()
         {
             int d = PerfDegrade;
-            if (d >= 1) { ShadowCasters = Mathf.Min(ShadowCasters, 2); ParticleMul *= 0.75f; }
-            if (d >= 2) { QualitySettings.antiAliasing = 0; ShadowCasters = Mathf.Min(ShadowCasters, 1); DynamicLights = Mathf.Min(DynamicLights, 2); }
-            if (d >= 3) { ShadowCasters = 0; ParticleMul *= 0.75f; DynamicLights = Mathf.Min(DynamicLights, 1); }
+            if (d >= 1) { ShadowCasters = Mathf.Min(ShadowCasters, 3); ParticleMul *= 0.75f; }
+            if (d >= 2) { QualitySettings.antiAliasing = 0; ShadowCasters = Mathf.Min(ShadowCasters, 2); DynamicLights = Mathf.Min(DynamicLights, 2); }
+            if (d >= 3) { ShadowCasters = Mathf.Min(ShadowCasters, 1); ParticleMul *= 0.75f; DynamicLights = Mathf.Min(DynamicLights, 1); }
             if (ShadowCasters == 0) Shader.SetGlobalFloat("_KageCasterCount", 0f);
             Shader.SetGlobalFloat("_KageDynLightCount", DynamicLights);
             GrassBend.ApplyDistance();
@@ -192,9 +192,9 @@ namespace Kagegan
             QualitySettings.anisotropicFiltering = p >= GraphicsPreset.High ? AnisotropicFiltering.ForceEnable : AnisotropicFiltering.Enable;
             QualitySettings.lodBias = p == GraphicsPreset.Low ? 0.6f : (p == GraphicsPreset.Medium ? 1f : 1.5f);
             Shader.SetGlobalFloat("_KageDynLightCount", DynamicLights);
-            Shader.SetGlobalFloat("_KageCasterStrength", 0.78f);
+            Shader.SetGlobalFloat("_KageCasterStrength", 0.85f);
             if (ShadowCasters == 0) Shader.SetGlobalFloat("_KageCasterCount", 0f);
-            BlobShadow.SetStrength(ShadowCasters > 0 ? 0.6f : 1f); // real shadows take over; the blob stays as contact darkening
+            BlobShadow.SetStrength(ShadowCasters > 0 ? 0.8f : 1f); // sun shadows add the long shape; the blob keeps a firm contact shadow
             SetRenderScale(BaseRenderScale, true);
             PerfDegrade = 0;
             PostFx.Apply(p);

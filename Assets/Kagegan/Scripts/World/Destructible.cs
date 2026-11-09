@@ -270,10 +270,10 @@ namespace Kagegan
             if (quad == null)
             {
                 var mb = new MeshBuilder();
-                mb.SetColor(new Color32(0, 0, 0, 150));
+                mb.SetColor(new Color32(0, 0, 0, 205));
                 mb.Quad(Vector3.zero, Vector3.right * 0.5f, Vector3.back * 0.5f);
                 quad = mb.ToMesh("blob");
-                mat = new Material(Mat.FxAlpha) { name = "Blob", renderQueue = 2460 };
+                mat = new Material(Mat.FxAlpha) { name = "Blob", renderQueue = 2460, mainTexture = Mat.BlobShadowTex };
                 mat.SetColor("_Color", new Color(1f, 1f, 1f, strength));
             }
             var go = new GameObject("BlobShadow");

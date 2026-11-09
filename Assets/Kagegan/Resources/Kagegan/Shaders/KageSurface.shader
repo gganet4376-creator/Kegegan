@@ -17,6 +17,7 @@ Shader "Kagegan/Surface"
         _Wet ("Wet (puddles + sky reflection)", Range(0,1)) = 0
         _Gloss ("Specular", Range(0,1)) = 0.08
         _Fade ("Camera Fade (dither)", Range(0,1)) = 1
+        _VColor ("Use vertex colour (procedural meshes)", Range(0,1)) = 1
     }
     SubShader
     {
@@ -25,7 +26,7 @@ Shader "Kagegan/Surface"
         CGINCLUDE
             #include "UnityCG.cginc"
             fixed4 _Color, _ShadowTint;
-            half _BumpScale, _AntiTile, _Wet, _Gloss, _Fade;
+            half _BumpScale, _AntiTile, _Wet, _Gloss, _Fade, _VColor;
             float _ObjUV;
             sampler2D _MainTex, _BumpMap;
             float4 _MainTex_ST;
@@ -95,7 +96,7 @@ Shader "Kagegan/Surface"
                 o.wnormal = UnityObjectToWorldNormal(v.normal);
                 o.wtangent = half4(UnityObjectToWorldDir(v.tangent.xyz), v.tangent.w * unity_WorldTransformParams.w);
                 o.pos = UnityWorldToClipPos(o.wpos);
-                o.color = v.color;
+                o.color = lerp(fixed4(0.5,0.5,0.5,0), v.color, _VColor); // imported meshes: neutral tint, no glow
                 o.uv = TRANSFORM_TEX(v.uv, _MainTex);
                 o.spos = ComputeScreenPos(o.pos);
                 return o;
@@ -226,7 +227,7 @@ Shader "Kagegan/Surface"
                 if (_KageCasterCount > 0) shAll *= KageCasterShadow(i.wpos, l);
                 band *= shAll;
                 // shadows also block part of the sky light, so they stay readable under overcast / night lighting
-                half3 lit = albedo * lerp(_ShadowTint.rgb, half3(1, 1, 1), band) * _KageLightColor.rgb + albedo * _KageAmbient.rgb * lerp(1.0, shAll, 0.45);
+                half3 lit = albedo * lerp(_ShadowTint.rgb, half3(1, 1, 1), band) * _KageLightColor.rgb + albedo * _KageAmbient.rgb * lerp(1.0, shAll, 0.6);
                 half3 hv = normalize(l + vdir);
                 half gloss = lerp(_Gloss, 1.0, wet);
                 lit += _KageLightColor.rgb * pow(saturate(dot(n, hv)), lerp(24.0, 160.0, wet)) * gloss * band * lerp(0.25, 2.0, wet);

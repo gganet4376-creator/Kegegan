@@ -86,6 +86,7 @@ namespace Kagegan
             m.SetFloat("_ObjUV", tile);
             m.SetFloat("_AntiTile", antiTile);
             m.SetFloat("_Wet", wet);
+            m.SetFloat("_VColor", 0f); // imported meshes carry no vertex colours (default white = full glow)
             return m;
         }
 
@@ -140,6 +141,15 @@ namespace Kagegan
             if (t != null) t.wrapMode = TextureWrapMode.Clamp;
             return t;
         }
+
+        static Texture2D blobTex;
+        /// <summary>Contact-shadow profile: dense under the feet, long soft falloff (the vfx soft_dot is a glow, too thin for a shadow).</summary>
+        public static Texture2D BlobShadowTex => blobTex != null ? blobTex : (blobTex = MakeRadial(64, (r) =>
+        {
+            float core = 1f - Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((r - 0.1f) / 0.55f));
+            float soft = 1f - Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(r));
+            return core * 0.55f + soft * soft * 0.45f;
+        }));
 
         static Texture2D MakeRadial(int size, System.Func<float, float> f)
         {

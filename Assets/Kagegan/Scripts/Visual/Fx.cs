@@ -68,7 +68,9 @@ namespace Kagegan
             glow = MakePS("Glow", Mat.FxAdd, 120, 0f, false);
             debris = MakePS("Debris", Own(Mat.FxAlphaSolid, "FxDebris", 1f, 0f), 200, 1.6f, false);
             // drifting leaves/petals for ambience: near-weightless, fluttering on a soft noise field, fading in and out
-            leaves = MakePS("Drift", Own(Mat.FxAlphaSolid, "FxDrift", 1f, 0f), 90, 0.04f, false);
+            leaves = MakePS("Drift", Own(Mat.FxAlpha, "FxDrift", 1f, 0f), 90, 0.04f, false);
+            // background-only: a drifting flake may never grow into a screen-filling card even if it passes the lens
+            leaves.GetComponent<ParticleSystemRenderer>().maxParticleSize = 0.025f;
             {
                 var lsol = leaves.sizeOverLifetime; lsol.size = new ParticleSystem.MinMaxCurve(1f, AnimationCurve.Constant(0f, 1f, 1f));
                 var lcol = leaves.colorOverLifetime;
@@ -77,7 +79,7 @@ namespace Kagegan
                            new[] { new GradientAlphaKey(0f, 0f), new GradientAlphaKey(1f, 0.12f), new GradientAlphaKey(1f, 0.8f), new GradientAlphaKey(0f, 1f) });
                 lcol.color = lg;
                 var lrot = leaves.rotationOverLifetime; lrot.enabled = true; lrot.z = new ParticleSystem.MinMaxCurve(-3f, 3f);
-                var lnoise = leaves.noise; lnoise.enabled = true; lnoise.strength = 0.6f; lnoise.frequency = 0.35f; lnoise.scrollSpeed = 0.3f; lnoise.quality = ParticleSystemNoiseQuality.Low;
+                var lnoise = leaves.noise; lnoise.enabled = true; lnoise.strength = 0.25f; lnoise.frequency = 0.35f; lnoise.scrollSpeed = 0.3f; lnoise.quality = ParticleSystemNoiseQuality.Low;
             }
             // chunks keep their size, then shrink away in the last quarter of their life (no pop)
             var dsol = debris.sizeOverLifetime;
@@ -548,13 +550,15 @@ namespace Kagegan
         public static void Ambient(Vector3 center, Vector3 halfExtent, Vector3 wind, bool petals)
         {
             if (inst == null || inst.leaves == null) return;
+            var cam = Camera.main;
             Vector3 P() => center + Vector3.Scale(new Vector3(Random.Range(-1f, 1f), Random.Range(-1f, 1f), Random.Range(-1f, 1f)), halfExtent);
             if (Random.value < GraphicsQuality.ParticleMul)
             {
                 Color c = petals ? Color.Lerp(new Color(1f, 0.72f, 0.8f), new Color(1f, 0.9f, 0.93f), Random.value)
                                  : Color.Lerp(new Color(0.42f, 0.62f, 0.22f), new Color(0.85f, 0.6f, 0.2f), Random.value);
                 Vector3 p = P(); p.y = center.y + halfExtent.y; // enter from the top
-                EmitF(inst.leaves, p, wind + new Vector3(Random.Range(-0.3f, 0.3f), Random.Range(-0.9f, -0.5f), Random.Range(-0.3f, 0.3f)), c, Random.Range(0.07f, 0.12f), Random.Range(4.5f, 6.5f));
+                if (cam != null && Vector3.Dot(p - cam.transform.position, cam.transform.forward) < 3.5f) return; // never right at the lens
+                EmitF(inst.leaves, p, wind + new Vector3(Random.Range(-0.3f, 0.3f), Random.Range(-0.9f, -0.5f), Random.Range(-0.3f, 0.3f)), c, Random.Range(0.07f, 0.12f), Random.Range(3.5f, 4.5f));
             }
             int motes = Scaled(2);
             for (int i = 0; i < motes; i++)

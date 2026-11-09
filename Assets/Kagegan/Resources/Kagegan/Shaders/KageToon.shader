@@ -217,7 +217,7 @@ Shader "Kagegan/Toon"
                 { half ss = KageSceneShadow(i.wpos, l); band1 *= ss; band2 *= ss; shAll *= ss; }
                 half hemi = lerp(0.82, 1.1, saturate(n.y * 0.5 + 0.5));
                 // shadows also block part of the sky light, so they stay readable under overcast / night lighting
-                half ambOcc = lerp(1.0, shAll, 0.45);
+                half ambOcc = lerp(1.0, shAll, 0.6);
                 half3 lit = albedo * lerp(_ShadowTint.rgb, half3(1,1,1), band1) * (_KageLightColor.rgb + band2) + albedo * _KageAmbient.rgb * hemi * ambOcc;
 
                 half fres = 1.0 - saturate(dot(n, vdir));

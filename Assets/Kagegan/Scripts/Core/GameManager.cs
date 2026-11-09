@@ -216,9 +216,10 @@ namespace Kagegan
             if (ambientTimer <= 0f && CameraRig.Inst != null)
             {
                 ambientTimer = GraphicsQuality.Current == GraphicsPreset.Low ? 0.6f : 0.3f;
-                var cam = CameraRig.Inst.transform;
-                Vector3 center = cam.position + cam.forward * 5f;
-                Fx.Ambient(center, new Vector3(4.5f, 2.2f, 3f), new Vector3(0.45f, 0f, 0.1f), Random.value < 0.4f);
+                // a band well behind the showcase (she stands at the focus, the camera ~4 m in front): the drift reads as
+                // background depth and can never sweep across the lens
+                Vector3 center = CameraRig.Inst.MenuFocus + new Vector3(0.5f, 1.6f, 6.5f);
+                Fx.Ambient(center, new Vector3(6f, 1.6f, 4f), new Vector3(0.45f, 0f, 0f), Random.value < 0.4f);
             }
             if (sparA == null || sparB == null) return;
             sparTimer -= dt;
