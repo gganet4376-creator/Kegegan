@@ -1,0 +1,19 @@
+{
+  "name": "shadow-contract-3d",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "assets": "node tools/prep-assets.mjs",
+    "build": "node tools/build.mjs"
+  },
+  "devDependencies": {
+    "@gltf-transform/core": "4.1.1",
+    "@gltf-transform/functions": "4.1.1",
+    "esbuild": "0.24.0",
+    "sharp": "0.33.5",
+    "three": "0.170.0"
+  },
+  "dependencies": {
+    "meshoptimizer": "^0.22.0"
+  }
+}

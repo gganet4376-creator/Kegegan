@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0b0f1a">
+<meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes">
+<title>Shadow Contract — Колокольня Орлова</title>
+<style>
+:root{--ui:1;--gold:#d4af37;--ink:#e8e2d4;--dim:#8d8676;--bg:#0b0f1a;color-scheme:dark}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--ink);font-family:Georgia,'Times New Roman',serif;user-select:none;-webkit-user-select:none;touch-action:none}
+#gl,#touch,#ind{position:fixed;inset:0;width:100%;height:100%}
+#vig{position:fixed;inset:0;z-index:1;pointer-events:none;background:radial-gradient(ellipse at center,transparent 55%,rgba(2,4,10,.55) 100%)}
+#touch{z-index:2}#ind{z-index:3;pointer-events:none}
+#hud{position:fixed;inset:0;z-index:4;pointer-events:none;display:none;font-size:calc(14px*var(--ui))}
+#obj{position:absolute;left:calc(16px + env(safe-area-inset-left));top:calc(12px + env(safe-area-inset-top));text-shadow:0 1px 3px #000;letter-spacing:.02em;max-width:60vw}
+#obj b{color:var(--gold);font-weight:600}.dim{color:var(--dim)}
+#status{position:absolute;left:50%;top:calc(12px + env(safe-area-inset-top));transform:translateX(-50%);padding:4px 16px;border:1px solid #ffffff2a;background:#0b0f1acc;font-size:.92em;letter-spacing:.08em;text-transform:uppercase;transition:color .3s,border-color .3s;white-space:nowrap}
+#status.ok{color:#9fe0b8}#status.warn{color:#ffcf6b;border-color:#ffcf6b66}#status.sus{color:#ff9a4a;border-color:#ff9a4a88}#status.al{color:#fff;background:#8c1d1dcc;border-color:#ff5050;animation:pul .5s infinite alternate}
+@keyframes pul{to{background:#c22b2bcc}}
+#item{position:absolute;right:calc(70px + env(safe-area-inset-right));top:calc(14px + env(safe-area-inset-top));text-shadow:0 1px 3px #000}
+#subs{position:absolute;left:50%;bottom:calc(150px*var(--ui));transform:translateX(-50%);text-align:center;width:min(80vw,640px)}
+#subs div{background:#000a;padding:3px 10px;margin:3px auto;display:table;animation:fin .25s}#subs b{color:var(--gold)}
+#toast{position:absolute;left:50%;top:22%;transform:translateX(-50%);max-width:min(86vw,560px);text-align:center;background:#0b0f1ae6;border-left:3px solid var(--gold);padding:10px 16px;opacity:0}
+#toast.on{animation:tst 4.5s}@keyframes tst{0%{opacity:0;transform:translate(-50%,8px)}6%,85%{opacity:1;transform:translate(-50%,0)}100%{opacity:0}}
+@keyframes fin{from{opacity:0}}
+#prompt{position:absolute;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%);text-align:center;text-shadow:0 1px 3px #000}
+#prompt div{min-height:1.3em}#pa{color:var(--gold)}
+#dbg{position:fixed;left:8px;bottom:8px;z-index:9;font:12px monospace;background:#000b;padding:3px 6px;display:none;pointer-events:none}
+#tc{display:none}
+.tb{position:absolute;pointer-events:auto;border-radius:50%;border:1px solid #ffffff40;background:radial-gradient(#1a2030cc,#0b0f1acc);color:var(--ink);display:flex;align-items:center;justify-content:center;font:600 calc(13px*var(--ui)) system-ui;text-align:center;line-height:1.05;touch-action:none}
+.tb.on{background:radial-gradient(#3a3020ee,#1b1608ee);border-color:var(--gold)}.tb.dim{opacity:.45}
+#b-action{width:calc(86px*var(--ui));height:calc(86px*var(--ui));right:calc(26px + env(safe-area-inset-right));bottom:calc(30px + env(safe-area-inset-bottom));border-color:#d4af3799}
+#b-action span,#b-alt span{padding:4px;font-size:.92em}
+#b-alt{width:calc(72px*var(--ui));height:calc(72px*var(--ui));right:calc(120px*var(--ui) + env(safe-area-inset-right));bottom:calc(98px*var(--ui) + env(safe-area-inset-bottom));display:none}
+#b-jump{width:calc(66px*var(--ui));height:calc(66px*var(--ui));right:calc(124px*var(--ui) + env(safe-area-inset-right));bottom:calc(22px + env(safe-area-inset-bottom));font-size:calc(26px*var(--ui))}
+#b-crouch{width:calc(58px*var(--ui));height:calc(58px*var(--ui));right:calc(206px*var(--ui) + env(safe-area-inset-right));bottom:calc(20px + env(safe-area-inset-bottom));font-size:calc(22px*var(--ui))}
+#b-throw{width:calc(58px*var(--ui));height:calc(58px*var(--ui));right:calc(30px + env(safe-area-inset-right));bottom:calc(132px*var(--ui) + env(safe-area-inset-bottom));font-size:calc(22px*var(--ui))}
+#b-item{width:calc(40px*var(--ui));height:calc(40px*var(--ui));right:calc(30px + env(safe-area-inset-right));bottom:calc(200px*var(--ui) + env(safe-area-inset-bottom));font-size:calc(16px*var(--ui))}
+#b-pause{width:42px;height:42px;right:calc(14px + env(safe-area-inset-right));top:calc(8px + env(safe-area-inset-top));border-radius:8px;font-size:16px}
+.joy{position:fixed;width:120px;height:120px;margin:-60px 0 0 -60px;border-radius:50%;border:1px solid #ffffff30;background:#0b0f1a55;display:none;z-index:5;pointer-events:none}
+.joyk{position:absolute;left:50%;top:50%;width:52px;height:52px;border-radius:50%;background:#e8e2d433;border:1px solid #ffffff60;transform:translate(-50%,-50%)}
+#screen{position:fixed;inset:0;z-index:10;display:none;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,#0b0f1a55,#05070dee);overflow:auto;padding:20px}
+#screen.on{display:flex;animation:fin .35s}#screen.main{background:linear-gradient(90deg,#05070df0 0%,#05070dbb 45%,#05070d22 100%);justify-content:flex-start}
+.panel{width:min(520px,92vw);display:flex;flex-direction:column;gap:10px;font-size:calc(15px*var(--ui))}
+.main .panel{margin-left:max(4vw,env(safe-area-inset-left))}
+.kicker{color:var(--gold);letter-spacing:.35em;text-transform:uppercase;font-size:.75em}
+h1{margin:0 0 6px;font-weight:400;font-size:2.3em;letter-spacing:.02em;line-height:1.05}
+.sub{color:var(--dim);margin:0 0 18px}p{margin:0 0 6px;line-height:1.45;color:#cfc8b8}.tip{color:var(--dim);font-size:.88em}
+button{font:inherit;color:var(--ink);background:transparent;border:0;border-left:2px solid #ffffff22;padding:11px 16px;text-align:left;cursor:pointer;letter-spacing:.06em;transition:border-color .2s,background .2s,padding .2s}
+button:hover,button:focus{border-left-color:var(--gold);background:#ffffff08;padding-left:22px;outline:none}button.pri{border-left-color:var(--gold);color:#fff;background:linear-gradient(90deg,#d4af3722,transparent)}
+button small{color:var(--dim);margin-left:8px}
+.opps{display:flex;flex-direction:column;gap:6px;background:#ffffff06;border-left:2px solid #d4af3766;padding:10px 12px;font-size:.92em}.opps b{color:var(--gold);letter-spacing:.2em;text-transform:uppercase;font-size:.8em}
+.stats{display:grid;grid-template-columns:auto auto;gap:4px 20px;font-size:.95em}.stats span{color:var(--dim)}.stars{color:var(--gold);font-size:1.6em;letter-spacing:.15em}
+.ch{display:flex;flex-direction:column;gap:3px;font-size:.88em;color:var(--dim)}.ch .ok{color:#9fe0b8}.ch .was{color:var(--gold)}
+.fail h1{color:#ff8a7a}.form{display:flex;flex-direction:column;gap:6px}
+.row{display:flex;justify-content:space-between;align-items:center;gap:12px;border-bottom:1px solid #ffffff12;padding:6px 0}
+select,input[type=range]{font:inherit;background:#141a28;color:var(--ink);border:1px solid #ffffff22;padding:4px;max-width:46%}
+.help{display:flex;flex-direction:column;gap:12px;font-size:.92em;line-height:1.45}.help b{color:var(--gold)}
+#load{position:fixed;inset:0;z-index:20;background:#05070d;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;transition:opacity .6s}
+#load.out{opacity:0;pointer-events:none}#load h1{font-size:2em}#loadbar{width:min(320px,70vw);height:2px;background:#ffffff18}#loadbar i{display:block;height:100%;width:0;background:var(--gold);transition:width .3s}
+#loadmsg{color:var(--dim);font-size:.9em}
+body.menu #touch{pointer-events:none}
+body.touch #prompt{display:none}
+@media (max-aspect-ratio:1/1){#status{top:calc(46px + env(safe-area-inset-top));font-size:.8em}#obj{max-width:calc(100vw - 150px);font-size:.92em}#item{top:calc(50px + env(safe-area-inset-top))}#subs{bottom:calc(220px*var(--ui))}}
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas><div id="vig"></div><div id="touch"></div><canvas id="ind"></canvas>
+<div id="hud"><div id="obj"></div><div id="status"></div><div id="item"></div><div id="subs"></div><div id="toast"></div>
+<div id="prompt"><div id="pa"></div><div id="pb"></div></div>
+<div id="tc"><div class="tb" id="b-action"><span>⚔</span></div><div class="tb" id="b-alt"><span></span></div><div class="tb" id="b-jump">⤴</div><div class="tb" id="b-crouch">▼</div><div class="tb" id="b-throw">🪨</div><div class="tb" id="b-item">⇄</div></div>
+<div class="tb" id="b-pause">❚❚</div></div>
+<div id="screen"></div><div id="dbg"></div>
+<div id="load"><div class="kicker" style="color:#d4af37;letter-spacing:.35em">SHADOW CONTRACT</div><h1>Колокольня Орлова</h1><div id="loadbar"><i></i></div><div id="loadmsg">Подготовка…</div></div>
+<script>window.__ASSETS=/*ASSETS*/;</script>
+<script>/*GAME*/</script>
+</body>
+</html>
